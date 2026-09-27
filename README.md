@@ -11,18 +11,18 @@ The engine implements a strict state-machine flow inspired by Pine Script mechan
 ### Trading Strategy (State Machine)
 ```mermaid
 graph TD
-    S1(("🔍 IDLE<br/>(Seeking Trend)")) -->|Trend Found + Range Tight| S2
+    S1(("🔍 IDLE<br/>Seeking Trend")) -->|Trend Found and Range Tight| S2
     
-    S2["📦 CONSOLIDATION<br/>(Energy Building)"] -->|Price > Resistance + High Vol| S3
+    S2["📦 CONSOLIDATION<br/>Energy Building"] -->|Price Above Resistance| S3
     S2 -->|Consolidation Timeout| S1
     
-    S3["💥 ACCEPTANCE WATCH<br/>(Initial Breakout)"] -->|Closes & Holds Outside Box| S4
-    S3 -->|Fails to Hold (Trap)| S1
+    S3["💥 ACCEPTANCE WATCH<br/>Initial Breakout"] -->|Closes and Holds Outside Box| S4
+    S3 -->|Fails to Hold| S1
     
-    S4["🛡️ RETEST WATCH<br/>(Pullback)"] -->|Touches Box & Rejects| S5
+    S4["🛡️ RETEST WATCH<br/>Pullback"] -->|Touches Box and Rejects| S5
     S4 -->|Falls Back Inside| S1
     
-    S5((("🎯 EXECUTION<br/>(Buy / Sell)")))
+    S5((("🎯 EXECUTION<br/>Buy or Sell")))
     
     style S1 fill:#1e293b,stroke:#94a3b8,color:#fff
     style S2 fill:#b45309,stroke:#f59e0b,color:#fff
