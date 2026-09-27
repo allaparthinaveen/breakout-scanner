@@ -33,4 +33,20 @@ Using the robot is as easy as looking at a dashboard:
    * 🟢 **BUY:** It tapped the roof and it's time to go!
 4. **Safety First:** The robot has a built-in "Kill Switch" (like a seatbelt). If the market gets too crazy, it stops trading automatically so you don't lose your allowance money!
 
-You just let the robot watch the cars all day, and it tells you exactly when to jump in!
+---
+
+## 💬 Sample Robot Chats!
+
+The dashboard has a special **Prediction Chat** where you can ask the robot *why* it did something. Here are some examples of what the robot might say:
+
+### Example 1: The Trap!
+**You:** "Hey robot, what happened to Microsoft (MSFT)?"  
+**Robot 🤖:** "Microsoft tried to smash through the wall, but it was a fake! It immediately fell back into its pit stop box. I labeled it a TRAP, so I didn't press the BUY button. We saved our money!"
+
+### Example 2: The Perfect Setup
+**You:** "Why is Apple (AAPL) labeled BUY right now?"  
+**Robot 🤖:** "Apple is looking great! It rested in a tight box, smashed through the wall with lots of volume, survived outside the box, and just gave the wall a 'goodbye tap' (Retest). It's ready to zoom, so I pressed BUY!"
+
+### Example 3: Waiting Patiently
+**You:** "What is Nvidia (NVDA) doing?"  
+**Robot 🤖:** "Nvidia is just taking a long pit stop right now. It is in CONSOLIDATION mode. We are just sitting back and watching to see if it can build up enough energy to break the wall later."
