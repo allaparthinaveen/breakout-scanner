@@ -8,6 +8,32 @@ The engine implements a strict state-machine flow inspired by Pine Script mechan
 
 `IDLE` → `CONSOLIDATION` → `ACCEPTANCE_WATCH` → `ACCEPTED_RETEST_WATCH` → `BUY/SELL`
 
+### Implementation Phases (Roadmap)
+```mermaid
+graph TD
+    P1[Phase 1: Python Parity<br/><i>Core logic migration</i>] --> P2
+    P2[Phase 2: Historical Backtester<br/><i>O(N²) Zero Look-Ahead Engine</i>] --> P3
+    P3[Phase 3: Risk Engine<br/><i>SL, TP, and Sizing</i>] --> P4
+    P4[Phase 4: Multi-Symbol Scanner<br/><i>Persistent state memory</i>] --> P5
+    P5[Phase 5: Real-Time Feed<br/><i>Websocket adapters</i>] --> P6
+    P6[Phase 6: Dashboard & AI Chat<br/><i>UI & Explainability</i>] --> P7
+    P7[Phase 7: Walk-Forward Validation<br/><i>OOS cross-sector grid search</i>] --> P8
+    P8[Phase 8: Paper Trading<br/><i>Simulated mock execution</i>] --> P9
+    P9[Phase 9: Production Safeguards<br/><i>Kill switches & circuit breakers</i>] --> P10
+    P10(((Phase 10: Live Execution<br/><i>Broker API integration</i>)))
+    
+    style P1 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P2 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P3 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P4 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P5 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P6 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P7 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P8 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P9 fill:#0f172a,stroke:#38bdf8,color:#fff
+    style P10 fill:#38bdf8,stroke:#0ea5e9,color:#fff,stroke-width:4px
+```
+
 ### Core Components
 1. **The Breakout Engine (`engine.py`)**: The deterministic core. It computes ATR, Momentum, and Volume profiles bar-by-bar to evaluate structures.
 2. **The Scanner (`scanner.py`)**: Manages the persistent memory state for N-symbols simultaneously.
