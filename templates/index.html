@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Breakout Engine - Live Scanner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="bg-fx"></div>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="pulse-dot"></div>
+                <h1>ExecutionHub</h1>
+            </div>
+            <p>Phase 6: Multi-Symbol Breakout Scanner & Prediction Engine</p>
+            <button id="scan-btn" onclick="fetchScan()">Scan Market</button>
+        </header>
+
+        <main id="scanner-grid" class="grid">
+            <!-- Cards will be populated here by JS -->
+            <div class="loading-state" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analyzing Market Structure & Momentum...</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        async function fetchScan() {
+            const btn = document.getElementById('scan-btn');
+            const grid = document.getElementById('scanner-grid');
+            const loading = document.getElementById('loading');
+            
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            grid.innerHTML = '';
+            grid.appendChild(loading);
+            loading.style.display = 'flex';
+
+            try {
+                const response = await fetch('/api/scan');
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                
+                data.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = `card state-${item.state.toLowerCase()}`;
+                    
+                    let trendIcon = item.trend > 0 ? '↗' : (item.trend < 0 ? '↘' : '→');
+                    let trendClass = item.trend > 0 ? 'bullish' : (item.trend < 0 ? 'bearish' : 'neutral');
+                    
+                    // Format prediction chat to keep UI clean
+                    let chatHtml = item.explanation.split('\n').map(line => `<p>${line}</p>`).join('');
+
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <h2>${item.symbol}</h2>
+                            <div class="trend-badge ${trendClass}">${trendIcon}</div>
+                        </div>
+                        <div class="state-label">${item.state.replace(/_/g, ' ')}</div>
+                        
+                        ${item.state !== 'IDLE' && item.state !== 'FAILED' ? `
+                            <div class="score">
+                                <span>Breakout Score</span>
+                                <strong>${item.score}/5</strong>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="prediction-chat">
+                            <div class="chat-header">Prediction Engine</div>
+                            <div class="chat-body">${chatHtml}</div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (err) {
+                loading.style.display = 'none';
+                grid.innerHTML = `<div class="error">Failed to fetch scan results. Is the backend running?</div>`;
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Scan Market';
+        }
+
+        // Run initial scan
+        window.onload = fetchScan;
+    </script>
+</body>
+</html>

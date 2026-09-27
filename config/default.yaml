@@ -1,0 +1,29 @@
+structure:
+  pivot_len: 3
+  min_trend_swings: 2
+consolidation:
+  min_bars: 5
+  max_bars: 40
+  max_range_pct: 3.0
+breakout:
+  buffer_pct: 0.10
+  min_score: 4
+  volume_lookback: 20
+  min_volume_ratio: 1.10
+  min_body_ratio: 0.55
+  close_location_min: 0.70
+  momentum_lookback: 3
+  max_rejection_wick_ratio: 0.35
+acceptance:
+  hold_bars: 1
+  max_back_inside_pct: 0.15
+  max_wait_bars: 3
+retest:
+  max_wait_bars: 10
+  buffer_pct: 0.25
+risk:
+  reward_risk: 2.0
+  account_size: 10000
+  risk_per_trade_pct: 0.50
+scanner:
+  max_symbols: 20

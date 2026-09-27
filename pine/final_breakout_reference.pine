@@ -1,0 +1,176 @@
+//@version=6
+indicator("Structure → Tight Consolidation → Breakout → Acceptance → Retest → Entry (Reference)", overlay=true, max_boxes_count=10, max_labels_count=200)
+
+pivotLen=input.int(3,"Swing Length",minval=1)
+minTrendSwings=input.int(2,"Minimum Trend Swings",minval=1)
+minConsBars=input.int(5,"Minimum Consolidation Bars",minval=2)
+maxConsBars=input.int(40,"Maximum Consolidation Bars",minval=5)
+maxBoxPct=input.float(3.0,"Maximum Tight Box Range %",minval=.25,step=.25)
+breakoutBuffer=input.float(.10,"Breakout Buffer %",minval=0,step=.05)
+minBreakScore=input.int(4,"Minimum Breakout Score",minval=1,maxval=5)
+volLookback=input.int(20,"Volume Lookback",minval=5)
+minVolRatio=input.float(1.10,"Minimum Volume Ratio",minval=.5,step=.05)
+minBodyRatio=input.float(.55,"Minimum Body / Range",minval=.1,maxval=1)
+closeLocMin=input.float(.70,"Minimum Close Location",minval=.5,maxval=1)
+momentumBars=input.int(3,"Momentum Lookback",minval=1)
+acceptBars=input.int(1,"Acceptance Hold Bars",minval=1,maxval=3)
+acceptMaxBack=input.float(.15,"Acceptance Max Back %",minval=.01)
+retestBars=input.int(10,"Maximum Retest Wait",minval=1)
+retestBuffer=input.float(.25,"Retest Buffer %",minval=0)
+showStructure=input.bool(true,"Show Structure")
+showBox=input.bool(true,"Show Box")
+showSignals=input.bool(true,"Show Signals")
+
+ph=ta.pivothigh(high,pivotLen,pivotLen), pl=ta.pivotlow(low,pivotLen,pivotLen)
+var float prevH=na
+var float lastH=na
+var float prevL=na
+var float lastL=na
+var int hh=0
+var int hl=0
+var int lh=0
+var int ll=0
+newHH=false,newLH=false,newHL=false,newLL=false
+if not na(ph)
+    prevH:=lastH
+    lastH:=ph
+    if not na(prevH)
+        newHH:=lastH>prevH
+        newLH:=lastH<prevH
+if not na(pl)
+    prevL:=lastL
+    lastL:=pl
+    if not na(prevL)
+        newHL:=lastL>prevL
+        newLL:=lastL<prevL
+if newHH
+    hh+=1
+    lh:=0
+if newHL
+    hl+=1
+if newLH
+    lh+=1
+    hh:=0
+if newLL
+    ll+=1
+var int trend=0
+if hh>=minTrendSwings and hl>=minTrendSwings
+    trend:=1
+if lh>=minTrendSwings and ll>=minTrendSwings
+    trend:=-1
+if showStructure
+    if newHH
+        label.new(bar_index-pivotLen,ph,"HH",style=label.style_label_down,color=color.green,textcolor=color.white,size=size.tiny)
+    if newLH
+        label.new(bar_index-pivotLen,ph,"LH",style=label.style_label_down,color=color.red,textcolor=color.white,size=size.tiny)
+    if newHL
+        label.new(bar_index-pivotLen,pl,"HL",style=label.style_label_up,color=color.green,textcolor=color.white,size=size.tiny)
+    if newLL
+        label.new(bar_index-pivotLen,pl,"LL",style=label.style_label_up,color=color.red,textcolor=color.white,size=size.tiny)
+
+var int state=0 // 0 idle, 1 consolidation, 2 acceptance watch, 3 retest watch
+var float resistance=na
+var float support=na
+var int consStart=na
+var int breakoutBar=na
+var int retestStart=na
+var int acceptCount=0
+var box bx=na
+recentHigh=ta.highest(high,minConsBars)
+recentLow=ta.lowest(low,minConsBars)
+mid=(recentHigh+recentLow)/2
+rangePct=mid!=0 ? (recentHigh-recentLow)/mid*100 : 999
+if trend!=0 and state==0 and rangePct<=maxBoxPct
+    state:=1
+    consStart:=bar_index-minConsBars+1
+    resistance:=recentHigh
+    support:=recentLow
+    if showBox
+        bx:=box.new(consStart,resistance,bar_index,support,border_color=color.purple,bgcolor=color.new(color.purple,85),border_width=2)
+if state==1
+    if showBox and not na(bx)
+        box.set_right(bx,bar_index)
+    bars=bar_index-consStart+1
+    rng=math.max(high-low,syminfo.mintick)
+    body=math.abs(close-open)
+    bodyOK=body/rng>=minBodyRatio
+    locBull=(close-low)/rng
+    locBear=(high-close)/rng
+    vavg=ta.sma(volume,volLookback)
+    vr=vavg>0?volume/vavg:1
+    bull=close>resistance*(1+breakoutBuffer/100)
+    bear=close<support*(1-breakoutBuffer/100)
+    bullScore=(bull?1:0)+(bodyOK?1:0)+(locBull>=closeLocMin?1:0)+(vr>=minVolRatio?1:0)+(close>close[momentumBars]?1:0)
+    bearScore=(bear?1:0)+(bodyOK?1:0)+(locBear>=closeLocMin?1:0)+(vr>=minVolRatio?1:0)+(close<close[momentumBars]?1:0)
+    if trend==1 and bull and bullScore>=minBreakScore
+        state:=2
+        breakoutBar:=bar_index
+        acceptCount:=0
+        if showSignals
+            label.new(bar_index,low,"BREAKOUT LONG "+str.tostring(bullScore)+"/5",style=label.style_label_up,color=color.green,textcolor=color.white,size=size.tiny)
+    else if trend==-1 and bear and bearScore>=minBreakScore
+        state:=2
+        breakoutBar:=bar_index
+        acceptCount:=0
+        if showSignals
+            label.new(bar_index,high,"BREAKDOWN SHORT "+str.tostring(bearScore)+"/5",style=label.style_label_down,color=color.red,textcolor=color.white,size=size.tiny)
+    if bars>maxConsBars
+        state:=0
+        if not na(bx)
+            box.delete(bx)
+        bx:=na
+
+if state==2 and bar_index>breakoutBar
+    if trend==1
+        beyond=close>resistance
+        back=(resistance-close)/resistance*100
+        failed=not beyond or back>acceptMaxBack
+        if failed
+            state:=0
+            if showSignals
+                label.new(bar_index,high,"ACCEPTANCE FAILED",style=label.style_label_down,color=color.gray,textcolor=color.white,size=size.tiny)
+        else
+            acceptCount+=1
+            if acceptCount>=acceptBars
+                state:=3
+                retestStart:=bar_index
+                if showSignals
+                    label.new(bar_index,low,"ACCEPTED ✓",style=label.style_label_up,color=color.blue,textcolor=color.white,size=size.tiny)
+    else if trend==-1
+        beyond=close<support
+        back=(close-support)/support*100
+        failed=not beyond or back>acceptMaxBack
+        if failed
+            state:=0
+            if showSignals
+                label.new(bar_index,low,"ACCEPTANCE FAILED",style=label.style_label_up,color=color.gray,textcolor=color.white,size=size.tiny)
+        else
+            acceptCount+=1
+            if acceptCount>=acceptBars
+                state:=3
+                retestStart:=bar_index
+                if showSignals
+                    label.new(bar_index,high,"ACCEPTED ✓",style=label.style_label_down,color=color.blue,textcolor=color.white,size=size.tiny)
+
+longEntry=false
+shortEntry=false
+if state==3 and bar_index>retestStart
+    age=bar_index-retestStart
+    longRetest=trend==1 and low<=resistance*(1+retestBuffer/100) and close>resistance
+    shortRetest=trend==-1 and high>=support*(1-retestBuffer/100) and close<support
+    if longRetest
+        longEntry:=true
+        state:=0
+        if showSignals
+            label.new(bar_index,low,"RETEST → LONG ENTRY",style=label.style_label_up,color=color.orange,textcolor=color.white,size=size.tiny)
+    else if shortRetest
+        shortEntry:=true
+        state:=0
+        if showSignals
+            label.new(bar_index,high,"RETEST → SHORT ENTRY",style=label.style_label_down,color=color.orange,textcolor=color.white,size=size.tiny)
+    if age>retestBars
+        state:=0
+plotshape(longEntry,"LONG ENTRY",shape.triangleup,location.belowbar,color.green,size=size.small,text="LONG")
+plotshape(shortEntry,"SHORT ENTRY",shape.triangledown,location.abovebar,color.red,size=size.small,text="SHORT")
+alertcondition(longEntry,"LONG ENTRY","Breakout → Acceptance → Retest → LONG")
+alertcondition(shortEntry,"SHORT ENTRY","Breakdown → Acceptance → Retest → SHORT")
