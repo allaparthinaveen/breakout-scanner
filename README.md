@@ -8,30 +8,27 @@ The engine implements a strict state-machine flow inspired by Pine Script mechan
 
 `IDLE` → `CONSOLIDATION` → `ACCEPTANCE_WATCH` → `ACCEPTED_RETEST_WATCH` → `BUY/SELL`
 
-### Implementation Phases (Roadmap)
+### Trading Strategy (State Machine)
 ```mermaid
 graph TD
-    P1["Phase 1: Python Parity<br/>Core logic migration"] --> P2
-    P2["Phase 2: Historical Backtester<br/>O(N²) Zero Look-Ahead Engine"] --> P3
-    P3["Phase 3: Risk Engine<br/>SL, TP, and Sizing"] --> P4
-    P4["Phase 4: Multi-Symbol Scanner<br/>Persistent state memory"] --> P5
-    P5["Phase 5: Real-Time Feed<br/>Websocket adapters"] --> P6
-    P6["Phase 6: Dashboard & AI Chat<br/>UI & Explainability"] --> P7
-    P7["Phase 7: Walk-Forward Validation<br/>OOS cross-sector grid search"] --> P8
-    P8["Phase 8: Paper Trading<br/>Simulated mock execution"] --> P9
-    P9["Phase 9: Production Safeguards<br/>Kill switches & circuit breakers"] --> P10
-    P10((("Phase 10: Live Execution<br/>Broker API integration")))
+    S1(("🔍 IDLE<br/>(Seeking Trend)")) -->|Trend Found + Range Tight| S2
     
-    style P1 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P2 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P3 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P4 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P5 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P6 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P7 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P8 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P9 fill:#0f172a,stroke:#38bdf8,color:#fff
-    style P10 fill:#38bdf8,stroke:#0ea5e9,color:#fff,stroke-width:4px
+    S2["📦 CONSOLIDATION<br/>(Energy Building)"] -->|Price > Resistance + High Vol| S3
+    S2 -->|Consolidation Timeout| S1
+    
+    S3["💥 ACCEPTANCE WATCH<br/>(Initial Breakout)"] -->|Closes & Holds Outside Box| S4
+    S3 -->|Fails to Hold (Trap)| S1
+    
+    S4["🛡️ RETEST WATCH<br/>(Pullback)"] -->|Touches Box & Rejects| S5
+    S4 -->|Falls Back Inside| S1
+    
+    S5((("🎯 EXECUTION<br/>(Buy / Sell)")))
+    
+    style S1 fill:#1e293b,stroke:#94a3b8,color:#fff
+    style S2 fill:#b45309,stroke:#f59e0b,color:#fff
+    style S3 fill:#1d4ed8,stroke:#3b82f6,color:#fff
+    style S4 fill:#4338ca,stroke:#6366f1,color:#fff
+    style S5 fill:#15803d,stroke:#22c55e,color:#fff,stroke-width:4px
 ```
 
 ### Core Components
