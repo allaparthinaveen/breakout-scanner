@@ -11,16 +11,16 @@ The engine implements a strict state-machine flow inspired by Pine Script mechan
 ### Implementation Phases (Roadmap)
 ```mermaid
 graph TD
-    P1[Phase 1: Python Parity<br/><i>Core logic migration</i>] --> P2
-    P2[Phase 2: Historical Backtester<br/><i>O(N²) Zero Look-Ahead Engine</i>] --> P3
-    P3[Phase 3: Risk Engine<br/><i>SL, TP, and Sizing</i>] --> P4
-    P4[Phase 4: Multi-Symbol Scanner<br/><i>Persistent state memory</i>] --> P5
-    P5[Phase 5: Real-Time Feed<br/><i>Websocket adapters</i>] --> P6
-    P6[Phase 6: Dashboard & AI Chat<br/><i>UI & Explainability</i>] --> P7
-    P7[Phase 7: Walk-Forward Validation<br/><i>OOS cross-sector grid search</i>] --> P8
-    P8[Phase 8: Paper Trading<br/><i>Simulated mock execution</i>] --> P9
-    P9[Phase 9: Production Safeguards<br/><i>Kill switches & circuit breakers</i>] --> P10
-    P10(((Phase 10: Live Execution<br/><i>Broker API integration</i>)))
+    P1["Phase 1: Python Parity<br/>Core logic migration"] --> P2
+    P2["Phase 2: Historical Backtester<br/>O(N²) Zero Look-Ahead Engine"] --> P3
+    P3["Phase 3: Risk Engine<br/>SL, TP, and Sizing"] --> P4
+    P4["Phase 4: Multi-Symbol Scanner<br/>Persistent state memory"] --> P5
+    P5["Phase 5: Real-Time Feed<br/>Websocket adapters"] --> P6
+    P6["Phase 6: Dashboard & AI Chat<br/>UI & Explainability"] --> P7
+    P7["Phase 7: Walk-Forward Validation<br/>OOS cross-sector grid search"] --> P8
+    P8["Phase 8: Paper Trading<br/>Simulated mock execution"] --> P9
+    P9["Phase 9: Production Safeguards<br/>Kill switches & circuit breakers"] --> P10
+    P10((("Phase 10: Live Execution<br/>Broker API integration")))
     
     style P1 fill:#0f172a,stroke:#38bdf8,color:#fff
     style P2 fill:#0f172a,stroke:#38bdf8,color:#fff
