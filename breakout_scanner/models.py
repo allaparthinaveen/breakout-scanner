@@ -26,3 +26,13 @@ class Setup:
     evidence: list[str]=field(default_factory=list)
     failure_reason: Optional[str]=None
     cons_index: Optional[int]=None
+    
+    # SMC / Liquidity Tracking
+    long_sweep: bool=False
+    short_sweep: bool=False
+    long_reaction: bool=False
+    short_reaction: bool=False
+    long_sweep_index: Optional[int]=None
+    short_sweep_index: Optional[int]=None
+    long_liquidity_level: Optional[float]=None
+    short_liquidity_level: Optional[float]=None

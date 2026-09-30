@@ -1,176 +1,1223 @@
 //@version=6
-indicator("Structure → Tight Consolidation → Breakout → Acceptance → Retest → Entry (Reference)", overlay=true, max_boxes_count=10, max_labels_count=200)
+indicator("Structure → Liquidity Sweep → Reaction → Breakout → Acceptance → Retest", overlay=true, max_boxes_count=20, max_labels_count=300)
 
-pivotLen=input.int(3,"Swing Length",minval=1)
-minTrendSwings=input.int(2,"Minimum Trend Swings",minval=1)
-minConsBars=input.int(5,"Minimum Consolidation Bars",minval=2)
-maxConsBars=input.int(40,"Maximum Consolidation Bars",minval=5)
-maxBoxPct=input.float(3.0,"Maximum Tight Box Range %",minval=.25,step=.25)
-breakoutBuffer=input.float(.10,"Breakout Buffer %",minval=0,step=.05)
-minBreakScore=input.int(4,"Minimum Breakout Score",minval=1,maxval=5)
-volLookback=input.int(20,"Volume Lookback",minval=5)
-minVolRatio=input.float(1.10,"Minimum Volume Ratio",minval=.5,step=.05)
-minBodyRatio=input.float(.55,"Minimum Body / Range",minval=.1,maxval=1)
-closeLocMin=input.float(.70,"Minimum Close Location",minval=.5,maxval=1)
-momentumBars=input.int(3,"Momentum Lookback",minval=1)
-acceptBars=input.int(1,"Acceptance Hold Bars",minval=1,maxval=3)
-acceptMaxBack=input.float(.15,"Acceptance Max Back %",minval=.01)
-retestBars=input.int(10,"Maximum Retest Wait",minval=1)
-retestBuffer=input.float(.25,"Retest Buffer %",minval=0)
-showStructure=input.bool(true,"Show Structure")
-showBox=input.bool(true,"Show Box")
-showSignals=input.bool(true,"Show Signals")
+//====================================================
+// INPUTS
+//====================================================
 
-ph=ta.pivothigh(high,pivotLen,pivotLen), pl=ta.pivotlow(low,pivotLen,pivotLen)
-var float prevH=na
-var float lastH=na
-var float prevL=na
-var float lastL=na
-var int hh=0
-var int hl=0
-var int lh=0
-var int ll=0
-newHH=false,newLH=false,newHL=false,newLL=false
+//----------------------------------------------------
+// STRUCTURE
+//----------------------------------------------------
+
+pivotLen = input.int(
+     3,
+     "Swing Length",
+     minval=1
+     )
+
+minTrendSwings = input.int(
+     2,
+     "Minimum Trend Swings",
+     minval=1
+     )
+
+//----------------------------------------------------
+// CONSOLIDATION
+//----------------------------------------------------
+
+minConsBars = input.int(
+     5,
+     "Minimum Consolidation Bars",
+     minval=2
+     )
+
+maxConsBars = input.int(
+     40,
+     "Maximum Consolidation Bars",
+     minval=5
+     )
+
+maxBoxPct = input.float(
+     3.0,
+     "Maximum Tight Box Range %",
+     minval=.25,
+     step=.25
+     )
+
+//----------------------------------------------------
+// BREAKOUT
+//----------------------------------------------------
+
+breakoutBuffer = input.float(
+     .10,
+     "Breakout Buffer %",
+     minval=0,
+     step=.05
+     )
+
+minBreakScore = input.int(
+     4,
+     "Minimum Breakout Score",
+     minval=1,
+     maxval=5
+     )
+
+//----------------------------------------------------
+// VOLUME / CANDLE QUALITY
+//----------------------------------------------------
+
+volLookback = input.int(
+     20,
+     "Volume Lookback",
+     minval=5
+     )
+
+minVolRatio = input.float(
+     1.10,
+     "Minimum Volume Ratio",
+     minval=.5,
+     step=.05
+     )
+
+minBodyRatio = input.float(
+     .55,
+     "Minimum Body / Range",
+     minval=.1,
+     maxval=1
+     )
+
+closeLocMin = input.float(
+     .70,
+     "Minimum Close Location",
+     minval=.5,
+     maxval=1
+     )
+
+momentumBars = input.int(
+     3,
+     "Momentum Lookback",
+     minval=1
+     )
+
+//----------------------------------------------------
+// LIQUIDITY
+//----------------------------------------------------
+
+liquidityMode = input.string(
+     "Optional Confirmation",
+     "Liquidity Mode",
+     options=[
+         "Off",
+         "Optional Confirmation",
+         "Require Sweep"
+         ]
+     )
+
+equalTolerance = input.float(
+     .15,
+     "Equal High/Low Tolerance %",
+     minval=.01,
+     step=.05
+     )
+
+reactionBars = input.int(
+     3,
+     "Reaction Window After Sweep",
+     minval=1,
+     maxval=5
+     )
+
+sweepBuffer = input.float(
+     .05,
+     "Sweep Penetration %",
+     minval=0,
+     step=.05
+     )
+
+reactionBodyRatio = input.float(
+     .45,
+     "Reaction Body / Range",
+     minval=.1,
+     maxval=1
+     )
+
+reactionCloseLoc = input.float(
+     .65,
+     "Reaction Close Location",
+     minval=.5,
+     maxval=1
+     )
+
+sweepVolRatio = input.float(
+     0.90,
+     "Minimum Sweep/Reaction Volume Ratio",
+     minval=.5,
+     step=.05
+     )
+
+//----------------------------------------------------
+// ACCEPTANCE
+//----------------------------------------------------
+
+acceptBars = input.int(
+     1,
+     "Acceptance Hold Bars",
+     minval=1,
+     maxval=3
+     )
+
+acceptMaxBack = input.float(
+     .15,
+     "Acceptance Max Back %",
+     minval=.01
+     )
+
+//----------------------------------------------------
+// RETEST
+//----------------------------------------------------
+
+retestBars = input.int(
+     10,
+     "Maximum Retest Wait",
+     minval=1
+     )
+
+retestBuffer = input.float(
+     .25,
+     "Retest Buffer %",
+     minval=0
+     )
+
+//----------------------------------------------------
+// DISPLAY
+//----------------------------------------------------
+
+showLiquidity = input.bool(
+     true,
+     "Show Liquidity Map"
+     )
+
+showSweep = input.bool(
+     true,
+     "Show Liquidity Sweeps"
+     )
+
+showReaction = input.bool(
+     true,
+     "Show Reactions"
+     )
+
+showDisplacement = input.bool(
+     true,
+     "Show Displacement"
+     )
+
+showBox = input.bool(
+     true,
+     "Show Consolidation Box"
+     )
+
+showSignals = input.bool(
+     true,
+     "Show Signals"
+     )
+
+
+//====================================================
+// STRUCTURE
+//====================================================
+
+ph = ta.pivothigh(
+     high,
+     pivotLen,
+     pivotLen
+     )
+
+pl = ta.pivotlow(
+     low,
+     pivotLen,
+     pivotLen
+     )
+
+var float prevH = na
+var float lastH = na
+var float prevL = na
+var float lastL = na
+
+var int hh = 0
+var int hl = 0
+var int lh = 0
+var int ll = 0
+
+newHH = false
+newLH = false
+newHL = false
+newLL = false
+
 if not na(ph)
-    prevH:=lastH
-    lastH:=ph
+
+    prevH := lastH
+    lastH := ph
+
     if not na(prevH)
-        newHH:=lastH>prevH
-        newLH:=lastH<prevH
+
+        newHH := lastH > prevH
+        newLH := lastH < prevH
+
 if not na(pl)
-    prevL:=lastL
-    lastL:=pl
+
+    prevL := lastL
+    lastL := pl
+
     if not na(prevL)
-        newHL:=lastL>prevL
-        newLL:=lastL<prevL
+
+        newHL := lastL > prevL
+        newLL := lastL < prevL
+
+
 if newHH
-    hh+=1
-    lh:=0
+
+    hh += 1
+    lh := 0
+
 if newHL
-    hl+=1
+
+    hl += 1
+
 if newLH
-    lh+=1
-    hh:=0
+
+    lh += 1
+    hh := 0
+
 if newLL
-    ll+=1
-var int trend=0
-if hh>=minTrendSwings and hl>=minTrendSwings
-    trend:=1
-if lh>=minTrendSwings and ll>=minTrendSwings
-    trend:=-1
-if showStructure
-    if newHH
-        label.new(bar_index-pivotLen,ph,"HH",style=label.style_label_down,color=color.green,textcolor=color.white,size=size.tiny)
-    if newLH
-        label.new(bar_index-pivotLen,ph,"LH",style=label.style_label_down,color=color.red,textcolor=color.white,size=size.tiny)
-    if newHL
-        label.new(bar_index-pivotLen,pl,"HL",style=label.style_label_up,color=color.green,textcolor=color.white,size=size.tiny)
-    if newLL
-        label.new(bar_index-pivotLen,pl,"LL",style=label.style_label_up,color=color.red,textcolor=color.white,size=size.tiny)
 
-var int state=0 // 0 idle, 1 consolidation, 2 acceptance watch, 3 retest watch
-var float resistance=na
-var float support=na
-var int consStart=na
-var int breakoutBar=na
-var int retestStart=na
-var int acceptCount=0
-var box bx=na
-recentHigh=ta.highest(high,minConsBars)
-recentLow=ta.lowest(low,minConsBars)
-mid=(recentHigh+recentLow)/2
-rangePct=mid!=0 ? (recentHigh-recentLow)/mid*100 : 999
-if trend!=0 and state==0 and rangePct<=maxBoxPct
-    state:=1
-    consStart:=bar_index-minConsBars+1
-    resistance:=recentHigh
-    support:=recentLow
+    ll += 1
+
+
+var int trend = 0
+
+if hh >= minTrendSwings and hl >= minTrendSwings
+    trend := 1
+
+if lh >= minTrendSwings and ll >= minTrendSwings
+    trend := -1
+
+
+//====================================================
+// LIQUIDITY IDENTIFICATION
+//====================================================
+
+// Equal high / low detection
+
+equalHigh = false
+equalLow = false
+
+if not na(lastH) and not na(prevH)
+
+    equalHigh :=
+         math.abs(lastH - prevH) /
+         prevH *
+         100 <= equalTolerance
+
+if not na(lastL) and not na(prevL)
+
+    equalLow :=
+         math.abs(lastL - prevL) /
+         prevL *
+         100 <= equalTolerance
+
+
+//====================================================
+// STATE MACHINE
+//====================================================
+//
+// 0 = Idle
+// 1 = Consolidation
+// 2 = Acceptance Watch
+// 3 = Retest Watch
+//
+
+var int state = 0
+
+var float resistance = na
+var float support = na
+
+var int consStart = na
+var int breakoutBar = na
+var int retestStart = na
+
+var int acceptCount = 0
+
+var box bx = na
+
+
+//====================================================
+// LIQUIDITY STATE
+//====================================================
+
+var bool longSweep = false
+var bool shortSweep = false
+
+var bool longReaction = false
+var bool shortReaction = false
+
+var int longSweepBar = na
+var int shortSweepBar = na
+
+var float longLiquidityLevel = na
+var float shortLiquidityLevel = na
+
+var bool longDisplacement = false
+var bool shortDisplacement = false
+
+
+//====================================================
+// CONSOLIDATION RANGE
+//====================================================
+
+recentHigh = ta.highest(
+     high,
+     minConsBars
+     )
+
+recentLow = ta.lowest(
+     low,
+     minConsBars
+     )
+
+mid =
+     (recentHigh + recentLow) / 2
+
+rangePct =
+     mid != 0 ?
+     (recentHigh - recentLow) / mid * 100 :
+     999
+
+
+//====================================================
+// START CONSOLIDATION
+//====================================================
+
+if trend != 0 and
+   state == 0 and
+   rangePct <= maxBoxPct
+
+    state := 1
+
+    consStart :=
+         bar_index - minConsBars + 1
+
+    resistance := recentHigh
+    support := recentLow
+
+    // Reset liquidity state
+
+    longSweep := false
+    shortSweep := false
+
+    longReaction := false
+    shortReaction := false
+
+    longDisplacement := false
+    shortDisplacement := false
+
+    longSweepBar := na
+    shortSweepBar := na
+
+    longLiquidityLevel := na
+    shortLiquidityLevel := na
+
     if showBox
-        bx:=box.new(consStart,resistance,bar_index,support,border_color=color.purple,bgcolor=color.new(color.purple,85),border_width=2)
-if state==1
+
+        bx := box.new(
+             consStart,
+             resistance,
+             bar_index,
+             support,
+             border_color=color.purple,
+             bgcolor=color.new(color.purple, 85),
+             border_width=2
+             )
+
+
+//====================================================
+// CONSOLIDATION PROCESS
+//====================================================
+
+if state == 1
+
     if showBox and not na(bx)
-        box.set_right(bx,bar_index)
-    bars=bar_index-consStart+1
-    rng=math.max(high-low,syminfo.mintick)
-    body=math.abs(close-open)
-    bodyOK=body/rng>=minBodyRatio
-    locBull=(close-low)/rng
-    locBear=(high-close)/rng
-    vavg=ta.sma(volume,volLookback)
-    vr=vavg>0?volume/vavg:1
-    bull=close>resistance*(1+breakoutBuffer/100)
-    bear=close<support*(1-breakoutBuffer/100)
-    bullScore=(bull?1:0)+(bodyOK?1:0)+(locBull>=closeLocMin?1:0)+(vr>=minVolRatio?1:0)+(close>close[momentumBars]?1:0)
-    bearScore=(bear?1:0)+(bodyOK?1:0)+(locBear>=closeLocMin?1:0)+(vr>=minVolRatio?1:0)+(close<close[momentumBars]?1:0)
-    if trend==1 and bull and bullScore>=minBreakScore
-        state:=2
-        breakoutBar:=bar_index
-        acceptCount:=0
+
+        box.set_right(
+             bx,
+             bar_index
+             )
+
+
+    barsInBox =
+         bar_index - consStart + 1
+
+
+    rng =
+         math.max(
+             high - low,
+             syminfo.mintick
+             )
+
+    body =
+         math.abs(
+             close - open
+             )
+
+    bodyRatio =
+         body / rng
+
+    locBull =
+         (close - low) / rng
+
+    locBear =
+         (high - close) / rng
+
+
+    //================================================
+    // VOLUME
+    //================================================
+
+    vavg =
+         ta.sma(
+             volume,
+             volLookback
+             )
+
+    volumeRatio =
+         vavg > 0 ?
+         volume / vavg :
+         1
+
+
+    //================================================
+    // LIQUIDITY LEVELS
+    //================================================
+
+    // Use consolidation boundaries as primary pools.
+
+    sellLiquidity =
+         support
+
+    buyLiquidity =
+         resistance
+
+
+    // If a confirmed swing exists below support,
+    // use the closer meaningful swing low.
+
+    if not na(lastL)
+
+        if lastL <= support
+
+            sellLiquidity := lastL
+
+
+    // If a confirmed swing exists above resistance,
+    // use the closer meaningful swing high.
+
+    if not na(lastH)
+
+        if lastH >= resistance
+
+            buyLiquidity := lastH
+
+
+    // Equal highs/lows get priority.
+
+    if equalLow and not na(lastL)
+
+        sellLiquidity := lastL
+
+    if equalHigh and not na(lastH)
+
+        buyLiquidity := lastH
+
+
+    //================================================
+    // DRAW LIQUIDITY MAP
+    //================================================
+
+    plotSellLiquidity =
+         liquidityMode != "Off" and
+         showLiquidity ?
+         sellLiquidity :
+         na
+
+    plotBuyLiquidity =
+         liquidityMode != "Off" and
+         showLiquidity ?
+         buyLiquidity :
+         na
+
+
+    //================================================
+    // SWEEP DETECTION
+    //================================================
+
+    bullishSweep =
+         low <
+         sellLiquidity *
+         (1 - sweepBuffer / 100) and
+         close >
+         sellLiquidity
+
+
+    bearishSweep =
+         high >
+         buyLiquidity *
+         (1 + sweepBuffer / 100) and
+         close <
+         buyLiquidity
+
+
+    //================================================
+    // REGISTER BULLISH SWEEP
+    //================================================
+
+    if trend == 1 and bullishSweep
+
+        longSweep := true
+        longReaction := false
+
+        longSweepBar := bar_index
+
+        longLiquidityLevel :=
+             sellLiquidity
+
+        if showSweep
+
+            label.new(
+                 bar_index,
+                 low,
+                 "SELL-SIDE\nSWEEP",
+                 style=label.style_label_up,
+                 color=color.teal,
+                 textcolor=color.white,
+                 size=size.tiny
+                 )
+
+
+    //================================================
+    // REGISTER BEARISH SWEEP
+    //================================================
+
+    if trend == -1 and bearishSweep
+
+        shortSweep := true
+        shortReaction := false
+
+        shortSweepBar := bar_index
+
+        shortLiquidityLevel :=
+             buyLiquidity
+
+        if showSweep
+
+            label.new(
+                 bar_index,
+                 high,
+                 "BUY-SIDE\nSWEEP",
+                 style=label.style_label_down,
+                 color=color.maroon,
+                 textcolor=color.white,
+                 size=size.tiny
+                 )
+
+
+    //================================================
+    // REACTION AFTER BULLISH SWEEP
+    //================================================
+
+    if longSweep and
+       not longReaction and
+       not na(longSweepBar)
+
+        longSweepAge =
+             bar_index - longSweepBar
+
+        if longSweepAge <= reactionBars
+
+            bullishReaction =
+                 close > open and
+                 bodyRatio >= reactionBodyRatio and
+                 locBull >= reactionCloseLoc and
+                 volumeRatio >= sweepVolRatio
+
+            if bullishReaction
+
+                longReaction := true
+
+                if showReaction
+
+                    label.new(
+                         bar_index,
+                         low,
+                         "REACTION ✓",
+                         style=label.style_label_up,
+                         color=color.blue,
+                         textcolor=color.white,
+                         size=size.tiny
+                         )
+
+        else
+
+            longSweep := false
+            longReaction := false
+
+
+    //================================================
+    // REACTION AFTER BEARISH SWEEP
+    //================================================
+
+    if shortSweep and
+       not shortReaction and
+       not na(shortSweepBar)
+
+        shortSweepAge =
+             bar_index - shortSweepBar
+
+        if shortSweepAge <= reactionBars
+
+            bearishReaction =
+                 close < open and
+                 bodyRatio >= reactionBodyRatio and
+                 locBear >= reactionCloseLoc and
+                 volumeRatio >= sweepVolRatio
+
+            if bearishReaction
+
+                shortReaction := true
+
+                if showReaction
+
+                    label.new(
+                         bar_index,
+                         high,
+                         "REACTION ✓",
+                         style=label.style_label_down,
+                         color=color.blue,
+                         textcolor=color.white,
+                         size=size.tiny
+                         )
+
+        else
+
+            shortSweep := false
+            shortReaction := false
+
+
+    //================================================
+    // BREAKOUT CANDLE QUALITY
+    //================================================
+
+    bodyOK =
+         bodyRatio >= minBodyRatio
+
+    bullCloseOK =
+         locBull >= closeLocMin
+
+    bearCloseOK =
+         locBear >= closeLocMin
+
+    bullBreak =
+         close >
+         resistance *
+         (1 + breakoutBuffer / 100)
+
+    bearBreak =
+         close <
+         support *
+         (1 - breakoutBuffer / 100)
+
+
+    //================================================
+    // BREAKOUT SCORE
+    //================================================
+
+    bullScore =
+         (bullBreak ? 1 : 0) +
+         (bodyOK ? 1 : 0) +
+         (bullCloseOK ? 1 : 0) +
+         (volumeRatio >= minVolRatio ? 1 : 0) +
+         (close > close[momentumBars] ? 1 : 0)
+
+
+    bearScore =
+         (bearBreak ? 1 : 0) +
+         (bodyOK ? 1 : 0) +
+         (bearCloseOK ? 1 : 0) +
+         (volumeRatio >= minVolRatio ? 1 : 0) +
+         (close < close[momentumBars] ? 1 : 0)
+
+
+    //================================================
+    // DISPLACEMENT
+    //================================================
+
+    bullishDisplacement =
+         bullBreak and
+         bodyRatio >= minBodyRatio and
+         locBull >= closeLocMin
+
+    bearishDisplacement =
+         bearBreak and
+         bodyRatio >= minBodyRatio and
+         locBear >= closeLocMin
+
+
+    if bullishDisplacement
+
+        longDisplacement := true
+
+        if showDisplacement
+
+            label.new(
+                 bar_index,
+                 low,
+                 "DISPLACEMENT",
+                 style=label.style_label_up,
+                 color=color.green,
+                 textcolor=color.white,
+                 size=size.tiny
+                 )
+
+
+    if bearishDisplacement
+
+        shortDisplacement := true
+
+        if showDisplacement
+
+            label.new(
+                 bar_index,
+                 high,
+                 "DISPLACEMENT",
+                 style=label.style_label_down,
+                 color=color.red,
+                 textcolor=color.white,
+                 size=size.tiny
+                 )
+
+
+    //================================================
+    // LIQUIDITY REQUIREMENT
+    //================================================
+
+    liquidityLongOK =
+         liquidityMode == "Off" or
+         liquidityMode == "Optional Confirmation" or
+         longReaction
+
+    liquidityShortOK =
+         liquidityMode == "Off" or
+         liquidityMode == "Optional Confirmation" or
+         shortReaction
+
+
+    //================================================
+    // LONG BREAKOUT
+    //================================================
+
+    if trend == 1 and
+       bullBreak and
+       bullScore >= minBreakScore and
+       liquidityLongOK
+
+        state := 2
+
+        breakoutBar := bar_index
+        acceptCount := 0
+
         if showSignals
-            label.new(bar_index,low,"BREAKOUT LONG "+str.tostring(bullScore)+"/5",style=label.style_label_up,color=color.green,textcolor=color.white,size=size.tiny)
-    else if trend==-1 and bear and bearScore>=minBreakScore
-        state:=2
-        breakoutBar:=bar_index
-        acceptCount:=0
+
+            breakoutText =
+                 longReaction ?
+                 "SWEEP → REACTION → BREAKOUT LONG " +
+                 str.tostring(bullScore) +
+                 "/5" :
+                 "BREAKOUT LONG " +
+                 str.tostring(bullScore) +
+                 "/5"
+
+            label.new(
+                 bar_index,
+                 low,
+                 breakoutText,
+                 style=label.style_label_up,
+                 color=color.green,
+                 textcolor=color.white,
+                 size=size.tiny
+                 )
+
+
+    //================================================
+    // SHORT BREAKDOWN
+    //================================================
+
+    else if trend == -1 and bearBreak and bearScore >= minBreakScore and liquidityShortOK
+
+        state := 2
+
+        breakoutBar := bar_index
+        acceptCount := 0
+
         if showSignals
-            label.new(bar_index,high,"BREAKDOWN SHORT "+str.tostring(bearScore)+"/5",style=label.style_label_down,color=color.red,textcolor=color.white,size=size.tiny)
-    if bars>maxConsBars
-        state:=0
+
+            breakoutText =
+                 shortReaction ?
+                 "SWEEP → REACTION → BREAKDOWN " +
+                 str.tostring(bearScore) +
+                 "/5" :
+                 "BREAKDOWN SHORT " +
+                 str.tostring(bearScore) +
+                 "/5"
+
+            label.new(
+                 bar_index,
+                 high,
+                 breakoutText,
+                 style=label.style_label_down,
+                 color=color.red,
+                 textcolor=color.white,
+                 size=size.tiny
+                 )
+
+
+    //================================================
+    // BOX TIMEOUT
+    //================================================
+
+    if barsInBox > maxConsBars
+
+        state := 0
+
+        longSweep := false
+        shortSweep := false
+
+        longReaction := false
+        shortReaction := false
+
         if not na(bx)
+
             box.delete(bx)
-        bx:=na
 
-if state==2 and bar_index>breakoutBar
-    if trend==1
-        beyond=close>resistance
-        back=(resistance-close)/resistance*100
-        failed=not beyond or back>acceptMaxBack
-        if failed
-            state:=0
-            if showSignals
-                label.new(bar_index,high,"ACCEPTANCE FAILED",style=label.style_label_down,color=color.gray,textcolor=color.white,size=size.tiny)
-        else
-            acceptCount+=1
-            if acceptCount>=acceptBars
-                state:=3
-                retestStart:=bar_index
-                if showSignals
-                    label.new(bar_index,low,"ACCEPTED ✓",style=label.style_label_up,color=color.blue,textcolor=color.white,size=size.tiny)
-    else if trend==-1
-        beyond=close<support
-        back=(close-support)/support*100
-        failed=not beyond or back>acceptMaxBack
-        if failed
-            state:=0
-            if showSignals
-                label.new(bar_index,low,"ACCEPTANCE FAILED",style=label.style_label_up,color=color.gray,textcolor=color.white,size=size.tiny)
-        else
-            acceptCount+=1
-            if acceptCount>=acceptBars
-                state:=3
-                retestStart:=bar_index
-                if showSignals
-                    label.new(bar_index,high,"ACCEPTED ✓",style=label.style_label_down,color=color.blue,textcolor=color.white,size=size.tiny)
+        bx := na
 
-longEntry=false
-shortEntry=false
-if state==3 and bar_index>retestStart
-    age=bar_index-retestStart
-    longRetest=trend==1 and low<=resistance*(1+retestBuffer/100) and close>resistance
-    shortRetest=trend==-1 and high>=support*(1-retestBuffer/100) and close<support
+
+//====================================================
+// ACCEPTANCE
+//====================================================
+
+if state == 2 and
+   bar_index > breakoutBar
+
+
+    //================================================
+    // LONG ACCEPTANCE
+    //================================================
+
+    if trend == 1
+
+        beyond =
+             close > resistance
+
+        back =
+             resistance != 0 ?
+             (resistance - close) /
+             resistance *
+             100 :
+             999
+
+        failed =
+             not beyond or
+             back > acceptMaxBack
+
+
+        if failed
+
+            state := 0
+
+            longSweep := false
+            longReaction := false
+
+            if showSignals
+
+                label.new(
+                     bar_index,
+                     high,
+                     "ACCEPTANCE FAILED",
+                     style=label.style_label_down,
+                     color=color.gray,
+                     textcolor=color.white,
+                     size=size.tiny
+                     )
+
+        else
+
+            acceptCount += 1
+
+            if acceptCount >= acceptBars
+
+                state := 3
+
+                retestStart := bar_index
+
+                if showSignals
+
+                    label.new(
+                         bar_index,
+                         low,
+                         "ACCEPTED ✓",
+                         style=label.style_label_up,
+                         color=color.blue,
+                         textcolor=color.white,
+                         size=size.tiny
+                         )
+
+
+    //================================================
+    // SHORT ACCEPTANCE
+    //================================================
+
+    else if trend == -1
+
+        beyond =
+             close < support
+
+        back =
+             support != 0 ?
+             (close - support) /
+             support *
+             100 :
+             999
+
+        failed =
+             not beyond or
+             back > acceptMaxBack
+
+
+        if failed
+
+            state := 0
+
+            shortSweep := false
+            shortReaction := false
+
+            if showSignals
+
+                label.new(
+                     bar_index,
+                     low,
+                     "ACCEPTANCE FAILED",
+                     style=label.style_label_up,
+                     color=color.gray,
+                     textcolor=color.white,
+                     size=size.tiny
+                     )
+
+        else
+
+            acceptCount += 1
+
+            if acceptCount >= acceptBars
+
+                state := 3
+
+                retestStart := bar_index
+
+                if showSignals
+
+                    label.new(
+                         bar_index,
+                         high,
+                         "ACCEPTED ✓",
+                         style=label.style_label_down,
+                         color=color.blue,
+                         textcolor=color.white,
+                         size=size.tiny
+                         )
+
+
+//====================================================
+// RETEST
+//====================================================
+
+longEntry = false
+shortEntry = false
+
+
+if state == 3 and
+   bar_index > retestStart
+
+    age =
+         bar_index - retestStart
+
+
+    //================================================
+    // LONG RETEST
+    //================================================
+
+    longRetest =
+         trend == 1 and
+         low <= resistance *
+         (1 + retestBuffer / 100) and
+         close > resistance
+
+
+    //================================================
+    // SHORT RETEST
+    //================================================
+
+    shortRetest =
+         trend == -1 and
+         high >= support *
+         (1 - retestBuffer / 100) and
+         close < support
+
+
+    //================================================
+    // LONG ENTRY
+    //================================================
+
     if longRetest
-        longEntry:=true
-        state:=0
+
+        longEntry := true
+
+        state := 0
+
+        longSweep := false
+        longReaction := false
+
         if showSignals
-            label.new(bar_index,low,"RETEST → LONG ENTRY",style=label.style_label_up,color=color.orange,textcolor=color.white,size=size.tiny)
+
+            label.new(
+                 bar_index,
+                 low,
+                 "RETEST → LONG ENTRY",
+                 style=label.style_label_up,
+                 color=color.orange,
+                 textcolor=color.white,
+                 size=size.small
+                 )
+
+
+    //================================================
+    // SHORT ENTRY
+    //================================================
+
     else if shortRetest
-        shortEntry:=true
-        state:=0
+
+        shortEntry := true
+
+        state := 0
+
+        shortSweep := false
+        shortReaction := false
+
         if showSignals
-            label.new(bar_index,high,"RETEST → SHORT ENTRY",style=label.style_label_down,color=color.orange,textcolor=color.white,size=size.tiny)
-    if age>retestBars
-        state:=0
-plotshape(longEntry,"LONG ENTRY",shape.triangleup,location.belowbar,color.green,size=size.small,text="LONG")
-plotshape(shortEntry,"SHORT ENTRY",shape.triangledown,location.abovebar,color.red,size=size.small,text="SHORT")
-alertcondition(longEntry,"LONG ENTRY","Breakout → Acceptance → Retest → LONG")
-alertcondition(shortEntry,"SHORT ENTRY","Breakdown → Acceptance → Retest → SHORT")
+
+            label.new(
+                 bar_index,
+                 high,
+                 "RETEST → SHORT ENTRY",
+                 style=label.style_label_down,
+                 color=color.orange,
+                 textcolor=color.white,
+                 size=size.small
+                 )
+
+
+    //================================================
+    // RETEST TIMEOUT
+    //================================================
+
+    if age > retestBars
+
+        state := 0
+
+        longSweep := false
+        shortSweep := false
+
+        longReaction := false
+        shortReaction := false
+
+
+//====================================================
+// LIQUIDITY MAP PLOTS
+//====================================================
+
+// These are plotted only from confirmed swing structure.
+// They are intentionally not continuously moving
+// highest/lowest lines.
+
+plot(
+     showLiquidity and
+     liquidityMode != "Off" and
+     not na(lastH) ?
+     lastH :
+     na,
+     title="Buy-Side Liquidity",
+     color=color.new(color.red, 35),
+     linewidth=1,
+     style=plot.style_stepline
+     )
+
+plot(
+     showLiquidity and
+     liquidityMode != "Off" and
+     not na(lastL) ?
+     lastL :
+     na,
+     title="Sell-Side Liquidity",
+     color=color.new(color.green, 35),
+     linewidth=1,
+     style=plot.style_stepline
+     )
+
+
+//====================================================
+// ENTRY MARKERS
+//====================================================
+
+plotshape(
+     longEntry,
+     title="LONG ENTRY",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=color.green,
+     size=size.small,
+     text="LONG"
+     )
+
+plotshape(
+     shortEntry,
+     title="SHORT ENTRY",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=color.red,
+     size=size.small,
+     text="SHORT"
+     )
+
+
+//====================================================
+// ALERTS
+//====================================================
+
+alertcondition(
+     longEntry,
+     "LONG ENTRY",
+     "Liquidity/Structure → Breakout → Acceptance → Retest → LONG"
+     )
+
+alertcondition(
+     shortEntry,
+     "SHORT ENTRY",
+     "Liquidity/Structure → Breakdown → Acceptance → Retest → SHORT"
+     )

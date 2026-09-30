@@ -1,11 +1,11 @@
 {
     "AAPL": {
-        "trades": 6,
-        "win_rate": 0.5,
-        "profit_factor": 2.0,
-        "expectancy": 24.87,
-        "average_r": 0.5,
-        "net_return_pct": 1.49
+        "trades": 7,
+        "win_rate": 0.4286,
+        "profit_factor": 1.5,
+        "expectancy": 14.07,
+        "average_r": 0.29,
+        "net_return_pct": 0.98
     },
     "HD": {
         "trades": 4,
@@ -16,19 +16,19 @@
         "net_return_pct": 2.51
     },
     "LLY": {
-        "trades": 13,
-        "win_rate": 0.3077,
-        "profit_factor": 0.88,
-        "expectancy": -4.07,
-        "average_r": -0.08,
-        "net_return_pct": -0.53
+        "trades": 12,
+        "win_rate": 0.25,
+        "profit_factor": 0.66,
+        "expectancy": -12.62,
+        "average_r": -0.25,
+        "net_return_pct": -1.51
     },
     "MCD": {
-        "trades": 9,
-        "win_rate": 0.4444,
-        "profit_factor": 1.59,
-        "expectancy": 16.5,
-        "average_r": 0.33,
-        "net_return_pct": 1.48
+        "trades": 8,
+        "win_rate": 0.25,
+        "profit_factor": 0.66,
+        "expectancy": -12.65,
+        "average_r": -0.25,
+        "net_return_pct": -1.01
     }
 }

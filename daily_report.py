@@ -90,6 +90,14 @@ def run_pre_market_scan(watchlist_file: str):
     else:
         report_lines.append("None currently breaking out.")
         
+    idle = df_results[df_results['State'].isin(['IDLE', 'FAILED'])]
+    report_lines.append("\n💤 IDLE / FAILED STOCKS (Ignore today)")
+    report_lines.append("==============================")
+    if not idle.empty:
+        report_lines.append(", ".join(idle['Symbol'].tolist()))
+    else:
+        report_lines.append("None.")
+        
     final_report = "\n".join(report_lines)
     print("\n" + final_report)
     

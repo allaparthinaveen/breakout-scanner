@@ -14,6 +14,14 @@ breakout:
   close_location_min: 0.70
   momentum_lookback: 3
   max_rejection_wick_ratio: 0.35
+liquidity:
+  mode: "Optional Confirmation"
+  equal_tolerance_pct: 0.15
+  reaction_bars: 3
+  sweep_buffer_pct: 0.05
+  reaction_body_ratio: 0.45
+  reaction_close_loc: 0.65
+  sweep_vol_ratio: 0.90
 acceptance:
   hold_bars: 1
   max_back_inside_pct: 0.15
