@@ -90,6 +90,22 @@ def run_pre_market_scan(watchlist_file: str):
     else:
         report_lines.append("None currently breaking out.")
         
+    awaiting_retest = df_results[df_results['State'] == 'ACCEPTED_RETEST_WATCH']
+    report_lines.append("\n⏳ AWAITING RETEST (Watch closely!)")
+    report_lines.append("==============================")
+    if not awaiting_retest.empty:
+        report_lines.append(awaiting_retest[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False))
+    else:
+        report_lines.append("None currently awaiting retest.")
+
+    entry_signals = df_results[df_results['State'].isin(['BUY', 'SELL'])]
+    report_lines.append("\n🎯 ENTRY SIGNALS TRIGGERED!")
+    report_lines.append("==============================")
+    if not entry_signals.empty:
+        report_lines.append(entry_signals[['Symbol', 'State', 'Resistance', 'Support']].to_string(index=False))
+    else:
+        report_lines.append("No active entry triggers.")
+        
     idle = df_results[df_results['State'].isin(['IDLE', 'FAILED'])]
     report_lines.append("\n💤 IDLE / FAILED STOCKS (Ignore today)")
     report_lines.append("==============================")
