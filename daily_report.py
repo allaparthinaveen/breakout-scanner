@@ -20,15 +20,9 @@ def send_telegram_message(message: str):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
-        "text": f"```\n{message}\n```",
-        "parse_mode": "MarkdownV2"
+        "text": message,
+        "parse_mode": "HTML"
     }
-    # Escape some markdown V2 reserved chars if present in raw string
-    for char in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
-        if char != '`' and char != '\n': # Keep code block backticks
-             payload["text"] = payload["text"].replace(char, f"\\{char}")
-    # Re-wrap properly with backticks
-    payload["text"] = f"```\n{message.replace('`', '')}\n```"
 
     try:
         response = requests.post(url, json=payload)
@@ -73,49 +67,44 @@ def run_pre_market_scan(watchlist_file: str):
     breaking_out = df_results[df_results['State'] == 'ACCEPTANCE_WATCH']
     
     report_lines = []
-    report_lines.append("🌅 PRE-MARKET BREAKOUT SCANNER")
-    report_lines.append("==============================")
+    report_lines.append("<b>🌅 PRE-MARKET BREAKOUT SCANNER</b>\n")
     
-    report_lines.append("\n📦 STOCKS FORMING A BOX (CONSOLIDATION)")
-    report_lines.append("==============================")
+    report_lines.append("<b>📦 STOCKS FORMING A BOX (CONSOLIDATION)</b>")
     if not forming_box.empty:
-        report_lines.append(forming_box[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False))
+        report_lines.append("<pre>" + forming_box[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
     else:
-        report_lines.append("None currently forming a box.")
+        report_lines.append("<i>None currently forming a box.</i>")
         
-    report_lines.append("\n💥 ACTIVELY BREAKING OUT (ACCEPTANCE)")
-    report_lines.append("==============================")
+    report_lines.append("\n<b>💥 ACTIVELY BREAKING OUT (ACCEPTANCE)</b>")
     if not breaking_out.empty:
-        report_lines.append(breaking_out[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False))
+        report_lines.append("<pre>" + breaking_out[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
     else:
-        report_lines.append("None currently breaking out.")
+        report_lines.append("<i>None currently breaking out.</i>")
         
     awaiting_retest = df_results[df_results['State'] == 'ACCEPTED_RETEST_WATCH']
-    report_lines.append("\n⏳ AWAITING RETEST (Watch closely!)")
-    report_lines.append("==============================")
+    report_lines.append("\n<b>⏳ AWAITING RETEST (Watch closely!)</b>")
     if not awaiting_retest.empty:
-        report_lines.append(awaiting_retest[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False))
+        report_lines.append("<pre>" + awaiting_retest[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
     else:
-        report_lines.append("None currently awaiting retest.")
+        report_lines.append("<i>None currently awaiting retest.</i>")
 
     entry_signals = df_results[df_results['State'].isin(['BUY', 'SELL'])]
-    report_lines.append("\n🎯 ENTRY SIGNALS TRIGGERED!")
-    report_lines.append("==============================")
+    report_lines.append("\n<b>🎯 ENTRY SIGNALS TRIGGERED!</b>")
     if not entry_signals.empty:
-        report_lines.append(entry_signals[['Symbol', 'State', 'Resistance', 'Support']].to_string(index=False))
+        report_lines.append("<pre>" + entry_signals[['Symbol', 'State', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
     else:
-        report_lines.append("No active entry triggers.")
+        report_lines.append("<i>No active entry triggers.</i>")
         
     idle = df_results[df_results['State'].isin(['IDLE', 'FAILED'])]
-    report_lines.append("\n💤 IDLE / FAILED STOCKS (Ignore today)")
-    report_lines.append("==============================")
+    report_lines.append("\n<b>💤 IDLE / FAILED STOCKS (Ignore today)</b>")
     if not idle.empty:
-        report_lines.append(", ".join(idle['Symbol'].tolist()))
+        report_lines.append("<code>" + ", ".join(idle['Symbol'].tolist()) + "</code>")
     else:
-        report_lines.append("None.")
+        report_lines.append("<i>None.</i>")
         
     final_report = "\n".join(report_lines)
-    print("\n" + final_report)
+    clean_terminal = final_report.replace('<b>', '').replace('</b>', '').replace('<pre>', '\n').replace('</pre>', '').replace('<i>', '').replace('</i>', '').replace('<code>', '').replace('</code>', '')
+    print("\n" + clean_terminal)
     
     # Send to Telegram
     send_telegram_message(final_report)
