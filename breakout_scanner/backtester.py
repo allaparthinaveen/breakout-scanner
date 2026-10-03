@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict
 from .models import Setup, State
-from .indicators import atr, trend_from_structure
 from .engine import BreakoutEngine
 
 class Backtester:
@@ -16,13 +15,7 @@ class Backtester:
         Run backtest on a single symbol.
         df must contain: Open, High, Low, Close, Volume
         """
-        # Pre-calculate indicators for the entire dataframe to avoid O(N^2) during simulation
         df = df.copy()
-        df['_ATR'] = atr(df)
-        
-        # We need the trend at each bar. trend_from_structure currently returns the final trend.
-        # To avoid O(N^2), we compute the rolling trend for all bars.
-        df['_Trend'] = self._calculate_rolling_trend(df)
         
         engine = BreakoutEngine(self.cfg, symbol)
         
@@ -111,14 +104,7 @@ class Backtester:
         self.results.extend(trades)
         return self._compute_metrics(trades, capital)
         
-    def _calculate_rolling_trend(self, df: pd.DataFrame) -> pd.Series:
-        # A vectorized or rolling version of trend_from_structure
-        trends = np.zeros(len(df))
-        for i in range(80, len(df)):
-            trends[i] = trend_from_structure(df.iloc[:i+1], 
-                                             self.cfg['structure']['pivot_len'], 
-                                             self.cfg['structure']['min_trend_swings'])
-        return pd.Series(trends, index=df.index)
+
         
     def _compute_metrics(self, trades: List[Dict], final_capital: float) -> Dict:
         if not trades:

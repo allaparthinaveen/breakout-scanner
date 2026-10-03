@@ -1,0 +1,130 @@
+//@version=6
+indicator("Momentum VCP Breakout Engine", overlay=true, max_boxes_count=50, max_labels_count=50)
+
+//====================================================
+// INPUTS
+//====================================================
+
+// Structure
+smaTrendLookback = input.int(50, "SMA Trend Lookback")
+
+// Consolidation
+minConsBars = input.int(5, "Minimum Consolidation Bars")
+maxConsBars = input.int(60, "Maximum Consolidation Bars")
+maxRangePct = input.float(35.0, "Maximum Base Range %")
+maxVolatilityPct = input.float(10.0, "Maximum Volatility %")
+
+// Momentum
+breakoutBuffer = input.float(0.10, "Breakout Buffer %")
+volLookback = input.int(20, "Volume Lookback")
+minRelVol = input.float(1.5, "Minimum Relative Volume")
+minBodyRatio = input.float(0.50, "Minimum Body Ratio")
+closeLocMin = input.float(0.70, "Minimum Close Location")
+
+// Risk
+takeProfitR = input.float(2.0, "Take Profit (R)")
+stopLossBuffer = input.float(0.5, "Stop Loss Buffer %")
+
+//====================================================
+// CALCULATIONS
+//====================================================
+
+// Trend
+macroSma = ta.sma(close, smaTrendLookback)
+trend = close > macroSma ? 1 : close < macroSma ? -1 : 0
+
+// Current Candle Properties
+rng = math.max(high - low, 0.0001)
+body = math.abs(close - open)
+bodyRatio = body / rng
+locBull = (close - low) / rng
+locBear = (high - close) / rng
+
+avgVol = ta.sma(volume, volLookback)
+relVol = volume / avgVol
+
+// Box Measurements (Rolling `minConsBars`)
+rollHi = ta.highest(high, minConsBars)
+rollLo = ta.lowest(low, minConsBars)
+rollMid = (rollHi + rollLo) / 2
+boxPct = rollMid > 0 ? (rollHi - rollLo) / rollMid * 100 : 999
+
+avgRange = ta.sma(high - low, minConsBars)
+volatilityPct = rollMid > 0 ? (avgRange / rollMid) * 100 : 999
+
+//====================================================
+// STATE MACHINE
+//====================================================
+
+var int state = 0 // 0=IDLE, 1=CONTRACTION
+var int consStart = na
+var float support = na
+var float resistance = na
+var box bx = na
+
+// State Transitions
+if state == 0 and boxPct <= maxRangePct and volatilityPct <= maxVolatilityPct
+    state := 1
+    consStart := bar_index - minConsBars + 1
+    support := rollLo
+    resistance := rollHi
+    
+    bx := box.new(
+         left=consStart,
+         top=resistance,
+         right=bar_index,
+         bottom=support,
+         border_color=color.new(color.blue, 30),
+         border_width=2,
+         bgcolor=color.new(color.blue, 90)
+         )
+
+if state == 1
+    
+    // Extend Box
+    if not na(bx)
+        box.set_right(bx, bar_index)
+        
+    // Timeout
+    if bar_index - consStart + 1 > maxConsBars
+        state := 0
+        support := na
+        resistance := na
+        
+    else
+        // Check Breakout
+        bullBreak = trend == 1 and close > resistance * (1 + breakoutBuffer/100) and locBull >= closeLocMin
+        bearBreak = trend == -1 and close < support * (1 - breakoutBuffer/100) and locBear >= closeLocMin
+        
+        volOk = relVol >= minRelVol
+        bodyOk = bodyRatio >= minBodyRatio
+        
+        if (bullBreak or bearBreak) and volOk and bodyOk
+            
+            isBull = bullBreak
+            
+            entry = close
+            stop = isBull ? support * (1 - stopLossBuffer/100) : resistance * (1 + stopLossBuffer/100)
+            risk = math.abs(entry - stop)
+            target = isBull ? entry + (takeProfitR * risk) : entry - (takeProfitR * risk)
+            
+            // Draw Signal
+            label.new(
+                 bar_index, 
+                 isBull ? low : high, 
+                 "🔥 VCP BREAKOUT\nVol: " + str.tostring(relVol, "#.#") + "x",
+                 style=isBull ? label.style_label_up : label.style_label_down,
+                 color=isBull ? color.green : color.red,
+                 textcolor=color.white,
+                 size=size.small
+                 )
+                 
+            // Reset state
+            state := 0
+            support := na
+            resistance := na
+
+//====================================================
+// PLOTS
+//====================================================
+plot(macroSma, "Macro Trend SMA", color=color.new(color.orange, 50))

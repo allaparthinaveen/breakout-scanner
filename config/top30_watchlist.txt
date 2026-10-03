@@ -1,0 +1,81 @@
+# Technology
+PLTR
+ORCL
+QCOM
+CSCO
+PANW
+INTC
+CRM
+NOW
+ADBE
+ANET
+
+# Financials
+HOOD
+MS
+BX
+APO
+KKR
+C
+ARES
+SCHW
+BLK
+AXP
+
+# Consumer Discretionary
+ABNB
+DIS
+WMT
+SBUX
+NKE
+CMG
+LOW
+HD
+MCD
+BKNG
+
+# Healthcare
+GILD
+ABT
+MDT
+BMY
+CVS
+ISRG
+SYK
+BSX
+REGN
+VRTX
+
+# Consumer Staples / Defensive
+PM
+PEP
+KO
+PG
+COST
+MDLZ
+MO
+KHC
+CL
+
+# Communication Services
+TMUS
+CMCSA
+T
+VZ
+NFLX
+META
+GOOGL
+CHTR
+EA
+
+# Energy / Materials / Others
+NEM
+XOM
+CVX
+FCX
+LIN
+APD
+NEE
+SO
+DUK
+AEP

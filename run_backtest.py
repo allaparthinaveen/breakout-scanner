@@ -12,9 +12,8 @@ def run_historical_backtest():
     # We will use yfinance for backtesting
     provider = YFinanceProvider()
     
-    # Focused selection of top performing stocks
     symbols = [
-        'AAPL', 'HD', 'LLY', 'MCD'
+        'NVDA'
     ]
     
     tester = Backtester(cfg)
@@ -22,13 +21,13 @@ def run_historical_backtest():
     all_trades = []
     global_metrics = {}
     
-    print("Starting 3-Month Top Performers Scan...")
+    print("Starting 5-Year Daily (1D) Sector Scan...")
     
     for sym in symbols:
         print(f"Fetching historical data for {sym}...")
         try:
-            # Using 90d (3 months)
-            df = provider.candles(sym, period='90d', interval='1h')
+            # Using 5y (5 years) on 1d timeframe
+            df = provider.candles(sym, period='5y', interval='1d')
             if df.empty or len(df) < 100:
                 print(f"Not enough data for {sym}, skipping.")
                 continue
