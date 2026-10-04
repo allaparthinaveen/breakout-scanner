@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
 from .models import Setup, State
-from .indicators import add_momentum_indicators
+
+def get_sma(series, window):
+    return series.rolling(window=window).mean()
 
 class BreakoutEngine:
     def __init__(self, cfg, symbol): 
@@ -11,87 +13,131 @@ class BreakoutEngine:
 
     def run(self, raw):
         df = raw.copy()
-        if len(df) < 80: return self.setup
+        c_trend = self.cfg['trend']
+        c_base = self.cfg['base']
+        c_vol = self.cfg['volume']
+        c_break = self.cfg['breakout']
+        c_risk = self.cfg['risk']
         
-        c = self.cfg['consolidation']
-        m = self.cfg['momentum']
+        # Precompute indicators (shift where necessary)
+        df['SMA'] = get_sma(df['Close'], c_trend['sma_length'])
+        df['CandleRange'] = np.maximum(df['High'] - df['Low'], 1e-12)
+        df['BullCloseLoc'] = (df['Close'] - df['Low']) / df['CandleRange']
+        df['BearCloseLoc'] = (df['High'] - df['Close']) / df['CandleRange']
+        df['BodyPct'] = abs(df['Close'] - df['Open']) / df['CandleRange'] * 100
         
-        df = add_momentum_indicators(df, sma_len=self.cfg['structure']['sma_trend_lookback'], vol_len=m['volume_lookback'])
+        df['BaseHigh'] = df['High'].rolling(c_base['base_lookback']).max()
+        df['BaseLow'] = df['Low'].rolling(c_base['base_lookback']).min()
+        df['BaseMid'] = (df['BaseHigh'] + df['BaseLow']) / 2
+        df['BaseRangePct'] = np.where(df['BaseMid'] > 0, (df['BaseHigh'] - df['BaseLow']) / df['BaseMid'] * 100, 999.0)
         
-        i = len(df) - 1
+        df['TightHigh'] = df['High'].rolling(c_base['tight_lookback']).max()
+        df['TightLow'] = df['Low'].rolling(c_base['tight_lookback']).min()
+        df['TightMid'] = (df['TightHigh'] + df['TightLow']) / 2
+        df['TightRangePct'] = np.where(df['TightMid'] > 0, (df['TightHigh'] - df['TightLow']) / df['TightMid'] * 100, 999.0)
         
-        # Macro trend from SMA
-        close = float(df.Close.iloc[i])
-        sma = float(df.SMA.iloc[i]) if pd.notna(df.SMA.iloc[i]) else close
-        trend = 1 if close > sma else -1
-        self.setup.trend = trend
+        # Previous Structure (shift by 1)
+        df['PrevBaseHigh'] = df['High'].shift(1).rolling(c_base['base_lookback']).max()
+        df['PrevBaseLow'] = df['Low'].shift(1).rolling(c_base['base_lookback']).min()
         
-        s = self.setup
+        # Tightening
+        earlier_lookback = max(c_base['base_lookback'] - c_base['tight_lookback'], 2)
+        df['EarlierHigh'] = df['High'].shift(c_base['tight_lookback']).rolling(earlier_lookback).max()
+        df['EarlierLow'] = df['Low'].shift(c_base['tight_lookback']).rolling(earlier_lookback).min()
+        df['EarlierMid'] = (df['EarlierHigh'] + df['EarlierLow']) / 2
+        df['EarlierRangePct'] = np.where(df['EarlierMid'] > 0, (df['EarlierHigh'] - df['EarlierLow']) / df['EarlierMid'] * 100, 999.0)
+        df['RangeTightening'] = df['TightRangePct'] < df['EarlierRangePct']
+        df['TighteningOK'] = ~c_base['require_tightening'] | df['RangeTightening']
         
-        hi = float(df.High.iloc[i-c['min_bars']+1:i+1].max())
-        lo = float(df.Low.iloc[i-c['min_bars']+1:i+1].min())
-        mid = (hi + lo) / 2
-        pct = (hi - lo) / mid * 100 if mid else 999
+        # Volume
+        df['AvgVolume'] = get_sma(df['Volume'], c_vol['volume_length'])
+        df['BaseAvgVol'] = get_sma(df['Volume'], c_base['base_lookback'])
+        df['TightAvgVol'] = get_sma(df['Volume'], c_base['tight_lookback'])
+        df['VolContracting'] = df['TightAvgVol'] <= df['BaseAvgVol'] * c_vol['contraction_ratio']
+        df['VolContractionOK'] = ~c_vol['use_volume_contraction'] | df['VolContracting']
         
-        # Calculate recent volatility (Average of daily ranges)
-        ranges = df.High.iloc[i-c['min_bars']+1:i+1] - df.Low.iloc[i-c['min_bars']+1:i+1]
-        avg_range = ranges.mean()
-        volatility_pct = (avg_range / mid * 100) if mid else 999
+        df['VolExpansion'] = df['Volume'] >= df['AvgVolume'] * c_vol['breakout_multiplier']
+        df['BreakoutVolOK'] = ~c_vol['use_breakout_volume'] | df['VolExpansion']
         
-        if s.state in (State.IDLE, State.FAILED) and pct <= c['max_range_pct'] and volatility_pct <= c['max_volatility_pct']:
-            s = Setup(self.symbol, State.CONTRACTION, trend, lo, hi)
-            s.cons_index = i - c['min_bars'] + 1
-            s.evidence = [f'tight base {pct:.1f}%']
-            self.setup = s
+        # Qualification
+        df['BaseSmallEnough'] = df['BaseRangePct'] <= c_base['max_base_range_pct']
+        df['TightSmallEnough'] = df['TightRangePct'] <= c_base['max_tight_range_pct']
+        df['VCPQualified'] = df['BaseSmallEnough'] & df['TightSmallEnough'] & df['TighteningOK'] & df['VolContractionOK']
+        
+        # Trend
+        df['BullTrend'] = df['Close'] > df['SMA']
+        df['BearTrend'] = df['Close'] < df['SMA']
+        df['LongTrendOK'] = ~c_trend['use_trend_filter'] | df['BullTrend']
+        df['ShortTrendOK'] = ~c_trend['use_trend_filter'] | df['BearTrend']
+        
+        # Momentum
+        df['BullMom'] = (df['Close'] > df['Open']) & (df['BullCloseLoc'] >= c_break['close_location']) & (~c_break['require_momentum_candle'] | (df['BodyPct'] >= c_break['min_body_pct']))
+        df['BearMom'] = (df['Close'] < df['Open']) & (df['BearCloseLoc'] >= c_break['close_location']) & (~c_break['require_momentum_candle'] | (df['BodyPct'] >= c_break['min_body_pct']))
+        
+        state = State.IDLE
+        setup_start = -1
+        
+        # Simulate state machine row by row
+        for i in range(c_base['base_lookback'] + c_base['tight_lookback'], len(df)):
+            row = df.iloc[i]
             
-        if s.state == State.CONTRACTION:
-            if i - s.cons_index + 1 > c['max_bars']:
-                s.state = State.FAILED
-                s.failure_reason = 'consolidation too long'
-                return s
-                
-            curr_r = df.iloc[i]
-            rng = max(float(curr_r.High - curr_r.Low), 1e-12)
-            body = abs(float(curr_r.Close - curr_r.Open))
-            body_ratio = body / rng if rng else 0
-            loc_bull = (curr_r.Close - curr_r.Low) / rng if rng else 0
-            loc_bear = (curr_r.High - curr_r.Close) / rng if rng else 0
-            rel_vol = float(curr_r.RelVol) if pd.notna(curr_r.RelVol) else 1.0
+            if state == State.IDLE:
+                if row['VCPQualified']:
+                    state = State.CONTRACTION
+                    setup_start = i
+                    self.setup = Setup(self.symbol, state=State.CONTRACTION)
+                    self.setup.cons_index = i
             
-            # Breakout logic
-            if trend == 1:
-                level = s.resistance
-                breakout = float(curr_r.Close) > level * (1 + m['buffer_pct']/100)
-                strong_close = loc_bull >= m['close_location_min']
-            else:
-                level = s.support
-                breakout = float(curr_r.Close) < level * (1 - m['buffer_pct']/100)
-                strong_close = loc_bear >= m['close_location_min']
+            elif state == State.CONTRACTION:
+                setup_bars = i - setup_start + 1
                 
-            vol_ok = rel_vol >= m['min_relative_volume']
-            body_ok = body_ratio >= m['min_body_ratio']
-            
-            if breakout and strong_close and body_ok and vol_ok:
-                s.state = State.BUY if trend == 1 else State.SELL
-                s.entry = float(curr_r.Close)
-                s.breakout_index = i
+                self.setup.resistance = row['PrevBaseHigh']
+                self.setup.support = row['PrevBaseLow']
                 
-                stop_buffer = self.cfg['risk']['stop_loss_buffer_pct'] / 100
-                
-                # Stop loss placed safely below the breakout box
-                if trend == 1:
-                    s.stop = s.support * (1 - stop_buffer)
+                if setup_bars > c_base['max_setup_bars']:
+                    state = State.IDLE
+                    self.setup = Setup(self.symbol)
                 else:
-                    s.stop = s.resistance * (1 + stop_buffer)
+                    bull_break = row['Close'] > row['PrevBaseHigh'] * (1.0 + c_break['buffer_pct']/100.0)
+                    bear_break = row['Close'] < row['PrevBaseLow'] * (1.0 - c_break['buffer_pct']/100.0)
                     
-                risk = abs(s.entry - s.stop)
-                rr = self.cfg['risk']['take_profit_r']
-                s.target = s.entry + rr * risk if trend == 1 else s.entry - rr * risk
+                    long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
+                                   row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'])
+                                   
+                    short_signal = (setup_bars >= c_base['min_setup_bars'] and bear_break and 
+                                    row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
+                                    
+                    if long_signal:
+                        state = State.BUY
+                        self.setup.state = State.BUY
+                        self.setup.direction = 1
+                        self.setup.entry = row['Close']
+                        self.setup.stop = row['PrevBaseLow'] * (1.0 - c_risk['stop_loss_buffer_pct']/100.0)
+                        risk = abs(self.setup.entry - self.setup.stop)
+                        self.setup.target = self.setup.entry + risk * c_risk['take_profit_r']
+                        self.setup.breakout_index = i
+                        
+                    elif short_signal:
+                        state = State.SELL
+                        self.setup.state = State.SELL
+                        self.setup.direction = -1
+                        self.setup.entry = row['Close']
+                        self.setup.stop = row['PrevBaseHigh'] * (1.0 + c_risk['stop_loss_buffer_pct']/100.0)
+                        risk = abs(self.setup.entry - self.setup.stop)
+                        self.setup.target = self.setup.entry - risk * c_risk['take_profit_r']
+                        self.setup.breakout_index = i
+
+            elif state in (State.BUY, State.SELL):
+                # Trade active, check for TP/SL
+                active_dir = self.setup.direction
+                hit_target = (row['High'] >= self.setup.target) if active_dir == 1 else (row['Low'] <= self.setup.target)
+                hit_stop = (row['Low'] <= self.setup.stop) if active_dir == 1 else (row['High'] >= self.setup.stop)
                 
-                s.evidence.extend([
-                    f'breakout vol {rel_vol:.1f}x',
-                    'strong close',
-                    'momentum ignition'
-                ])
-                
-        return s
+                if hit_target or hit_stop:
+                    state = State.IDLE
+                    self.setup = Setup(self.symbol)
+                    
+        # Calculate trailing trend for display
+        self.setup.trend = 1 if df['Close'].iloc[-1] > df['SMA'].iloc[-1] else -1
+        
+        return self.setup

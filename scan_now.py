@@ -24,24 +24,14 @@ def scan_now():
 
     print(f"Scanning {len(symbols)} symbols from {filename}...")
     
-    for sym in symbols:
-        try:
-            df = provider.candles(sym, period='1y', interval='1d')
-            if df.empty or len(df) < 80:
-                continue
-                
-            engine = BreakoutEngine(cfg, sym)
-            setup = engine.run(df)
-            
-            if setup.state in (State.BUY, State.SELL):
-                print(f"🚀 SIGNAL: {sym} -> {setup.state.name} | Entry: ${setup.entry:.2f}")
-            elif setup.state == State.CONTRACTION:
-                print(f"👀 WATCHING: {sym} is forming a tight VCP base.")
-            else:
-                pass
-                
-        except Exception as e:
-            print(f"Error processing {sym}: {e}")
+    from breakout_scanner.scanner import MultiSymbolScanner
+    scanner = MultiSymbolScanner(provider, cfg)
+    
+    # Run scanner and grab results
+    setups = scanner.scan(symbols, period='1y', interval='1d')
+    
+    # Report using the new beautiful format
+    scanner.report(setups)
             
     print("Scan complete.")
 

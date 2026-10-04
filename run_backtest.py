@@ -13,7 +13,7 @@ def run_historical_backtest():
     provider = YFinanceProvider()
     
     symbols = [
-        'NVDA'
+        'BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD', 'LINK-USD'
     ]
     
     tester = Backtester(cfg)
