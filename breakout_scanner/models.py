@@ -38,3 +38,5 @@ class Setup:
     entry_day: Optional[str] = None
     held_days: int = 0
     current_price: Optional[float] = None
+    bias_score: int = 0
+    earnings_warning: bool = False

@@ -208,7 +208,7 @@ class BreakoutEngine:
                 hit_stop = (row['Low'] <= self.setup.stop) if active_dir == 1 else (row['High'] >= self.setup.stop)
                 hit_time = c_mgmt['use_time_exit'] and self.setup.held_days >= c_mgmt['max_hold_days']
                 
-                if hit_stop or hit_time:
+                if hit_stop or hit_time or hit_tp2:
                     state = State.IDLE
                     self.setup = Setup(self.symbol)
                     

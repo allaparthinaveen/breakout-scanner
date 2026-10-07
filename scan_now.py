@@ -36,12 +36,22 @@ def build_report_string(setups):
     lines.append(" SECTION 1: VCP BASE")
     lines.append("=======================")
     
-    base_setups = [s for s in setups if s.state == State.CONTRACTION]
+    base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 2]
+    base_setups.sort(key=lambda s: s.bias_score, reverse=True)
     if not base_setups:
         lines.append("  (None)")
     else:
         for s in base_setups:
-            bias = "Possible Upside" if s.trend == 1 else "Possible Downside"
+            if s.bias_score >= 2:
+                bias = f"Strong Upside Bias ({s.bias_score}/3)"
+            elif s.bias_score == 1:
+                bias = f"Weak Upside Bias ({s.bias_score}/3)"
+            else:
+                bias = f"Downside Bias ({s.bias_score}/3)"
+                
+            if s.earnings_warning:
+                bias += " ⚠️ EARNINGS RISK"
+                
             lines.append(f"{s.symbol:9} | Res: {s.resistance:.5g} | Sup: {s.support:.5g} | Bias: {bias}")
 
     lines.append("")
@@ -58,7 +68,8 @@ def build_report_string(setups):
     else:
         for s in active_setups:
             dir_str = "BUY " if s.direction == 1 else "SELL"
-            lines.append(f"{s.symbol:6} | {dir_str} | In: {s.entry:.5g} | SL: {s.stop:.5g}")
+            cp_str = f"CP: {s.current_price:.5g}" if s.current_price else "CP: N/A"
+            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str} | In: {s.entry:.5g} | SL: {s.stop:.5g}")
             
     lines.append("</code>")
     return "\n".join(lines)

@@ -16,10 +16,23 @@ volume:
   use_breakout_volume: true
   breakout_multiplier: 1.20
 breakout:
-  buffer_pct: 0.05
+  buffer_pct: 0.10
   close_location: 0.55
-  require_momentum_candle: false
+  require_momentum_candle: true
   min_body_pct: 40.0
 risk:
-  take_profit_r: 2.0
-  stop_loss_buffer_pct: 0.50
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 0.75
+  max_stop_pct: 3.00
+  use_structure_stop: true
+  structure_buffer_pct: 0.25
+target:
+  target_lookback: 50
+  tp1_r: 1.0
+  tp2_r: 2.0
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.10
+  max_hold_days: 10
+  use_time_exit: true

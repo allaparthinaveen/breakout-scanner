@@ -83,3 +83,10 @@ python3 -m breakout_scanner.cli scan --watchlist config/watchlist.txt --period 6
 
 ## 🛡️ Safeguards & Phase 10 (Live Execution)
 Before attaching live brokerage API keys (e.g., Alpaca, CCXT) for Phase 10, ensure that the `ProductionSafeguards` are correctly calibrated to your timezone and liquidity preferences. The engine is programmed to halt completely if daily loss limits are breached or data latency exceeds 120 seconds.
+
+## Execution steps
+The default input file where we store the stock names is located at: config/watchlist.txt
+
+When you run python3 daily_report.py without any extra commands, it automatically reads the stock tickers from that specific file.
+
+(Note: We also created config/crypto_watchlist.txt and config/top30_watchlist.txt earlier. If you want to use a different file, you just pass it in like this: python3 daily_report.py --watchlist config/your_custom_file.txt).
