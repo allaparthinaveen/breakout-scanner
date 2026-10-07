@@ -44,13 +44,17 @@ class MultiSymbolScanner:
             for s in base_setups:
                 res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
                 sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
-                print(f"  • {s.symbol:8} | {res} | {sup}")
+                bias_color = "\033[92m" if s.trend == 1 else "\033[91m"
+                bias_text = "Possible Upside" if s.trend == 1 else "Possible Downside"
+                bias_str = f"{bias_color}Bias: {bias_text}\033[0m"
+                print(f"  • {s.symbol:9} | {res} | {sup} | {bias_str}")
 
         print("\n=======================================================")
         print(" SECTION 2: 🚀 ACTIVE SIGNALS (Trade In Progress)")
         print("=======================================================")
         
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
+        active_setups.sort(key=lambda s: abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf'))
         if not active_setups:
             print("  (None)")
         else:
@@ -58,7 +62,9 @@ class MultiSymbolScanner:
                 dir_str = "\033[92m▲ BUY\033[0m" if s.direction == 1 else "\033[91m▼ SELL\033[0m"
                 entry = f"Entry: {s.entry:.5g}"
                 stop = f"Stop: {s.stop:.5g}"
-                target = f"Target: {s.target:.5g}"
-                print(f"  • {s.symbol:8} | {dir_str} | {entry} | {stop} | {target}")
+                targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}"
+                if s.tp3 is not None:
+                    targets += f" | TP3: {s.tp3:.5g}"
+                print(f"  • {s.symbol:8} | {dir_str} | {entry} | {stop} | {targets}")
                 
         print("\n")

@@ -24,3 +24,17 @@ class Setup:
     failure_reason: Optional[str] = None
     cons_index: Optional[int] = None
     breakout_index: Optional[int] = None
+    bars_since_breakout: Optional[int] = None
+    
+    # V2.3 Advanced Trade Management
+    original_stop: Optional[float] = None
+    tp1: Optional[float] = None
+    tp2: Optional[float] = None
+    tp3: Optional[float] = None
+    
+    tp1_hit: bool = False
+    tp2_hit: bool = False
+    
+    entry_day: Optional[str] = None
+    held_days: int = 0
+    current_price: Optional[float] = None
