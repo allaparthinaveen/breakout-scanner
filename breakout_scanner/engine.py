@@ -12,6 +12,7 @@ class BreakoutEngine:
         self.setup = Setup(symbol)
 
     def run(self, raw):
+        self.setup = Setup(self.symbol)
         df = raw.copy()
         c_trend = self.cfg['trend']
         c_base = self.cfg['base']
@@ -105,6 +106,9 @@ class BreakoutEngine:
                     self.setup.cons_index = i
                     self.setup.resistance = row['PrevBaseHigh']
                     self.setup.support = row['PrevBaseLow']
+                    if self.setup.resistance and self.setup.support and self.setup.support > 0:
+                        mid = (self.setup.resistance + self.setup.support) / 2.0
+                        self.setup.base_width_pct = (self.setup.resistance - self.setup.support) / mid * 100.0
             
             elif state == State.CONTRACTION:
                 setup_bars = i - setup_start + 1
@@ -140,6 +144,7 @@ class BreakoutEngine:
                         self.setup.original_stop = final_stop
                         
                         risk = abs(self.setup.entry - self.setup.stop)
+                        self.setup.risk_pct = (risk / self.setup.entry) * 100.0 if self.setup.entry else 0.0
                         self.setup.tp1 = self.setup.entry + risk * c_tgt['tp1_r']
                         self.setup.tp2 = self.setup.entry + risk * c_tgt['tp2_r']
                         
@@ -169,6 +174,7 @@ class BreakoutEngine:
                         self.setup.original_stop = final_stop
                         
                         risk = abs(self.setup.entry - self.setup.stop)
+                        self.setup.risk_pct = (risk / self.setup.entry) * 100.0 if self.setup.entry else 0.0
                         self.setup.tp1 = self.setup.entry - risk * c_tgt['tp1_r']
                         self.setup.tp2 = self.setup.entry - risk * c_tgt['tp2_r']
                         
@@ -215,6 +221,13 @@ class BreakoutEngine:
         # Calculate trailing trend for display
         self.setup.trend = 1 if df['Close'].iloc[-1] > df['SMA'].iloc[-1] else -1
         self.setup.current_price = df['Close'].iloc[-1]
+        
+        # Calculate current unrealized PnL % if in trade
+        if self.setup.state in (State.BUY, State.SELL) and self.setup.entry and self.setup.current_price:
+            if self.setup.direction == 1:
+                self.setup.pnl_pct = (self.setup.current_price - self.setup.entry) / self.setup.entry * 100.0
+            elif self.setup.direction == -1:
+                self.setup.pnl_pct = (self.setup.entry - self.setup.current_price) / self.setup.entry * 100.0
         
         # Calculate how many bars since the breakout
         if self.setup.state in (State.BUY, State.SELL) and self.setup.breakout_index is not None:

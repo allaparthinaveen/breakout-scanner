@@ -40,3 +40,6 @@ class Setup:
     current_price: Optional[float] = None
     bias_score: int = 0
     earnings_warning: bool = False
+    base_width_pct: Optional[float] = None
+    risk_pct: Optional[float] = None
+    pnl_pct: Optional[float] = None

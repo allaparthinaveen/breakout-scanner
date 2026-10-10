@@ -52,7 +52,8 @@ def build_report_string(setups):
             if s.earnings_warning:
                 bias += " ⚠️ EARNINGS RISK"
                 
-            lines.append(f"{s.symbol:9} | Res: {s.resistance:.5g} | Sup: {s.support:.5g} | Bias: {bias}")
+            width_str = f" | W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+            lines.append(f"{s.symbol:9} | Res: {s.resistance:.5g} | Sup: {s.support:.5g}{width_str} | Bias: {bias}")
 
     lines.append("")
     lines.append("=======================")
@@ -69,7 +70,8 @@ def build_report_string(setups):
         for s in active_setups:
             dir_str = "BUY " if s.direction == 1 else "SELL"
             cp_str = f"CP: {s.current_price:.5g}" if s.current_price else "CP: N/A"
-            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str} | In: {s.entry:.5g} | SL: {s.stop:.5g}")
+            pnl_str = f" | PnL: {s.pnl_pct:+.1f}%" if s.pnl_pct is not None else ""
+            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str} | In: {s.entry:.5g} | SL: {s.stop:.5g}")
             
     lines.append("</code>")
     return "\n".join(lines)
