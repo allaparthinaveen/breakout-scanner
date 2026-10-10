@@ -1,15 +1,25 @@
 import os
+import argparse
 from breakout_scanner.config import load_config
 from breakout_scanner.engine import BreakoutEngine
 from breakout_scanner.providers.yfinance_provider import YFinanceProvider
 from breakout_scanner.models import State
 
 def scan_now():
+    parser = argparse.ArgumentParser(description="Run breakout scanner on a watchlist")
+    parser.add_argument(
+        "--watchlist",
+        type=str,
+        default="config/watchlist.txt",
+        help="Path to watchlist file (defaults to config/watchlist.txt)",
+    )
+    args = parser.parse_args()
+
     print("Loading config...")
     cfg = load_config('config/default.yaml')
     provider = YFinanceProvider()
     
-    filename = 'config/crypto_watchlist.txt'
+    filename = args.watchlist
     symbols = []
     
     if os.path.exists(filename):

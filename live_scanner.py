@@ -5,6 +5,9 @@ import pandas as pd
 from datetime import datetime
 import json
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from breakout_scanner.config import load_config
 from breakout_scanner.engine import BreakoutEngine
@@ -16,9 +19,9 @@ class LiveScanner:
         self.cfg = load_config(cfg_path)
         self.provider = YFinanceProvider()
         
-        # Telegram Setup (Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in env)
-        self.telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN', '8361061485:AAGUSvENq79eUhIztcae-7BPJt-gc1LVytk')
-        self.telegram_chat_id = os.environ.get('TELEGRAM_CHAT_ID', '5480767676')
+        # Telegram Setup (Reads TELEGRAM_BOT_TOKEN / TG_BOT_TOKEN and TELEGRAM_CHAT_ID / TG_CHAT_ID from .env)
+        self.telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('TG_BOT_TOKEN', '8361061485:AAGUSvENq79eUhIztcae-7BPJt-gc1LVytk')
+        self.telegram_chat_id = os.environ.get('TELEGRAM_CHAT_ID') or os.environ.get('TG_CHAT_ID', '5480767676')
         
         # Keep track of signaled symbols so we don't spam the same signal every 5 mins
         self.active_signals = {}

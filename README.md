@@ -83,3 +83,14 @@ python3 -m breakout_scanner.cli scan --watchlist config/watchlist.txt --period 6
 
 ## 🛡️ Safeguards & Phase 10 (Live Execution)
 Before attaching live brokerage API keys (e.g., Alpaca, CCXT) for Phase 10, ensure that the `ProductionSafeguards` are correctly calibrated to your timezone and liquidity preferences. The engine is programmed to halt completely if daily loss limits are breached or data latency exceeds 120 seconds.
+
+
+# 1. Create a virtual environment
+python3 -m venv .venv
+
+# 2. Activate it
+source .venv/bin/activate
+
+# 3. Upgrade pip & install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt

@@ -11,8 +11,8 @@ from breakout_scanner.models import State
 load_dotenv()
 
 def send_telegram_message(message: str):
-    token = os.getenv("TG_BOT_TOKEN")
-    chat_id = os.getenv("TG_CHAT_ID")
+    token = os.getenv("TG_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TG_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         print("\n⚠️ Telegram credentials not found in .env file. Skipping Telegram notification.")
         return
