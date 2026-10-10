@@ -1,130 +1,1354 @@
 //@version=6
-indicator("Momentum VCP Breakout Engine", overlay=true, max_boxes_count=50, max_labels_count=50)
+indicator("Momentum VCP Breakout Engine V2.4", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 //====================================================
 // INPUTS
 //====================================================
 
-// Structure
-smaTrendLookback = input.int(50, "SMA Trend Lookback")
+groupTrend = "1. Trend"
+groupBase = "2. VCP Base"
+groupVolume = "3. Volume"
+groupBreakout = "4. Breakout"
+groupRisk = "5. Risk Engine"
+groupTarget = "6. Target Engine"
+groupManagement = "7. Trade Management"
+groupVisual = "8. Visuals"
 
-// Consolidation
-minConsBars = input.int(5, "Minimum Consolidation Bars")
-maxConsBars = input.int(60, "Maximum Consolidation Bars")
-maxRangePct = input.float(35.0, "Maximum Base Range %")
-maxVolatilityPct = input.float(10.0, "Maximum Volatility %")
+//----------------------------------------------------
+// TREND
+//----------------------------------------------------
 
-// Momentum
-breakoutBuffer = input.float(0.10, "Breakout Buffer %")
-volLookback = input.int(20, "Volume Lookback")
-minRelVol = input.float(1.5, "Minimum Relative Volume")
-minBodyRatio = input.float(0.50, "Minimum Body Ratio")
-closeLocMin = input.float(0.70, "Minimum Close Location")
+smaLength = input.int(50, "SMA Length", minval=10, group=groupTrend)
+useTrendFilter = input.bool(true, "Use SMA Trend Filter", group=groupTrend)
 
-// Risk
-takeProfitR = input.float(2.0, "Take Profit (R)")
-stopLossBuffer = input.float(0.5, "Stop Loss Buffer %")
+//----------------------------------------------------
+// VCP BASE
+//----------------------------------------------------
+
+baseLookback = input.int(20, "Base Lookback", minval=5, maxval=100, group=groupBase)
+tightLookback = input.int(5, "Tight Range Lookback", minval=3, maxval=20, group=groupBase)
+
+maxBaseRangePct = input.float(12.0, "Maximum Base Range %", minval=0.5, step=0.5, group=groupBase)
+maxTightRangePct = input.float(6.0, "Maximum Tight Range %", minval=0.5, step=0.5, group=groupBase)
+
+requireTightening = input.bool(false, "Require Tightening", group=groupBase)
+
+minSetupBars = input.int(5, "Minimum Setup Bars", minval=1, group=groupBase)
+maxSetupBars = input.int(30, "Maximum Setup Bars", minval=5, group=groupBase)
+
+//----------------------------------------------------
+// VOLUME
+//----------------------------------------------------
+
+useVolumeContraction = input.bool(false, "Require Volume Contraction", group=groupVolume)
+
+volumeLength = input.int(20, "Volume Average Length", minval=5, group=groupVolume)
+
+volumeContractionRatio = input.float(
+     0.90,
+     "Contraction Ratio",
+     minval=0.5,
+     maxval=1.5,
+     step=0.05,
+     group=groupVolume)
+
+useBreakoutVolume = input.bool(true, "Require Breakout Volume", group=groupVolume)
+
+breakoutVolumeMultiplier = input.float(
+     1.20,
+     "Breakout Volume Multiplier",
+     minval=0.5,
+     step=0.05,
+     group=groupVolume)
+
+//----------------------------------------------------
+// BREAKOUT
+//----------------------------------------------------
+
+breakoutBuffer = input.float(
+     0.10,
+     "Breakout Buffer %",
+     minval=0.0,
+     step=0.05,
+     group=groupBreakout)
+
+closeLocation = input.float(
+     0.55,
+     "Minimum Close Location",
+     minval=0.0,
+     maxval=1.0,
+     step=0.05,
+     group=groupBreakout)
+
+requireMomentumCandle = input.bool(
+     true,
+     "Require Strong Momentum Candle",
+     group=groupBreakout)
+
+minimumBodyPct = input.float(
+     40.0,
+     "Minimum Candle Body %",
+     minval=0.0,
+     maxval=100.0,
+     step=5.0,
+     group=groupBreakout)
+
+//----------------------------------------------------
+// RISK
+//----------------------------------------------------
+
+atrLength = input.int(14, "ATR Length", minval=2, group=groupRisk)
+
+atrMultiplier = input.float(
+     1.50,
+     "ATR Stop Multiplier",
+     minval=0.25,
+     step=0.25,
+     group=groupRisk)
+
+minStopPct = input.float(
+     0.75,
+     "Minimum Stop %",
+     minval=0.10,
+     step=0.25,
+     group=groupRisk)
+
+maxStopPct = input.float(
+     3.00,
+     "Maximum Stop %",
+     minval=0.50,
+     step=0.25,
+     group=groupRisk)
+
+useStructureStop = input.bool(
+     true,
+     "Use VCP Structure For Stop",
+     group=groupRisk)
+
+structureBufferPct = input.float(
+     0.25,
+     "Structure Stop Buffer %",
+     minval=0.0,
+     step=0.10,
+     group=groupRisk)
+
+//----------------------------------------------------
+// TARGETS
+//----------------------------------------------------
+
+showTP1 = input.bool(true, "Show TP1 (1R)", group=groupTarget)
+showTP2 = input.bool(true, "Show TP2 (2R)", group=groupTarget)
+showTP3 = input.bool(false, "Show TP3 Structure Target", group=groupTarget)
+
+targetLookback = input.int(
+     50,
+     "Structure Target Lookback",
+     minval=10,
+     maxval=200,
+     group=groupTarget)
+
+tp1R = input.float(1.0, "TP1 R", minval=0.25, step=0.25, group=groupTarget)
+tp2R = input.float(2.0, "TP2 R", minval=0.50, step=0.25, group=groupTarget)
+
+//----------------------------------------------------
+// TRADE MANAGEMENT
+//----------------------------------------------------
+
+useBreakeven = input.bool(
+     true,
+     "Move Stop To Breakeven After TP1",
+     group=groupManagement)
+
+breakevenOffsetPct = input.float(
+     0.10,
+     "Breakeven Offset %",
+     minval=0.0,
+     step=0.05,
+     group=groupManagement)
+
+maxHoldDays = input.int(
+     10,
+     "Maximum Holding Days",
+     minval=1,
+     maxval=60,
+     group=groupManagement)
+
+useTimeExit = input.bool(
+     true,
+     "Enable Time Exit",
+     group=groupManagement)
+
+//----------------------------------------------------
+// VISUALS
+//----------------------------------------------------
+
+showSMA = input.bool(true, "Show SMA", group=groupVisual)
+showVCPBox = input.bool(true, "Show VCP Base Box", group=groupVisual)
+showSR = input.bool(true, "Show Support / Resistance", group=groupVisual)
+showTradeLevels = input.bool(true, "Show Entry / SL / TP", group=groupVisual)
+showPriceInLabels = input.bool(true, "Show Prices", group=groupVisual)
+
+labelOffsetBars = input.int(
+     7,
+     "Label Distance From Candles",
+     minval=2,
+     maxval=30,
+     group=groupVisual)
+
+showDebug = input.bool(false, "Show Debug Markers", group=groupVisual)
 
 //====================================================
-// CALCULATIONS
+// COLORS
 //====================================================
 
-// Trend
-macroSma = ta.sma(close, smaTrendLookback)
-trend = close > macroSma ? 1 : close < macroSma ? -1 : 0
-
-// Current Candle Properties
-rng = math.max(high - low, 0.0001)
-body = math.abs(close - open)
-bodyRatio = body / rng
-locBull = (close - low) / rng
-locBear = (high - close) / rng
-
-avgVol = ta.sma(volume, volLookback)
-relVol = volume / avgVol
-
-// Box Measurements (Rolling `minConsBars`)
-rollHi = ta.highest(high, minConsBars)
-rollLo = ta.lowest(low, minConsBars)
-rollMid = (rollHi + rollLo) / 2
-boxPct = rollMid > 0 ? (rollHi - rollLo) / rollMid * 100 : 999
-
-avgRange = ta.sma(high - low, minConsBars)
-volatilityPct = rollMid > 0 ? (avgRange / rollMid) * 100 : 999
+colorBull = color.rgb(0, 170, 100)
+colorBear = color.rgb(220, 50, 70)
+colorBlue = color.rgb(35, 105, 210)
+colorOrange = color.rgb(245, 150, 20)
+colorPurple = color.rgb(140, 70, 200)
 
 //====================================================
-// STATE MACHINE
+// TREND
 //====================================================
 
-var int state = 0 // 0=IDLE, 1=CONTRACTION
-var int consStart = na
-var float support = na
-var float resistance = na
-var box bx = na
+sma = ta.sma(close, smaLength)
 
-// State Transitions
-if state == 0 and boxPct <= maxRangePct and volatilityPct <= maxVolatilityPct
+bullTrend = close > sma
+bearTrend = close < sma
+
+longTrendOK = not useTrendFilter or bullTrend
+shortTrendOK = not useTrendFilter or bearTrend
+
+//====================================================
+// ATR
+//====================================================
+
+atr = ta.atr(atrLength)
+
+//====================================================
+// CANDLE MEASUREMENTS
+//====================================================
+
+candleRange = math.max(high - low, syminfo.mintick)
+
+bullCloseLocation = (close - low) / candleRange
+bearCloseLocation = (high - close) / candleRange
+
+bodySize = math.abs(close - open)
+bodyPct = bodySize / candleRange * 100.0
+
+bullMomentum =
+     close > open and
+     bullCloseLocation >= closeLocation and
+     (not requireMomentumCandle or bodyPct >= minimumBodyPct)
+
+bearMomentum =
+     close < open and
+     bearCloseLocation >= closeLocation and
+     (not requireMomentumCandle or bodyPct >= minimumBodyPct)
+
+//====================================================
+// BASE CALCULATIONS
+//====================================================
+
+baseHigh = ta.highest(high, baseLookback)
+baseLow = ta.lowest(low, baseLookback)
+
+baseMid = (baseHigh + baseLow) / 2.0
+
+baseRangePct =
+     baseMid > 0 ?
+     (baseHigh - baseLow) / baseMid * 100.0 :
+     999.0
+
+//====================================================
+// TIGHT RANGE
+//====================================================
+
+tightHigh = ta.highest(high, tightLookback)
+tightLow = ta.lowest(low, tightLookback)
+
+tightMid = (tightHigh + tightLow) / 2.0
+
+tightRangePct =
+     tightMid > 0 ?
+     (tightHigh - tightLow) / tightMid * 100.0 :
+     999.0
+
+//====================================================
+// TIGHTENING
+//====================================================
+
+earlierLookback = math.max(baseLookback - tightLookback, 2)
+
+earlierHigh = ta.highest(high[tightLookback], earlierLookback)
+earlierLow = ta.lowest(low[tightLookback], earlierLookback)
+
+earlierMid = (earlierHigh + earlierLow) / 2.0
+
+earlierRangePct =
+     earlierMid > 0 ?
+     (earlierHigh - earlierLow) / earlierMid * 100.0 :
+     999.0
+
+rangeTightening = tightRangePct < earlierRangePct
+
+tighteningOK = not requireTightening or rangeTightening
+
+//====================================================
+// VOLUME
+//====================================================
+
+avgVolume = ta.sma(volume, volumeLength)
+
+baseAvgVolume = ta.sma(volume, baseLookback)
+tightAvgVolume = ta.sma(volume, tightLookback)
+
+volumeContracting =
+     tightAvgVolume <= baseAvgVolume * volumeContractionRatio
+
+volumeContractionOK =
+     not useVolumeContraction or volumeContracting
+
+volumeExpansion =
+     volume >= avgVolume * breakoutVolumeMultiplier
+
+breakoutVolumeOK =
+     not useBreakoutVolume or volumeExpansion
+
+//====================================================
+// VCP QUALIFICATION
+//====================================================
+
+enoughBars =
+     bar_index >= baseLookback + tightLookback
+
+baseSmallEnough =
+     baseRangePct <= maxBaseRangePct
+
+tightSmallEnough =
+     tightRangePct <= maxTightRangePct
+
+vcpQualified =
+     enoughBars and
+     baseSmallEnough and
+     tightSmallEnough and
+     tighteningOK and
+     volumeContractionOK
+
+//====================================================
+// STATE
+//====================================================
+
+// 0 = SEARCHING
+// 1 = VCP ACTIVE
+// 2 = TRADE ACTIVE
+
+var int state = 0
+
+var int setupStart = na
+
+//====================================================
+// LOCKED VCP LEVELS
+//====================================================
+
+var float lockedResistance = na
+var float lockedSupport = na
+var float lockedBaseHigh = na
+var float lockedBaseLow = na
+
+//====================================================
+// VCP OBJECTS
+//====================================================
+
+var box vcpBox = na
+
+var label vcpLabel = na
+var label resistanceLabel = na
+var label supportLabel = na
+
+var line resistanceLine = na
+var line supportLine = na
+
+//====================================================
+// TRADE OBJECTS
+//====================================================
+
+var line entryLine = na
+var line stopLine = na
+var line tp1Line = na
+var line tp2Line = na
+var line tp3Line = na
+
+var label signalLabel = na
+var label entryLabel = na
+var label stopLabel = na
+var label tp1Label = na
+var label tp2Label = na
+var label tp3Label = na
+
+//====================================================
+// TRADE VARIABLES
+//====================================================
+
+var float activeEntry = na
+var float activeStop = na
+var float originalStop = na
+
+var float activeTP1 = na
+var float activeTP2 = na
+var float activeTP3 = na
+
+var int activeDirection = 0
+
+var int entryDayNumber = na
+
+var bool tp1Hit = false
+var bool tp2Hit = false
+
+//====================================================
+// DAY COUNTER
+//====================================================
+
+var int dayCounter = 0
+
+newDay = ta.change(time("D")) != 0
+
+if newDay
+    dayCounter := dayCounter + 1
+
+//====================================================
+// HELPER FUNCTIONS
+//====================================================
+
+priceText(float price) =>
+    showPriceInLabels ? str.tostring(price, format.mintick) : ""
+
+percentFromEntry(float price, float entry) =>
+    entry != 0 ?
+         str.tostring(
+             math.abs(price - entry) / entry * 100.0,
+             "#.##"
+         ) + "%" :
+         ""
+
+//====================================================
+// START VCP
+//====================================================
+
+if state == 0 and vcpQualified
+
     state := 1
-    consStart := bar_index - minConsBars + 1
-    support := rollLo
-    resistance := rollHi
-    
-    bx := box.new(
-         left=consStart,
-         top=resistance,
-         right=bar_index,
-         bottom=support,
-         border_color=color.new(color.blue, 30),
-         border_width=2,
-         bgcolor=color.new(color.blue, 90)
-         )
+
+    setupStart := bar_index
+
+    //================================================
+    // IMPORTANT V2.4 FIX
+    //
+    // LOCK THESE LEVELS ONCE.
+    //================================================
+
+    lockedResistance := ta.highest(high[1], baseLookback)
+    lockedSupport := ta.lowest(low[1], baseLookback)
+
+    lockedBaseHigh := baseHigh
+    lockedBaseLow := baseLow
+
+    //================================================
+    // VCP BOX
+    //================================================
+
+    if showVCPBox
+
+        vcpBox := box.new(
+             left=bar_index - baseLookback + 1,
+             top=lockedBaseHigh,
+             right=bar_index,
+             bottom=lockedBaseLow,
+             border_color=color.new(colorBlue, 15),
+             border_width=2,
+             bgcolor=color.new(colorBlue, 90))
+
+        vcpLabel := label.new(
+             x=bar_index - int(math.floor(baseLookback / 2)),
+             y=lockedBaseLow,
+             text="◉ VCP BASE",
+             xloc=xloc.bar_index,
+             yloc=yloc.price,
+             style=label.style_label_up,
+             color=color.new(colorBlue, 10),
+             textcolor=color.white,
+             size=size.small)
+
+    //================================================
+    // RESISTANCE
+    //================================================
+
+    if showSR
+
+        resistanceLine := line.new(
+             x1=bar_index,
+             y1=lockedResistance,
+             x2=bar_index + labelOffsetBars,
+             y2=lockedResistance,
+             color=color.new(colorBear, 15),
+             width=2,
+             style=line.style_dashed)
+
+        resistanceLabel := label.new(
+             x=bar_index + labelOffsetBars,
+             y=lockedResistance,
+             text="◆ Resistance\n" + priceText(lockedResistance),
+             xloc=xloc.bar_index,
+             yloc=yloc.price,
+             style=label.style_label_left,
+             color=color.new(colorBear, 5),
+             textcolor=color.white,
+             size=size.small)
+
+    //================================================
+    // SUPPORT
+    //================================================
+
+    if showSR
+
+        supportLine := line.new(
+             x1=bar_index,
+             y1=lockedSupport,
+             x2=bar_index + labelOffsetBars,
+             y2=lockedSupport,
+             color=color.new(colorBull, 15),
+             width=2,
+             style=line.style_dashed)
+
+        supportLabel := label.new(
+             x=bar_index + labelOffsetBars,
+             y=lockedSupport,
+             text="◆ Support\n" + priceText(lockedSupport),
+             xloc=xloc.bar_index,
+             yloc=yloc.price,
+             style=label.style_label_left,
+             color=color.new(colorBull, 5),
+             textcolor=color.white,
+             size=size.small)
+
+//====================================================
+// ACTIVE VCP
+//====================================================
 
 if state == 1
-    
-    // Extend Box
-    if not na(bx)
-        box.set_right(bx, bar_index)
-        
-    // Timeout
-    if bar_index - consStart + 1 > maxConsBars
+
+    setupBars = bar_index - setupStart + 1
+
+    // Extend box visually.
+    // IMPORTANT: levels remain LOCKED.
+
+    if showVCPBox and not na(vcpBox)
+        box.set_right(vcpBox, bar_index)
+
+    if showSR and not na(resistanceLine)
+        line.set_x2(resistanceLine, bar_index + labelOffsetBars)
+
+    if showSR and not na(resistanceLabel)
+        label.set_x(resistanceLabel, bar_index + labelOffsetBars)
+
+    if showSR and not na(supportLine)
+        line.set_x2(supportLine, bar_index + labelOffsetBars)
+
+    if showSR and not na(supportLabel)
+        label.set_x(supportLabel, bar_index + labelOffsetBars)
+
+    //================================================
+    // EXPIRE SETUP
+    //================================================
+
+    if setupBars > maxSetupBars
+
+        if not na(vcpBox)
+            box.delete(vcpBox)
+
+        if not na(vcpLabel)
+            label.delete(vcpLabel)
+
+        if not na(resistanceLabel)
+            label.delete(resistanceLabel)
+
+        if not na(supportLabel)
+            label.delete(supportLabel)
+
+        if not na(resistanceLine)
+            line.delete(resistanceLine)
+
+        if not na(supportLine)
+            line.delete(supportLine)
+
+        vcpBox := na
+        vcpLabel := na
+
+        resistanceLabel := na
+        supportLabel := na
+
+        resistanceLine := na
+        supportLine := na
+
+        lockedResistance := na
+        lockedSupport := na
+
+        lockedBaseHigh := na
+        lockedBaseLow := na
+
+        setupStart := na
+
         state := 0
-        support := na
-        resistance := na
-        
+
     else
-        // Check Breakout
-        bullBreak = trend == 1 and close > resistance * (1 + breakoutBuffer/100) and locBull >= closeLocMin
-        bearBreak = trend == -1 and close < support * (1 - breakoutBuffer/100) and locBear >= closeLocMin
-        
-        volOk = relVol >= minRelVol
-        bodyOk = bodyRatio >= minBodyRatio
-        
-        if (bullBreak or bearBreak) and volOk and bodyOk
-            
-            isBull = bullBreak
-            
+
+        //================================================
+        // BREAKOUT LEVELS
+        //================================================
+
+        longBreakPrice =
+             lockedResistance *
+             (1.0 + breakoutBuffer / 100.0)
+
+        shortBreakPrice =
+             lockedSupport *
+             (1.0 - breakoutBuffer / 100.0)
+
+        //================================================
+        // CLOSE MUST BREAK LEVEL
+        //
+        // HIGH/LOW ARE NOT USED.
+        //
+        // Therefore a wick through resistance
+        // cannot trigger a BUY.
+        //================================================
+
+        bullBreak = close >= longBreakPrice
+        bearBreak = close <= shortBreakPrice
+
+        longSignal =
+             setupBars >= minSetupBars and
+             bullBreak and
+             bullMomentum and
+             longTrendOK and
+             breakoutVolumeOK
+
+        shortSignal =
+             setupBars >= minSetupBars and
+             bearBreak and
+             shortTrendOK and
+             breakoutVolumeOK
+
+        //================================================
+        // LONG
+        //================================================
+
+        if longSignal
+
             entry = close
-            stop = isBull ? support * (1 - stopLossBuffer/100) : resistance * (1 + stopLossBuffer/100)
-            risk = math.abs(entry - stop)
-            target = isBull ? entry + (takeProfitR * risk) : entry - (takeProfitR * risk)
-            
-            // Draw Signal
-            label.new(
-                 bar_index, 
-                 isBull ? low : high, 
-                 "🔥 VCP BREAKOUT\nVol: " + str.tostring(relVol, "#.#") + "x",
-                 style=isBull ? label.style_label_up : label.style_label_down,
-                 color=isBull ? color.green : color.red,
+
+            structureStop =
+                 lockedSupport *
+                 (1.0 - structureBufferPct / 100.0)
+
+            atrStop =
+                 entry - atr * atrMultiplier
+
+            rawStop =
+                 useStructureStop ?
+                 math.max(structureStop, atrStop) :
+                 atrStop
+
+            maxRiskStop =
+                 entry * (1.0 - maxStopPct / 100.0)
+
+            minRiskStop =
+                 entry * (1.0 - minStopPct / 100.0)
+
+            finalStop =
+                 math.min(
+                     math.max(rawStop, maxRiskStop),
+                     minRiskStop)
+
+            risk = math.abs(entry - finalStop)
+
+            tp1 = entry + risk * tp1R
+            tp2 = entry + risk * tp2R
+
+            structureTarget =
+                 ta.highest(high[1], targetLookback)
+
+            tp3 =
+                 structureTarget > tp2 ?
+                 structureTarget :
+                 entry + risk * 3.0
+
+            // Store trade
+            activeEntry := entry
+            activeStop := finalStop
+            originalStop := finalStop
+
+            activeTP1 := tp1
+            activeTP2 := tp2
+            activeTP3 := tp3
+
+            activeDirection := 1
+
+            entryDayNumber := dayCounter
+
+            tp1Hit := false
+            tp2Hit := false
+
+            state := 2
+
+            //================================================
+            // REMOVE VCP OBJECTS
+            //================================================
+
+            if not na(vcpBox)
+                box.delete(vcpBox)
+
+            if not na(vcpLabel)
+                label.delete(vcpLabel)
+
+            if not na(resistanceLabel)
+                label.delete(resistanceLabel)
+
+            if not na(supportLabel)
+                label.delete(supportLabel)
+
+            if not na(resistanceLine)
+                line.delete(resistanceLine)
+
+            if not na(supportLine)
+                line.delete(supportLine)
+
+            vcpBox := na
+            vcpLabel := na
+            resistanceLabel := na
+            supportLabel := na
+            resistanceLine := na
+            supportLine := na
+
+            //================================================
+            // BUY LABEL
+            //================================================
+
+            signalLabel := label.new(
+                 x=bar_index,
+                 y=low,
+                 text="▲ BUY",
+                 xloc=xloc.bar_index,
+                 yloc=yloc.price,
+                 style=label.style_label_up,
+                 color=color.new(colorBull, 5),
                  textcolor=color.white,
-                 size=size.small
-                 )
-                 
-            // Reset state
-            state := 0
-            support := na
-            resistance := na
+                 size=size.small)
+
+            //================================================
+            // TRADE LEVELS
+            //================================================
+
+            if showTradeLevels
+
+                entryLine := line.new(
+                     x1=bar_index,
+                     y1=entry,
+                     x2=bar_index + labelOffsetBars,
+                     y2=entry,
+                     color=color.new(colorBlue, 5),
+                     width=2,
+                     style=line.style_dashed)
+
+                entryLabel := label.new(
+                     x=bar_index + labelOffsetBars,
+                     y=entry,
+                     text="▶ Entry\n" + priceText(entry),
+                     xloc=xloc.bar_index,
+                     yloc=yloc.price,
+                     style=label.style_label_left,
+                     color=color.new(colorBlue, 5),
+                     textcolor=color.white,
+                     size=size.small)
+
+                stopLine := line.new(
+                     x1=bar_index,
+                     y1=finalStop,
+                     x2=bar_index + labelOffsetBars,
+                     y2=finalStop,
+                     color=color.new(colorBear, 5),
+                     width=2)
+
+                stopLabel := label.new(
+                     x=bar_index + labelOffsetBars,
+                     y=finalStop,
+                     text="◆ Stop\n" +
+                          priceText(finalStop) +
+                          " (-" +
+                          percentFromEntry(finalStop, entry) +
+                          ")",
+                     xloc=xloc.bar_index,
+                     yloc=yloc.price,
+                     style=label.style_label_left,
+                     color=color.new(colorBear, 5),
+                     textcolor=color.white,
+                     size=size.small)
+
+                if showTP1
+
+                    tp1Line := line.new(
+                         x1=bar_index,
+                         y1=tp1,
+                         x2=bar_index + labelOffsetBars,
+                         y2=tp1,
+                         color=color.new(colorBull, 20),
+                         width=1,
+                         style=line.style_dashed)
+
+                    tp1Label := label.new(
+                         x=bar_index + labelOffsetBars,
+                         y=tp1,
+                         text="◎ TP1\n" +
+                              priceText(tp1) +
+                              " (+" +
+                              percentFromEntry(tp1, entry) +
+                              ")",
+                         xloc=xloc.bar_index,
+                         yloc=yloc.price,
+                         style=label.style_label_left,
+                         color=color.new(colorBull, 5),
+                         textcolor=color.white,
+                         size=size.small)
+
+                if showTP2
+
+                    tp2Line := line.new(
+                         x1=bar_index,
+                         y1=tp2,
+                         x2=bar_index + labelOffsetBars,
+                         y2=tp2,
+                         color=color.new(colorBull, 5),
+                         width=2,
+                         style=line.style_dashed)
+
+                    tp2Label := label.new(
+                         x=bar_index + labelOffsetBars,
+                         y=tp2,
+                         text="◎ TP2\n" +
+                              priceText(tp2) +
+                              " (+" +
+                              percentFromEntry(tp2, entry) +
+                              ")",
+                         xloc=xloc.bar_index,
+                         yloc=yloc.price,
+                         style=label.style_label_left,
+                         color=color.new(colorBull, 5),
+                         textcolor=color.white,
+                         size=size.small)
+
+                if showTP3
+
+                    tp3Line := line.new(
+                         x1=bar_index,
+                         y1=tp3,
+                         x2=bar_index + labelOffsetBars,
+                         y2=tp3,
+                         color=color.new(colorBull, 25),
+                         width=1,
+                         style=line.style_dotted)
+
+                    tp3Label := label.new(
+                         x=bar_index + labelOffsetBars,
+                         y=tp3,
+                         text="◎ TP3\n" + priceText(tp3),
+                         xloc=xloc.bar_index,
+                         yloc=yloc.price,
+                         style=label.style_label_left,
+                         color=color.new(colorBull, 5),
+                         textcolor=color.white,
+                         size=size.small)
+
+        //================================================
+        // SHORT
+        //================================================
+
+        else if shortSignal
+
+            entry = close
+
+            structureStop =
+                 lockedResistance *
+                 (1.0 + structureBufferPct / 100.0)
+
+            atrStop =
+                 entry + atr * atrMultiplier
+
+            rawStop =
+                 useStructureStop ?
+                 math.min(structureStop, atrStop) :
+                 atrStop
+
+            maxRiskStop =
+                 entry * (1.0 + maxStopPct / 100.0)
+
+            minRiskStop =
+                 entry * (1.0 + minStopPct / 100.0)
+
+            finalStop =
+                 math.max(
+                     math.min(rawStop, maxRiskStop),
+                     minRiskStop)
+
+            risk = math.abs(entry - finalStop)
+
+            tp1 = entry - risk * tp1R
+            tp2 = entry - risk * tp2R
+
+            structureTarget =
+                 ta.lowest(low[1], targetLookback)
+
+            tp3 =
+                 structureTarget < tp2 ?
+                 structureTarget :
+                 entry - risk * 3.0
+
+            // Store trade
+            activeEntry := entry
+            activeStop := finalStop
+            originalStop := finalStop
+
+            activeTP1 := tp1
+            activeTP2 := tp2
+            activeTP3 := tp3
+
+            activeDirection := -1
+
+            entryDayNumber := dayCounter
+
+            tp1Hit := false
+            tp2Hit := false
+
+            state := 2
+
+            //================================================
+            // REMOVE VCP OBJECTS
+            //================================================
+
+            if not na(vcpBox)
+                box.delete(vcpBox)
+
+            if not na(vcpLabel)
+                label.delete(vcpLabel)
+
+            if not na(resistanceLabel)
+                label.delete(resistanceLabel)
+
+            if not na(supportLabel)
+                label.delete(supportLabel)
+
+            if not na(resistanceLine)
+                line.delete(resistanceLine)
+
+            if not na(supportLine)
+                line.delete(supportLine)
+
+            vcpBox := na
+            vcpLabel := na
+            resistanceLabel := na
+            supportLabel := na
+            resistanceLine := na
+            supportLine := na
+
+            //================================================
+            // SELL LABEL
+            //================================================
+
+            signalLabel := label.new(
+                 x=bar_index,
+                 y=high,
+                 text="▼ SELL",
+                 xloc=xloc.bar_index,
+                 yloc=yloc.price,
+                 style=label.style_label_down,
+                 color=color.new(colorBear, 5),
+                 textcolor=color.white,
+                 size=size.small)
+
+            //================================================
+            // TRADE LEVELS
+            //================================================
+
+            if showTradeLevels
+
+                entryLine := line.new(
+                     x1=bar_index,
+                     y1=entry,
+                     x2=bar_index + labelOffsetBars,
+                     y2=entry,
+                     color=color.new(colorBlue, 5),
+                     width=2,
+                     style=line.style_dashed)
+
+                entryLabel := label.new(
+                     x=bar_index + labelOffsetBars,
+                     y=entry,
+                     text="▶ Entry\n" + priceText(entry),
+                     xloc=xloc.bar_index,
+                     yloc=yloc.price,
+                     style=label.style_label_left,
+                     color=color.new(colorBlue, 5),
+                     textcolor=color.white,
+                     size=size.small)
+
+                stopLine := line.new(
+                     x1=bar_index,
+                     y1=finalStop,
+                     x2=bar_index + labelOffsetBars,
+                     y2=finalStop,
+                     color=color.new(colorBear, 5),
+                     width=2)
+
+                stopLabel := label.new(
+                     x=bar_index + labelOffsetBars,
+                     y=finalStop,
+                     text="◆ Stop\n" +
+                          priceText(finalStop) +
+                          " (-" +
+                          percentFromEntry(finalStop, entry) +
+                          ")",
+                     xloc=xloc.bar_index,
+                     yloc=yloc.price,
+                     style=label.style_label_left,
+                     color=color.new(colorBear, 5),
+                     textcolor=color.white,
+                     size=size.small)
+
+                if showTP1
+
+                    tp1Line := line.new(
+                         x1=bar_index,
+                         y1=tp1,
+                         x2=bar_index + labelOffsetBars,
+                         y2=tp1,
+                         color=color.new(colorBull, 20),
+                         width=1,
+                         style=line.style_dashed)
+
+                    tp1Label := label.new(
+                         x=bar_index + labelOffsetBars,
+                         y=tp1,
+                         text="◎ TP1\n" +
+                              priceText(tp1) +
+                              " (+" +
+                              percentFromEntry(tp1, entry) +
+                              ")",
+                         xloc=xloc.bar_index,
+                         yloc=yloc.price,
+                         style=label.style_label_left,
+                         color=color.new(colorBull, 5),
+                         textcolor=color.white,
+                         size=size.small)
+
+                if showTP2
+
+                    tp2Line := line.new(
+                         x1=bar_index,
+                         y1=tp2,
+                         x2=bar_index + labelOffsetBars,
+                         y2=tp2,
+                         color=color.new(colorBull, 5),
+                         width=2,
+                         style=line.style_dashed)
+
+                    tp2Label := label.new(
+                         x=bar_index + labelOffsetBars,
+                         y=tp2,
+                         text="◎ TP2\n" +
+                              priceText(tp2) +
+                              " (+" +
+                              percentFromEntry(tp2, entry) +
+                              ")",
+                         xloc=xloc.bar_index,
+                         yloc=yloc.price,
+                         style=label.style_label_left,
+                         color=color.new(colorBull, 5),
+                         textcolor=color.white,
+                         size=size.small)
+
+                if showTP3
+
+                    tp3Line := line.new(
+                         x1=bar_index,
+                         y1=tp3,
+                         x2=bar_index + labelOffsetBars,
+                         y2=tp3,
+                         color=color.new(colorBull, 25),
+                         width=1,
+                         style=line.style_dotted)
+
+                    tp3Label := label.new(
+                         x=bar_index + labelOffsetBars,
+                         y=tp3,
+                         text="◎ TP3\n" + priceText(tp3),
+                         xloc=xloc.bar_index,
+                         yloc=yloc.price,
+                         style=label.style_label_left,
+                         color=color.new(colorBull, 5),
+                         textcolor=color.white,
+                         size=size.small)
 
 //====================================================
-// PLOTS
+// ACTIVE TRADE MANAGEMENT
 //====================================================
-plot(macroSma, "Macro Trend SMA", color=color.new(color.orange, 50))
+
+if state == 2
+
+    heldDays = dayCounter - entryDayNumber
+
+    //================================================
+    // TP DETECTION
+    //================================================
+
+    hitTP1 =
+         activeDirection == 1 ?
+         high >= activeTP1 :
+         low <= activeTP1
+
+    hitTP2 =
+         activeDirection == 1 ?
+         high >= activeTP2 :
+         low <= activeTP2
+
+    //================================================
+    // TP1
+    //================================================
+
+    if hitTP1 and not tp1Hit
+
+        tp1Hit := true
+
+        label.new(
+             x=bar_index + 2,
+             y=activeTP1,
+             text="✓ TP1",
+             xloc=xloc.bar_index,
+             yloc=yloc.price,
+             style=label.style_label_left,
+             color=color.new(colorBull, 5),
+             textcolor=color.white,
+             size=size.small)
+
+        //================================================
+        // BREAKEVEN
+        //================================================
+
+        if useBreakeven
+
+            activeStop :=
+                 activeDirection == 1 ?
+                 activeEntry * (1.0 + breakevenOffsetPct / 100.0) :
+                 activeEntry * (1.0 - breakevenOffsetPct / 100.0)
+
+            if not na(stopLine)
+
+                line.set_y1(stopLine, activeStop)
+                line.set_y2(stopLine, activeStop)
+
+            if not na(stopLabel)
+
+                label.set_y(stopLabel, activeStop)
+
+                label.set_text(
+                     stopLabel,
+                     "◆ BE Stop\n" + priceText(activeStop))
+
+    //================================================
+    // TP2
+    //================================================
+
+    if hitTP2 and not tp2Hit
+
+        tp2Hit := true
+
+        label.new(
+             x=bar_index + 2,
+             y=activeTP2,
+             text="✓ TP2",
+             xloc=xloc.bar_index,
+             yloc=yloc.price,
+             style=label.style_label_left,
+             color=color.new(colorBull, 5),
+             textcolor=color.white,
+             size=size.small)
+
+    //================================================
+    // EXTEND LEVELS
+    //================================================
+
+    if showTradeLevels
+
+        if not na(entryLine)
+            line.set_x2(entryLine, bar_index + labelOffsetBars)
+
+        if not na(stopLine)
+            line.set_x2(stopLine, bar_index + labelOffsetBars)
+
+        if not na(tp1Line)
+            line.set_x2(tp1Line, bar_index + labelOffsetBars)
+
+        if not na(tp2Line)
+            line.set_x2(tp2Line, bar_index + labelOffsetBars)
+
+        if not na(tp3Line)
+            line.set_x2(tp3Line, bar_index + labelOffsetBars)
+
+        if not na(entryLabel)
+            label.set_x(entryLabel, bar_index + labelOffsetBars)
+
+        if not na(stopLabel)
+            label.set_x(stopLabel, bar_index + labelOffsetBars)
+
+        if not na(tp1Label)
+            label.set_x(tp1Label, bar_index + labelOffsetBars)
+
+        if not na(tp2Label)
+            label.set_x(tp2Label, bar_index + labelOffsetBars)
+
+        if not na(tp3Label)
+            label.set_x(tp3Label, bar_index + labelOffsetBars)
+
+    //================================================
+    // STOP
+    //================================================
+
+    hitStop =
+         activeDirection == 1 ?
+         low <= activeStop :
+         high >= activeStop
+
+    //================================================
+    // TIME EXIT
+    //================================================
+
+    hitTime =
+         useTimeExit and
+         heldDays >= maxHoldDays
+
+    //================================================
+    // EXIT
+    //================================================
+
+    if hitStop or hitTime
+
+        if hitStop
+
+            label.new(
+                 x=bar_index + 2,
+                 y=activeStop,
+                 text=tp1Hit ? "✕ BE/SL HIT" : "✕ SL HIT",
+                 xloc=xloc.bar_index,
+                 yloc=yloc.price,
+                 style=label.style_label_left,
+                 color=color.new(colorBear, 5),
+                 textcolor=color.white,
+                 size=size.small)
+
+        else
+
+            label.new(
+                 x=bar_index + 2,
+                 y=close,
+                 text="⏰ TIME EXIT\n" +
+                      str.tostring(heldDays) +
+                      " days",
+                 xloc=xloc.bar_index,
+                 yloc=yloc.price,
+                 style=label.style_label_left,
+                 color=color.new(colorOrange, 5),
+                 textcolor=color.white,
+                 size=size.small)
+
+        //================================================
+        // STOP EXTENDING LEVELS
+        //================================================
+
+        if not na(entryLine)
+            line.set_x2(entryLine, bar_index + 2)
+
+        if not na(stopLine)
+            line.set_x2(stopLine, bar_index + 2)
+
+        if not na(tp1Line)
+            line.set_x2(tp1Line, bar_index + 2)
+
+        if not na(tp2Line)
+            line.set_x2(tp2Line, bar_index + 2)
+
+        if not na(tp3Line)
+            line.set_x2(tp3Line, bar_index + 2)
+
+        //================================================
+        // RESET TRADE
+        //================================================
+
+        state := 0
+
+        activeDirection := 0
+
+        activeEntry := na
+        activeStop := na
+        originalStop := na
+
+        activeTP1 := na
+        activeTP2 := na
+        activeTP3 := na
+
+        entryDayNumber := na
+
+        tp1Hit := false
+        tp2Hit := false
+
+        entryLine := na
+        stopLine := na
+        tp1Line := na
+        tp2Line := na
+        tp3Line := na
+
+        entryLabel := na
+        stopLabel := na
+        tp1Label := na
+        tp2Label := na
+        tp3Label := na
+
+//====================================================
+// SMA
+//====================================================
+
+plot(
+     showSMA ? sma : na,
+     title="SMA 50",
+     color=colorOrange,
+     linewidth=2)
+
+//====================================================
+// DEBUG
+//====================================================
+
+plotshape(
+     showDebug and vcpQualified,
+     title="VCP Qualified",
+     style=shape.circle,
+     location=location.belowbar,
+     color=colorBlue,
+     size=size.tiny,
+     text="VCP")
+
+plotshape(
+     showDebug and state == 1,
+     title="VCP Waiting",
+     style=shape.circle,
+     location=location.bottom,
+     color=colorPurple,
+     size=size.tiny,
+     text="WAIT")

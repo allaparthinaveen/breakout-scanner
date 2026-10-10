@@ -1,20 +1,38 @@
-structure:
-  pivot_len: 3
-  min_trend_swings: 2
-  sma_trend_lookback: 50
-consolidation:
-  min_bars: 5
-  max_bars: 60
-  max_range_pct: 35.0
-  max_volatility_pct: 10.0
-momentum:
+trend:
+  sma_length: 50
+  use_trend_filter: true
+base:
+  base_lookback: 20
+  tight_lookback: 5
+  max_base_range_pct: 12.0
+  max_tight_range_pct: 6.0
+  require_tightening: false
+  min_setup_bars: 5
+  max_setup_bars: 30
+volume:
+  use_volume_contraction: false
+  volume_length: 20
+  contraction_ratio: 0.90
+  use_breakout_volume: true
+  breakout_multiplier: 1.20
+breakout:
   buffer_pct: 0.10
-  volume_lookback: 20
-  min_relative_volume: 1.5
-  min_body_ratio: 0.50
-  close_location_min: 0.70
+  close_location: 0.55
+  require_momentum_candle: true
+  min_body_pct: 40.0
 risk:
-  account_size: 100000
-  risk_per_trade_pct: 1.0
-  take_profit_r: 2.0
-  stop_loss_buffer_pct: 0.5
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 0.75
+  max_stop_pct: 3.00
+  use_structure_stop: true
+  structure_buffer_pct: 0.25
+target:
+  target_lookback: 50
+  tp1_r: 1.0
+  tp2_r: 2.0
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.10
+  max_hold_days: 10
+  use_time_exit: true
