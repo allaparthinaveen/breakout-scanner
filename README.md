@@ -2,6 +2,8 @@
 
 An institutional-grade, deterministic trading engine designed to isolate and execute high-probability structural breakouts across equities and crypto. The system strictly eliminates look-ahead bias and is backed by a robust Risk Engine, Paper Trading simulation, and Production Circuit Breakers.
 
+> 📖 **Trader's Handbook**: For complete signal interpretation, diagnostic badges, and step-by-step decision rules, see [USAGE.md](USAGE.md).
+
 ## 🧠 System Architecture
 
 The engine implements a strict state-machine flow inspired by Pine Script mechanics, migrating setups through rigorous validation checks.
