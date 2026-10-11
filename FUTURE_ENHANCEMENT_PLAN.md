@@ -123,12 +123,13 @@ Following our **1% marginal gains / zero-disruption rule**:
 
 ---
 
-- [ ] **3.1 Step 1: Volume Dry-Up (VDU) & Breakout RVOL Multiplier**
+- [x] **3.1 Step 1: Volume Dry-Up (VDU) & Breakout RVOL Multiplier**
   - **Concept**: Institutional accumulation leaves an unmistakable footprint: volume drastically dries up during base consolidation (supply exhaustion) and spikes with high RVOL on breakout.
   - **Quant Logic**:
-    - **VDU Ratio**: Measure average volume of the tightest 5 bars against the 20-bar baseline. If $\le 0.60\times$, award full dry-up points.
-    - **RVOL Multiplier**: Breakout candle volume must exceed $\ge 1.5\times$ to $2.5\times$ average to validate institutional commitment and filter false wicks.
-  - **Output**: Append `VDU: OK` and `RVOL: X.Xx` to setup diagnostics.
+    - **VDU Ratio**: Measure average volume of the tightest 5 bars against the 20-bar baseline. If $\le 0.75\times$, award dry-up confirmation.
+    - **RVOL Multiplier**: Breakout candle volume must exceed $\ge 1.2\times$ average to validate institutional commitment and filter false wicks.
+  - **Output**: Append `💧 VDU: X.Xx` to Section 1 bases and `[Vol: X.Xx]` to Section 2 breakouts.
+  - **Status**: ✅ **Implemented and Verified**
 
 - [ ] **3.2 Step 2: Decaying Contraction Ratio & Coil Tightness Scoring**
   - **Concept**: True VCP compression exhibits successive contraction wave decay ($T_1 \rightarrow T_2 \rightarrow T_3$) where volatility systematically collapses.
@@ -223,8 +224,8 @@ Following our **1% marginal gains / zero-disruption rule**:
 | **Sector-Level Relative Strength** | NSE & US | ✅ Completed | `sectors.py`, `scanner.py` |
 | **Retest vs. Raw Breakout Classifier** | All | ✅ Completed | `engine.py`, `models.py`, `scanner.py` |
 | **Session-Aware Automated Scheduling** | All | 🟡 Queued | `live_scanner.py` |
-| **Quantum Signal Precision: Step 1 (VDU & RVOL)** | All | 🟡 Queued | `engine.py`, `scanner.py` |
-| **Quantum Signal Precision: Step 2 (Wave Decay)** | All | ⚪ Planned | `engine.py` |
+| **Quantum Signal Precision: Step 1 (VDU & RVOL)** | All | ✅ Completed | `engine.py`, `scanner.py`, `models.py` |
+| **Quantum Signal Precision: Step 2 (Wave Decay)** | All | 🟡 Next Up | `engine.py` |
 | **Quantum Signal Precision: Step 3 (RS Slope)** | All | ⚪ Planned | `scanner.py` |
 | **Quantum Signal Precision: Step 4 (0–100 Scorer)** | All | ⚪ Planned | `scanner.py`, `models.py` |
 | **Flask Dashboard + TradingView UI** | All | ⚪ Planned | `dashboard.py`, `templates/` |

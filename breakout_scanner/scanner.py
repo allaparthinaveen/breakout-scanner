@@ -190,6 +190,7 @@ class MultiSymbolScanner:
                 width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
                 sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
                 htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
+                vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
                 
                 if s.bias_score >= 2:
                     bias_text = f"Strong Upside Bias ({s.bias_score}/3)"
@@ -208,6 +209,8 @@ class MultiSymbolScanner:
                 parts = [f"  • {s.symbol:9}", res, sup]
                 if width:
                     parts.append(width)
+                if vdu:
+                    parts.append(vdu)
                 if sector:
                     parts.append(sector)
                 if htf:
@@ -235,6 +238,7 @@ class MultiSymbolScanner:
                 stop = f"Stop: {s.stop:.5g}" if s.stop is not None else "Stop: N/A"
                 targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
                 risk_str = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
+                rvol_str = f"[Vol: {s.rvol:.1f}x]" if s.rvol is not None else ""
                 
                 pnl_str = ""
                 if s.pnl_pct is not None:
@@ -250,6 +254,8 @@ class MultiSymbolScanner:
                     parts.append(risk_str)
                 if pnl_str:
                     parts.append(pnl_str)
+                if rvol_str:
+                    parts.append(rvol_str)
                 if sector:
                     parts.append(sector)
                 if htf:

@@ -59,10 +59,16 @@ def run_pre_market_scan(watchlist_file: str):
         box_rows = []
         for s in forming_box:
             w_str = f"W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+            vdu_str = f"💧 VDU: {s.vdu_ratio:.1f}x" if s.vdu_confirmed else ""
             htf_str = "⭐ 1D" if s.htf_confirmed else ""
             res = f"{s.resistance:.5g}" if s.resistance is not None else "-"
             sup = f"{s.support:.5g}" if s.support is not None else "-"
-            box_rows.append(f"{s.symbol:8} | R: {res} | S: {sup} | {w_str} | Bias: {s.bias_score}/3 {htf_str}".strip())
+            parts = [f"{s.symbol:8}", f"R: {res}", f"S: {sup}"]
+            if w_str: parts.append(w_str)
+            if vdu_str: parts.append(vdu_str)
+            parts.append(f"Bias: {s.bias_score}/3")
+            if htf_str: parts.append(htf_str)
+            box_rows.append(" | ".join(parts))
         report_lines.append("<pre>" + "\n".join(box_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently forming a box.</i>")
@@ -75,7 +81,8 @@ def run_pre_market_scan(watchlist_file: str):
             cp = f"{s.current_price:.5g}" if s.current_price is not None else "-"
             entry = f"{s.entry:.5g}" if s.entry is not None else "-"
             stop = f"{s.stop:.5g}" if s.stop is not None else "-"
-            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp} | In: {entry} | SL: {stop}")
+            vol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
+            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(bo_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently breaking out.</i>")
@@ -88,7 +95,8 @@ def run_pre_market_scan(watchlist_file: str):
             cp = f"{s.current_price:.5g}" if s.current_price is not None else "-"
             entry = f"{s.entry:.5g}" if s.entry is not None else "-"
             stop = f"{s.stop:.5g}" if s.stop is not None else "-"
-            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp} | In: {entry} | SL: {stop}")
+            vol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
+            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(rt_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently in pivot retest.</i>")

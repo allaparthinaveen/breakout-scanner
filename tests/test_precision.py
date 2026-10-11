@@ -102,3 +102,29 @@ def test_extended_sector_mappings():
     
     sec_cost, bench_cost = get_sector_benchmark('COST')
     assert bench_cost == 'XLP'
+
+def test_vdu_and_rvol_precision():
+    cfg = load_config()
+    engine = BreakoutEngine(cfg, 'TEST')
+    
+    # 80 bars: flat consolidation base with volume drying up in the last 5 bars
+    n = 80
+    close = [100.0] * n
+    high = [101.0] * n
+    low = [99.0] * n
+    open_p = [100.0] * n
+    volume = [1000.0] * 75 + [300.0] * 5
+    
+    df = pd.DataFrame({
+        'Open': open_p,
+        'High': high,
+        'Low': low,
+        'Close': close,
+        'Volume': volume
+    })
+    
+    setup = engine.run(df)
+    assert setup.state == State.CONTRACTION
+    assert setup.vdu_confirmed is True
+    assert setup.vdu_ratio is not None
+    assert setup.vdu_ratio <= 0.75

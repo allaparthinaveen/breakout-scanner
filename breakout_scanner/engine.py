@@ -111,6 +111,11 @@ class BreakoutEngine:
                     if self.setup.resistance and self.setup.support and self.setup.support > 0:
                         mid = (self.setup.resistance + self.setup.support) / 2.0
                         self.setup.base_width_pct = (self.setup.resistance - self.setup.support) / mid * 100.0
+                    base_vol = row['BaseAvgVol'] if ('BaseAvgVol' in row and row['BaseAvgVol'] > 0) else row['AvgVolume']
+                    if base_vol > 0:
+                        vdu = float(row['TightAvgVol'] / base_vol)
+                        self.setup.vdu_ratio = round(vdu, 2)
+                        self.setup.vdu_confirmed = vdu <= c_vol.get('vdu_threshold', 0.75)
             
             elif state == State.CONTRACTION:
                 setup_bars = i - setup_start + 1
@@ -159,6 +164,8 @@ class BreakoutEngine:
                         self.setup.entry_day = row['Day']
                         self.setup.tp1_hit = False
                         self.setup.tp2_hit = False
+                        if row['AvgVolume'] > 0:
+                            self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
                         
                     elif short_signal:
                         state = State.SELL
@@ -191,6 +198,8 @@ class BreakoutEngine:
                         self.setup.entry_day = row['Day']
                         self.setup.tp1_hit = False
                         self.setup.tp2_hit = False
+                        if row['AvgVolume'] > 0:
+                            self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
 
             elif state in (State.BUY, State.SELL):
                 active_dir = self.setup.direction
@@ -258,5 +267,16 @@ class BreakoutEngine:
             self.setup.bars_since_breakout = len(df) - 1 - self.setup.breakout_index
         else:
             self.setup.bars_since_breakout = 0
+
+        # Update trailing VDU / RVOL for current state display
+        if self.setup.state == State.CONTRACTION and not df.empty:
+            base_vol = df['BaseAvgVol'].iloc[-1] if df['BaseAvgVol'].iloc[-1] > 0 else df['AvgVolume'].iloc[-1]
+            if base_vol > 0:
+                current_vdu = float(df['TightAvgVol'].iloc[-1] / base_vol)
+                self.setup.vdu_ratio = round(current_vdu, 2)
+                self.setup.vdu_confirmed = current_vdu <= c_vol.get('vdu_threshold', 0.75)
+        elif self.setup.state in (State.BUY, State.SELL) and not df.empty:
+            if self.setup.rvol is None and df['AvgVolume'].iloc[-1] > 0:
+                self.setup.rvol = round(float(df['Volume'].iloc[-1] / df['AvgVolume'].iloc[-1]), 2)
             
         return self.setup

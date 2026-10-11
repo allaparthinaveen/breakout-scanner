@@ -53,6 +53,11 @@ class Setup:
     retest_confirmed: bool = False
     breakout_level: Optional[float] = None
 
+    # Phase 3: Quantum Signal Precision (Step 1)
+    vdu_confirmed: bool = False
+    vdu_ratio: Optional[float] = None
+    rvol: Optional[float] = None
+
     @property
     def breakout_score(self) -> int:
         return self.bias_score
