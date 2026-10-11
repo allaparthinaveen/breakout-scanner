@@ -118,3 +118,28 @@ When you see TTWO | [Gaming/Media RS: +5.6%]:
 It tells you TTWO is outperforming its entire media peer group by $+5.6%$ over the last 20 bars.
 This proves institutional capital is actively rotating into TTWO above other media stocks.
 If a stock is in a breakout, but its sector RS is negative (e.g. $-2%$), the stock is lagging its group and the breakout is more prone to stalling.
+
+---
+
+## 📊 1. The 5-Pillar Quantitative Scoring Matrix (0–100 Points)
+
+All quantitative signals are aggregated into a single objective composite score via [breakout_scanner/scorer.py](breakout_scanner/scorer.py):
+
+| Pillar | Focus | Max Points | Scoring Criteria |
+| :--- | :--- | :---: | :--- |
+| **1. Contraction Physics** | Coil Decay & Base Width | **20 pts** | • Base width $\le 4\%$ (10 pts), $\le 6.5\%$ (8 pts), $> 9\%$ (2 pts)<br>• Coil ratio $\le 0.40\times$ (10 pts), $\le 0.70\times$ (8 pts), uncontracted (2 pts) |
+| **2. Volume Footprint** | Supply Exhaustion / Demand | **20 pts** | • **Bases**: VDU ratio $\le 0.60\times$ (20 pts), $\le 0.75\times$ (16 pts), $\le 0.90\times$ (11 pts)<br>• **Breakouts**: RVOL $\ge 2.0\times$ (20 pts), $\ge 1.5\times$ (17 pts), $\ge 1.2\times$ (14 pts) |
+| **3. Multi-Timeframe Trend** | 1D Macro Confluence | **20 pts** | • 1D 50 SMA upward confluence ⭐ 1D (12 pts)<br>• 1H trend alignment (8 pts) |
+| **4. Relative Strength Alpha** | Sector Benchmark Lead | **20 pts** | • Sector RS Delta $\ge +3.0\%$ (10 pts), $> 0.0\%$ (8 pts)<br>• Linear regression slope ↗ (10 pts), → (6 pts), ↘ (1 pt) |
+| **5. Risk-Reward Asymmetry** | Stop Tightness & Invalidation | **20 pts** | • Risk/Width $\le 1.2\%$ (12 pts), $\le 2.0\%$ (9 pts), $> 3.0\%$ (2 pts)<br>• Clean confirmed pivot retest / crisp pattern geometry (8 pts) |
+
+---
+
+## 🏆 2. Tier Grading System
+
+| Grade | Score Range | Classification | Actionable Trading Rule |
+| :---: | :---: | :--- | :--- |
+| **A+** | **90 – 100** | **Institutional "God-Tier"** | Ultra-tight coil, supply exhausted (VDU), 1D macro aligned, accelerating sector alpha. Maximum conviction / full size. |
+| **A** | **80 – 89** | **High Conviction Breakout** | Excellent structure with strong institutional tailwinds. Standard full size. |
+| **B** | **70 – 79** | **Playable Standard Setup** | Decent base, but either slightly wider width or neutral relative strength. Half size or tighter stop. |
+| **C** | **< 70** | **Filtered / Sub-optimal** | Poor volume, loose coil, or counter-trend. Skip or avoid. |
