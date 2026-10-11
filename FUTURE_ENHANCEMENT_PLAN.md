@@ -151,18 +151,19 @@ Following our **1% marginal gains / zero-disruption rule**:
   - **Output**: Diagnostic flag `[Sector RS: +X.X% ↗]` and signal tag `[Sector ↗]`.
   - **Status**: ✅ **Implemented and Verified**
 
-- [ ] **3.4 Step 4: 5-Pillar Composite Quant Scorer (0–100 & Tier Grading)**
+- [x] **3.4 Step 4: 5-Pillar Composite Quant Scorer (0–100 & Tier Grading)**
   - **Concept**: Aggregate all quantitative attributes into an objective institutional score:
-    1. **Contraction Physics (Coil Decay)**: 20 pts
+    1. **Contraction Physics (Coil Decay & Base Width)**: 20 pts
     2. **Volume Footprint (VDU & RVOL)**: 20 pts
-    3. **Multi-Timeframe Trend Template (1D 50 SMA + 1H 20/50 Fan)**: 20 pts
+    3. **Multi-Timeframe Trend Template (1D 50 SMA + 1H Trend)**: 20 pts
     4. **RS Alpha & Regression Slope**: 20 pts
-    5. **Risk-Reward Asymmetry (Stop Tightness & Sky Ratio)**: 20 pts
+    5. **Risk-Reward Asymmetry (Stop Tightness & Structure Quality)**: 20 pts
   - **Output**:
     - `🏆 Grade: A+ [90–100]` *(God-tier setup: tight coil, VDU confirmed, 1D aligned, positive RS slope)*
-    - `🏆 Grade: A  [80–89]` *(High conviction breakout)*
-    - `🏆 Grade: B  [70–79]` *(Standard playable setup)*
-    - `Grade: C [<70]` *(Filtered out from alerts)*
+    - `⭐ Grade: A  [80–89]` *(High conviction breakout)*
+    - `Grade: B  [70–79]` *(Standard playable setup)*
+    - `Grade: C [<70]` *(Filtered / lower conviction setup)*
+  - **Status**: ✅ **Implemented and Verified**
 
 ---
 

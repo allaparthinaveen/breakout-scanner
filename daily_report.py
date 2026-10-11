@@ -47,8 +47,11 @@ def run_pre_market_scan(watchlist_file: str):
     setups = scanner.scan(symbols, period='60d', interval='1h')
     
     forming_box = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
+    forming_box.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
     breaking_out = [s for s in setups if s.state in (State.BUY, State.SELL) and not s.retest_confirmed]
+    breaking_out.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
     retesting = [s for s in setups if s.state in (State.BUY, State.SELL) and s.retest_confirmed]
+    retesting.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
     idle = [s for s in setups if s.state in (State.IDLE, State.FAILED)]
     
     report_lines = []
@@ -64,6 +67,7 @@ def run_pre_market_scan(watchlist_file: str):
             trend_str = f" {s.rs_trend}" if s.rs_trend else ""
             sec_str = f"[{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = "⭐ 1D" if s.htf_confirmed else ""
+            grade_str = f"🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
             res = f"{s.resistance:.5g}" if s.resistance is not None else "-"
             sup = f"{s.support:.5g}" if s.support is not None else "-"
             parts = [f"{s.symbol:8}", f"R: {res}", f"S: {sup}"]
@@ -71,8 +75,9 @@ def run_pre_market_scan(watchlist_file: str):
             if coil_str: parts.append(coil_str)
             if vdu_str: parts.append(vdu_str)
             if sec_str: parts.append(sec_str)
-            parts.append(f"Bias: {s.bias_score}/3")
             if htf_str: parts.append(htf_str)
+            if grade_str: parts.append(grade_str)
+            parts.append(f"Bias: {s.bias_score}/3")
             box_rows.append(" | ".join(parts))
         report_lines.append("<pre>" + "\n".join(box_rows) + "</pre>")
     else:
@@ -90,7 +95,8 @@ def run_pre_market_scan(watchlist_file: str):
             trend_str = f" {s.rs_trend}" if s.rs_trend else ""
             sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str}{sec_str}{htf_str} | In: {entry} | SL: {stop}")
+            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
+            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(bo_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently breaking out.</i>")
@@ -107,7 +113,8 @@ def run_pre_market_scan(watchlist_file: str):
             trend_str = f" {s.rs_trend}" if s.rs_trend else ""
             sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str}{sec_str}{htf_str} | In: {entry} | SL: {stop}")
+            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
+            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(rt_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently in pivot retest.</i>")

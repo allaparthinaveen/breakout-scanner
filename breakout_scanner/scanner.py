@@ -6,6 +6,7 @@ from .engine import BreakoutEngine
 from .prediction_chat import explain
 from .models import Setup, State
 from .sectors import get_sector_benchmark
+from .scorer import calculate_composite_score
 
 class MultiSymbolScanner:
     def __init__(self, provider, cfg):
@@ -183,6 +184,9 @@ class MultiSymbolScanner:
             pass
             
         setup.bias_score = score
+        c_score, c_grade = calculate_composite_score(setup)
+        setup.composite_score = c_score
+        setup.composite_grade = c_grade
 
     def report(self, setups: List[Setup]):
         print("\n=======================================================")
@@ -190,7 +194,7 @@ class MultiSymbolScanner:
         print("=======================================================")
         
         base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-        base_setups.sort(key=lambda s: s.bias_score, reverse=True)
+        base_setups.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
         if not base_setups:
             print("  (None)")
         else:
@@ -203,6 +207,7 @@ class MultiSymbolScanner:
                 trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
                 sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
                 htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
+                grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
                 
                 if s.bias_score >= 2:
                     bias_text = f"Strong Upside Bias ({s.bias_score}/3)"
@@ -229,6 +234,8 @@ class MultiSymbolScanner:
                     parts.append(sector)
                 if htf:
                     parts.append(htf)
+                if grade_badge:
+                    parts.append(grade_badge)
                 parts.append(bias_str)
                 print(" | ".join(parts))
 
@@ -237,7 +244,7 @@ class MultiSymbolScanner:
         print("=======================================================")
         
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
-        active_setups.sort(key=lambda s: abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf'))
+        active_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
         if not active_setups:
             print("  (None)")
         else:
@@ -263,6 +270,7 @@ class MultiSymbolScanner:
                 trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
                 sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
                 htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
+                grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
                 
                 parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
                 if risk_str:
@@ -275,6 +283,8 @@ class MultiSymbolScanner:
                     parts.append(sector)
                 if htf:
                     parts.append(htf)
+                if grade_badge:
+                    parts.append(grade_badge)
                 if targets:
                     parts.append(targets)
                 print(" | ".join(parts))

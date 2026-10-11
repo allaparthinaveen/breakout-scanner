@@ -37,7 +37,7 @@ def build_report_string(setups):
     lines.append("=======================")
     
     base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-    base_setups.sort(key=lambda s: s.bias_score, reverse=True)
+    base_setups.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
     if not base_setups:
         lines.append("  (None)")
     else:
@@ -58,9 +58,10 @@ def build_report_string(setups):
             trend_str = f" {s.rs_trend}" if s.rs_trend else ""
             sector_str = f" | [{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_str}]" if (s.sector_name and s.sector_rs_pct is not None) else (f" | [{s.sector_name}]" if s.sector_name else "")
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
+            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
             res_str = f"Res: {s.resistance:.5g}" if s.resistance is not None else "Res: N/A"
             sup_str = f"Sup: {s.support:.5g}" if s.support is not None else "Sup: N/A"
-            lines.append(f"{s.symbol:9} | {res_str} | {sup_str}{width_str}{coil_str}{vdu_str}{sector_str}{htf_str} | Bias: {bias}")
+            lines.append(f"{s.symbol:9} | {res_str} | {sup_str}{width_str}{coil_str}{vdu_str}{sector_str}{htf_str}{grade_str} | Bias: {bias}")
 
     lines.append("")
     lines.append("=======================")
@@ -69,7 +70,7 @@ def build_report_string(setups):
     
     # ONLY show signals that triggered in the last 24 bars (last 24 hours of trading)
     active_setups = [s for s in setups if s.state in (State.BUY, State.SELL) and (s.bars_since_breakout is not None and s.bars_since_breakout <= 24)]
-    active_setups.sort(key=lambda s: abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf'))
+    active_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
     
     if not active_setups:
         lines.append("  (None)")
@@ -85,7 +86,8 @@ def build_report_string(setups):
             trend_str = f" {s.rs_trend}" if s.rs_trend else ""
             sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str}{rvol_str}{sec_str}{htf_str} | {entry_str} | {sl_str}")
+            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
+            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str}{rvol_str}{sec_str}{htf_str}{grade_str} | {entry_str} | {sl_str}")
             
     lines.append("</code>")
     return "\n".join(lines)

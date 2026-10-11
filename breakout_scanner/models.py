@@ -53,7 +53,7 @@ class Setup:
     retest_confirmed: bool = False
     breakout_level: Optional[float] = None
 
-    # Phase 3: Quantum Signal Precision (Steps 1, 2, 3)
+    # Phase 3: Quantum Signal Precision (Steps 1, 2, 3, 4)
     vdu_confirmed: bool = False
     vdu_ratio: Optional[float] = None
     rvol: Optional[float] = None
@@ -61,6 +61,8 @@ class Setup:
     tightening_confirmed: bool = False
     rs_slope: Optional[float] = None
     rs_trend: str = ""
+    composite_score: int = 0
+    composite_grade: str = ""
 
     @property
     def breakout_score(self) -> int:

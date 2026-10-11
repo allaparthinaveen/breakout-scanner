@@ -44,6 +44,8 @@ def test_setup_precision_defaults():
     assert s.tightening_confirmed is False
     assert s.rs_slope is None
     assert s.rs_trend == ""
+    assert s.composite_score == 0
+    assert s.composite_grade == ""
 
 def test_empty_and_short_df_guard():
     cfg = load_config()
@@ -195,4 +197,94 @@ def test_rs_momentum_slope():
     
     assert rs_slope_lag < 0
     assert rs_trend_lag == "↘"
+
+def test_composite_score_calculator():
+    from breakout_scanner.scorer import calculate_composite_score
+    from breakout_scanner.models import Setup, State
+    
+    # 1. God-tier A+ setup
+    s_aplus = Setup(
+        symbol='PRISTINE',
+        state=State.CONTRACTION,
+        base_width_pct=3.5,
+        decay_ratio=0.25,
+        tightening_confirmed=True,
+        vdu_confirmed=True,
+        vdu_ratio=0.55,
+        htf_confirmed=True,
+        htf_trend=1,
+        trend=1,
+        sector_name='Tech',
+        sector_rs_pct=6.5,
+        rs_trend="↗",
+        resistance=105.0,
+        support=101.5
+    )
+    score_aplus, grade_aplus = calculate_composite_score(s_aplus)
+    assert score_aplus >= 90
+    assert grade_aplus == "A+"
+    
+    # 2. High conviction A setup
+    s_a = Setup(
+        symbol='SOLID',
+        state=State.CONTRACTION,
+        base_width_pct=5.5,
+        decay_ratio=0.60,
+        tightening_confirmed=True,
+        vdu_confirmed=True,
+        vdu_ratio=0.70,
+        htf_confirmed=False,
+        htf_trend=1,
+        trend=1,
+        sector_name='Semis',
+        sector_rs_pct=2.0,
+        rs_trend="↗",
+        resistance=210.0,
+        support=198.0
+    )
+    score_a, grade_a = calculate_composite_score(s_a)
+    assert 80 <= score_a < 90
+    assert grade_a == "A"
+    
+    # 3. Playable B setup
+    s_b = Setup(
+        symbol='PLAYABLE',
+        state=State.CONTRACTION,
+        base_width_pct=6.8,
+        decay_ratio=0.68,
+        tightening_confirmed=True,
+        vdu_confirmed=False,
+        vdu_ratio=0.88,
+        htf_confirmed=False,
+        htf_trend=1,
+        trend=1,
+        sector_name='Energy',
+        sector_rs_pct=0.5,
+        rs_trend="→",
+        resistance=50.0,
+        support=46.5
+    )
+    score_b, grade_b = calculate_composite_score(s_b)
+    assert 70 <= score_b < 80
+    assert grade_b == "B"
+    
+    # 4. Filtered C setup
+    s_c = Setup(
+        symbol='POOR',
+        state=State.IDLE,
+        base_width_pct=15.0,
+        decay_ratio=1.2,
+        tightening_confirmed=False,
+        vdu_confirmed=False,
+        htf_confirmed=False,
+        htf_trend=-1,
+        trend=-1,
+        sector_name='Retail',
+        sector_rs_pct=-5.0,
+        rs_trend="↘"
+    )
+    score_c, grade_c = calculate_composite_score(s_c)
+    assert score_c < 70
+    assert grade_c == "C"
+
 
