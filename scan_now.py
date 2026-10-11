@@ -53,7 +53,9 @@ def build_report_string(setups):
                 bias += " ⚠️ EARNINGS RISK"
                 
             width_str = f" | W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
-            lines.append(f"{s.symbol:9} | Res: {s.resistance:.5g} | Sup: {s.support:.5g}{width_str} | Bias: {bias}")
+            sector_str = f" | {s.sector_name}" if s.sector_name else ""
+            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
+            lines.append(f"{s.symbol:9} | Res: {s.resistance:.5g} | Sup: {s.support:.5g}{width_str}{sector_str}{htf_str} | Bias: {bias}")
 
     lines.append("")
     lines.append("=======================")
@@ -68,10 +70,12 @@ def build_report_string(setups):
         lines.append("  (None)")
     else:
         for s in active_setups:
-            dir_str = "BUY " if s.direction == 1 else "SELL"
+            tag = "RETEST" if s.retest_confirmed else "BREAKOUT"
+            dir_str = f"BUY [{tag}]" if s.direction == 1 else f"SELL [{tag}]"
             cp_str = f"CP: {s.current_price:.5g}" if s.current_price else "CP: N/A"
             pnl_str = f" | PnL: {s.pnl_pct:+.1f}%" if s.pnl_pct is not None else ""
-            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str} | In: {s.entry:.5g} | SL: {s.stop:.5g}")
+            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
+            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str}{htf_str} | In: {s.entry:.5g} | SL: {s.stop:.5g}")
             
     lines.append("</code>")
     return "\n".join(lines)

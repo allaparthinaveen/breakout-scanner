@@ -195,6 +195,21 @@ class BreakoutEngine:
                     days_diff = delta.days if hasattr(delta, 'days') else 1
                     self.setup.held_days = days_diff
                 
+                # Check Retest Hold (Pullback to broken pivot that successfully holds)
+                if i > (self.setup.breakout_index or 0):
+                    if active_dir == 1 and self.setup.resistance:
+                        retest_touch = row['Low'] <= self.setup.resistance * 1.008
+                        retest_hold = row['Close'] >= self.setup.resistance * 0.998
+                        if retest_touch and retest_hold:
+                            self.setup.retest_confirmed = True
+                            self.setup.breakout_type = "RETEST_HOLD"
+                    elif active_dir == -1 and self.setup.support:
+                        retest_touch = row['High'] >= self.setup.support * 0.992
+                        retest_hold = row['Close'] <= self.setup.support * 1.002
+                        if retest_touch and retest_hold:
+                            self.setup.retest_confirmed = True
+                            self.setup.breakout_type = "RETEST_HOLD"
+                
                 # Check TP1
                 hit_tp1 = (row['High'] >= self.setup.tp1) if active_dir == 1 else (row['Low'] <= self.setup.tp1)
                 if hit_tp1 and not self.setup.tp1_hit:

@@ -43,3 +43,11 @@ class Setup:
     base_width_pct: Optional[float] = None
     risk_pct: Optional[float] = None
     pnl_pct: Optional[float] = None
+    
+    # Phase 1: Signal Precision
+    htf_trend: int = 0
+    htf_confirmed: bool = False
+    sector_name: Optional[str] = None
+    sector_rs_pct: Optional[float] = None
+    breakout_type: str = "BREAKOUT"
+    retest_confirmed: bool = False

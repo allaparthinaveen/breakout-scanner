@@ -1,8 +1,10 @@
 import time
 from typing import Dict, List
+import pandas as pd
 from .engine import BreakoutEngine
 from .prediction_chat import explain
 from .models import Setup, State
+from .sectors import get_sector_benchmark
 
 class MultiSymbolScanner:
     def __init__(self, provider, cfg):
@@ -27,7 +29,7 @@ class MultiSymbolScanner:
                 if not df.empty:
                     engine = self.get_engine(symbol)
                     setup = engine.run(df)
-                    if setup.state == State.CONTRACTION:
+                    if setup.state in (State.CONTRACTION, State.BUY, State.SELL):
                         self.enrich_bias(setup, df, period, interval)
                         
                     out.append(setup)
@@ -44,15 +46,35 @@ class MultiSymbolScanner:
             import yfinance as yf
             import datetime
             
-            is_crypto = setup.symbol.endswith('-USD') or setup.symbol.endswith('-USDT')
-            is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
-            
-            if is_crypto:
-                proxy = 'BTC-USD'
-            elif is_nse:
-                proxy = '^NSEI'
-            else:
-                proxy = 'SPY'
+            # ----------------------------------------------------
+            # 1. Higher-Timeframe (1D) Confluence Check
+            # ----------------------------------------------------
+            if not hasattr(self.provider, 'daily_cache'):
+                self.provider.daily_cache = {}
+                
+            if setup.symbol not in self.provider.daily_cache:
+                self.provider.daily_cache[setup.symbol] = self.provider.candles(setup.symbol, period='1y', interval='1d')
+                
+            daily_df = self.provider.daily_cache[setup.symbol]
+            if not daily_df.empty and len(daily_df) >= 50:
+                daily_sma50 = daily_df['Close'].rolling(50).mean().iloc[-1]
+                daily_close = daily_df['Close'].iloc[-1]
+                setup.htf_trend = 1 if daily_close > daily_sma50 else -1
+                
+                # Check HTF alignment with current setup
+                if setup.direction == 1 and setup.htf_trend == 1:
+                    setup.htf_confirmed = True
+                elif setup.direction == -1 and setup.htf_trend == -1:
+                    setup.htf_confirmed = True
+                elif setup.state == State.CONTRACTION and setup.htf_trend == 1:
+                    setup.htf_confirmed = True
+
+            # ----------------------------------------------------
+            # 2. Sector-Level Relative Strength
+            # ----------------------------------------------------
+            sector_name, benchmark_symbol = get_sector_benchmark(setup.symbol)
+            setup.sector_name = sector_name
+            proxy = benchmark_symbol
                 
             cache_key = f"{proxy}_{period}_{interval}"
             if not hasattr(self.provider, 'market_cache'):
@@ -63,16 +85,23 @@ class MultiSymbolScanner:
                 
             proxy_df = self.provider.market_cache[cache_key]
             
-            # Point 2: Relative Strength against asset class benchmark
+            # Point 2: Relative Strength against sector / benchmark
             if not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
                 stock_returns = df['Close'].iloc[-20:] / df['Close'].iloc[-20]
                 proxy_returns = proxy_df['Close'].reindex(stock_returns.index).ffill()
                 if not proxy_returns.empty and proxy_returns.iloc[0] > 0:
                     proxy_returns = proxy_returns / proxy_returns.iloc[0]
+                    rs_delta = (stock_returns.iloc[-1] - proxy_returns.iloc[-1]) * 100.0
+                    setup.sector_rs_pct = rs_delta
                     if stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
                         score += 1
 
-            # Point 3: Institutional Consensus / Macro Regime
+            # ----------------------------------------------------
+            # 3. Institutional Consensus / Macro Regime
+            # ----------------------------------------------------
+            is_crypto = setup.symbol.endswith('-USD') or setup.symbol.endswith('-USDT')
+            is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
+
             if is_crypto:
                 # Crypto: Bitcoin Macro Regime (BTC-USD trading above 50 SMA)
                 if not proxy_df.empty and len(proxy_df) >= 50:
@@ -145,6 +174,8 @@ class MultiSymbolScanner:
                 res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
                 sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
                 width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
+                htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
                 
                 if s.bias_score >= 2:
                     bias_text = f"Strong Upside Bias ({s.bias_score}/3)"
@@ -163,6 +194,10 @@ class MultiSymbolScanner:
                 parts = [f"  • {s.symbol:9}", res, sup]
                 if width:
                     parts.append(width)
+                if sector:
+                    parts.append(sector)
+                if htf:
+                    parts.append(htf)
                 parts.append(bias_str)
                 print(" | ".join(parts))
 
@@ -176,7 +211,11 @@ class MultiSymbolScanner:
             print("  (None)")
         else:
             for s in active_setups:
-                dir_str = "\033[92m▲ BUY\033[0m" if s.direction == 1 else "\033[91m▼ SELL\033[0m"
+                tag = "🔄 RETEST" if s.retest_confirmed else "🚀 BREAKOUT"
+                dir_color = "\033[92m" if s.direction == 1 else "\033[91m"
+                dir_arrow = "▲ BUY" if s.direction == 1 else "▼ SELL"
+                dir_str = f"{dir_color}{dir_arrow} [{tag}]\033[0m"
+                
                 cp_str = f"CP: {s.current_price:.5g}" if s.current_price else "CP: N/A"
                 entry = f"Entry: {s.entry:.5g}"
                 stop = f"Stop: {s.stop:.5g}"
@@ -189,13 +228,21 @@ class MultiSymbolScanner:
                     pnl_sign = "+" if s.pnl_pct >= 0 else ""
                     pnl_str = f"{pnl_color}P&L: {pnl_sign}{s.pnl_pct:.2f}%\033[0m"
                     
+                sector = f"[{s.sector_name}]" if s.sector_name else ""
+                htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
+                
                 parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
                 if risk_str:
                     parts.append(risk_str)
                 if pnl_str:
                     parts.append(pnl_str)
+                if sector:
+                    parts.append(sector)
+                if htf:
+                    parts.append(htf)
                 parts.append(targets)
                 print(" | ".join(parts))
                 
         print("\n")
+
 

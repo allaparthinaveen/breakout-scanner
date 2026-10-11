@@ -57,23 +57,25 @@ Every improvement in this roadmap follows the **1% increment rule**:
 ### 🔹 Phase 1: Signal Precision (Immediate 1% Increments)
 *Focus: Enhancing setup win rate and trade expectancy with zero disruption to core code.*
 
-- [ ] **1.1 Higher-Timeframe (Daily / 1D) Macro Confluence**
+- [x] **1.1 Higher-Timeframe (Daily / 1D) Macro Confluence**
   - **Concept**: Mark Minervini's cardinal rule: *Never take an hourly breakout against the daily macro trend*.
   - **Enhancement**: Fetch daily candles in the background; verify if the Daily 50 SMA is upward-sloping.
   - **Output**: Tag setups with a `⭐ 1D Confirmed` badge in Section 1 and Section 2.
-  - **Expected Impact**: Filters out 20–30% of low-conviction counter-trend fakeouts.
+  - **Status**: ✅ **Implemented and Verified**
 
-- [ ] **1.2 Sector-Level Relative Strength Mapping**
+- [x] **1.2 Sector-Level Relative Strength Mapping**
   - **Concept**: A stock outperforming its specific sector basket has much stronger institutional tailwinds than one merely outperforming broad indices.
   - **Enhancement**:
     - **NSE**: Auto-map tickers to sub-indices (e.g. `TCS.NS` / `INFY.NS` vs `^CNXIT`, `HDFCBANK.NS` / `SBIN.NS` vs `^NSEBANK`).
     - **US**: Auto-map tickers to sector ETFs (e.g. Tech vs `QQQ`/`XLK`, Financials vs `XLF`, Energy vs `XLE`).
   - **Output**: Append `Sector RS: +X.X%` to the setup diagnostics.
+  - **Status**: ✅ **Implemented and Verified**
 
-- [ ] **1.3 Retest vs. Raw Breakout Classifier**
+- [x] **1.3 Retest vs. Raw Breakout Classifier**
   - **Concept**: Some traders prefer buying the initial breakout, while conservative traders prefer the first pullback/retest of the broken pivot level.
   - **Enhancement**: Track if price broke out and is currently retesting the resistance-turned-support level.
   - **Output**: Distinguish between `🚀 BREAKOUT` and `🔄 RETEST_HOLD` in Section 2.
+  - **Status**: ✅ **Implemented and Verified**
 
 ---
 
@@ -155,10 +157,12 @@ Every improvement in this roadmap follows the **1% increment rule**:
 | **Multi-Market 3/3 Bias Scoring (US/Crypto/NSE)** | US, Crypto, NSE | ✅ Completed | `scanner.py` |
 | **Base Width %, Risk %, and P&L % Display** | All | ✅ Completed | `engine.py`, `scanner.py` |
 | **Telegram Notifications & Unified Env** | All | ✅ Completed | `daily_report.py`, `live_scanner.py`, `.env` |
-| **Higher Timeframe (1D) Confluence** | All | 🟡 Next Up | `engine.py`, `scanner.py` |
-| **Sector-Level Relative Strength** | NSE & US | ⚪ Planned | `scanner.py` |
-| **Session-Aware Automated Scheduling** | All | ⚪ Planned | `live_scanner.py` |
+| **Higher Timeframe (1D) Confluence** | All | ✅ Completed | `engine.py`, `scanner.py` |
+| **Sector-Level Relative Strength** | NSE & US | ✅ Completed | `sectors.py`, `scanner.py` |
+| **Retest vs. Raw Breakout Classifier** | All | ✅ Completed | `engine.py`, `models.py`, `scanner.py` |
+| **Session-Aware Automated Scheduling** | All | 🟡 Next Up | `live_scanner.py` |
 | **Flask Dashboard + TradingView UI** | All | ⚪ Planned | `dashboard.py`, `templates/` |
 | **Portfolio Backtest & Metrics Dashboard** | All | ⚪ Planned | `run_backtest.py` |
 | **Simulated Paper Trading Engine** | All | ⚪ Planned | `paper_broker.py` |
 | **Live Broker Execution & Safeguards** | All | ⚪ Future | `safeguards.py` |
+
