@@ -40,6 +40,10 @@ def test_setup_precision_defaults():
     assert s.retest_confirmed is False
     assert s.breakout_level is None
     assert s.breakout_score == 0
+    assert s.decay_ratio is None
+    assert s.tightening_confirmed is False
+    assert s.rs_slope is None
+    assert s.rs_trend == ""
 
 def test_empty_and_short_df_guard():
     cfg = load_config()
@@ -128,3 +132,67 @@ def test_vdu_and_rvol_precision():
     assert setup.vdu_confirmed is True
     assert setup.vdu_ratio is not None
     assert setup.vdu_ratio <= 0.75
+
+def test_decaying_contraction_ratio():
+    cfg = load_config()
+    engine = BreakoutEngine(cfg, 'TEST')
+    
+    # Construct 80 bars:
+    # First 60 bars: trend above SMA50
+    # Next 15 bars: wider base swing (High: 104, Low: 99 -> ~5% range)
+    # Final 5 bars: tight coil contraction (High: 101.5, Low: 100.5 -> ~1% range)
+    # decay_ratio = tight_range / earlier_range = 1% / 5% = 0.20 <= 0.70
+    n = 80
+    close = [100.0] * 60 + [101.5] * 15 + [101.0] * 5
+    high = [101.0] * 60 + [104.0] * 15 + [101.5] * 5
+    low = [99.0] * 60 + [99.0] * 15 + [100.5] * 5
+    open_p = [100.0] * n
+    volume = [1000.0] * 75 + [300.0] * 5
+    
+    df = pd.DataFrame({
+        'Open': open_p,
+        'High': high,
+        'Low': low,
+        'Close': close,
+        'Volume': volume
+    })
+    
+    setup = engine.run(df)
+    assert setup.state == State.CONTRACTION
+    assert setup.decay_ratio is not None
+    assert setup.decay_ratio <= 0.70
+    assert setup.tightening_confirmed is True
+
+def test_rs_momentum_slope():
+    from breakout_scanner.scanner import MultiSymbolScanner
+    from breakout_scanner.providers.yfinance_provider import YFinanceProvider
+    
+    cfg = load_config()
+    provider = YFinanceProvider()
+    scanner = MultiSymbolScanner(provider, cfg)
+    
+    # 20 bars of outperforming stock vs flat benchmark
+    stock_ret = pd.Series([1.0 + i * 0.01 for i in range(20)])  # upward trending
+    bench_ret = pd.Series([1.0] * 20)  # flat benchmark
+    rs_ratio = (stock_ret / bench_ret).dropna()
+    
+    tail = rs_ratio.iloc[-5:]
+    x = np.arange(len(tail))
+    slope, _ = np.polyfit(x, tail.values, 1)
+    rs_slope = round(float(slope * 100.0), 2)
+    rs_trend = "↗" if rs_slope > 0.05 else ("↘" if rs_slope < -0.05 else "→")
+    
+    assert rs_slope > 0
+    assert rs_trend == "↗"
+    
+    # Lagging/underperforming stock
+    stock_lag = pd.Series([1.0 - i * 0.01 for i in range(20)])
+    rs_lag = (stock_lag / bench_ret).dropna()
+    tail_lag = rs_lag.iloc[-5:]
+    slope_lag, _ = np.polyfit(x, tail_lag.values, 1)
+    rs_slope_lag = round(float(slope_lag * 100.0), 2)
+    rs_trend_lag = "↗" if rs_slope_lag > 0.05 else ("↘" if rs_slope_lag < -0.05 else "→")
+    
+    assert rs_slope_lag < 0
+    assert rs_trend_lag == "↘"
+

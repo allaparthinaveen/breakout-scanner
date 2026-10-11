@@ -116,6 +116,11 @@ class BreakoutEngine:
                         vdu = float(row['TightAvgVol'] / base_vol)
                         self.setup.vdu_ratio = round(vdu, 2)
                         self.setup.vdu_confirmed = vdu <= c_vol.get('vdu_threshold', 0.75)
+                    earlier_range = row['EarlierRangePct'] if ('EarlierRangePct' in row and 0 < row['EarlierRangePct'] < 500) else row['BaseRangePct']
+                    if 0 < earlier_range < 500 and 0 < row['TightRangePct'] < 500:
+                        decay = float(row['TightRangePct'] / earlier_range)
+                        self.setup.decay_ratio = round(decay, 2)
+                        self.setup.tightening_confirmed = decay <= c_base.get('tightening_threshold', 0.70)
             
             elif state == State.CONTRACTION:
                 setup_bars = i - setup_start + 1
@@ -268,13 +273,18 @@ class BreakoutEngine:
         else:
             self.setup.bars_since_breakout = 0
 
-        # Update trailing VDU / RVOL for current state display
+        # Update trailing VDU / RVOL / Coil Decay for current state display
         if self.setup.state == State.CONTRACTION and not df.empty:
             base_vol = df['BaseAvgVol'].iloc[-1] if df['BaseAvgVol'].iloc[-1] > 0 else df['AvgVolume'].iloc[-1]
             if base_vol > 0:
                 current_vdu = float(df['TightAvgVol'].iloc[-1] / base_vol)
                 self.setup.vdu_ratio = round(current_vdu, 2)
                 self.setup.vdu_confirmed = current_vdu <= c_vol.get('vdu_threshold', 0.75)
+            earlier_range = df['EarlierRangePct'].iloc[-1] if (0 < df['EarlierRangePct'].iloc[-1] < 500) else df['BaseRangePct'].iloc[-1]
+            if 0 < earlier_range < 500 and 0 < df['TightRangePct'].iloc[-1] < 500:
+                current_decay = float(df['TightRangePct'].iloc[-1] / earlier_range)
+                self.setup.decay_ratio = round(current_decay, 2)
+                self.setup.tightening_confirmed = current_decay <= c_base.get('tightening_threshold', 0.70)
         elif self.setup.state in (State.BUY, State.SELL) and not df.empty:
             if self.setup.rvol is None and df['AvgVolume'].iloc[-1] > 0:
                 self.setup.rvol = round(float(df['Volume'].iloc[-1] / df['AvgVolume'].iloc[-1]), 2)

@@ -131,21 +131,25 @@ Following our **1% marginal gains / zero-disruption rule**:
   - **Output**: Append `💧 VDU: X.Xx` to Section 1 bases and `[Vol: X.Xx]` to Section 2 breakouts.
   - **Status**: ✅ **Implemented and Verified**
 
-- [ ] **3.2 Step 2: Decaying Contraction Ratio & Coil Tightness Scoring**
+- [x] **3.2 Step 2: Decaying Contraction Ratio & Coil Tightness Scoring**
   - **Concept**: True VCP compression exhibits successive contraction wave decay ($T_1 \rightarrow T_2 \rightarrow T_3$) where volatility systematically collapses.
   - **Quant Logic**:
     - Validate that each contraction cycle has a smaller percentage range than the prior wave.
+    - Track `decay_ratio = TightRangePct / EarlierRangePct` and verify tightening (`tightening_confirmed = decay_ratio <= 0.70`).
     - Coil tightness grading:
       - Width $\le 3.5\%$: **Max Score (20/20)** *(Ultra-tight spring coil)*
       - Width $3.6\% - 6.0\%$: **High Score (15/20)**
       - Width $> 8.0\%$: **Penalized Score (5/20)** *(Loose consolidation prone to chop)*
+  - **Output**: Append `🗜️ Coil: X.Xx` to Section 1 bases.
+  - **Status**: ✅ **Implemented and Verified**
 
-- [ ] **3.3 Step 3: RS Momentum Slope & Alpha Divergence**
+- [x] **3.3 Step 3: RS Momentum Slope & Alpha Divergence**
   - **Concept**: Outperforming on a green day is ordinary; refusing to drop or printing new highs while the benchmark pulls back is institutional alpha.
   - **Quant Logic**:
-    - Compute the 20-bar Linear Regression Slope of the relative strength line: `Stock_Close / Benchmark_Close`.
-    - Detect RS divergence: When benchmark prints a lower high but stock prints an equal or higher high, award alpha divergence points.
-  - **Output**: Diagnostic flag `[Alpha RS: +X.X% ↗]`.
+    - Compute the linear regression slope of the relative strength line: `Stock_Close / Benchmark_Close`.
+    - Detect RS direction: `↗` (accelerating RS), `↘` (lagging/weakening RS), or `→` (neutral).
+  - **Output**: Diagnostic flag `[Sector RS: +X.X% ↗]` and signal tag `[Sector ↗]`.
+  - **Status**: ✅ **Implemented and Verified**
 
 - [ ] **3.4 Step 4: 5-Pillar Composite Quant Scorer (0–100 & Tier Grading)**
   - **Concept**: Aggregate all quantitative attributes into an objective institutional score:

@@ -1,6 +1,7 @@
 import time
 from typing import Dict, List
 import pandas as pd
+import numpy as np
 from .engine import BreakoutEngine
 from .prediction_chat import explain
 from .models import Setup, State
@@ -97,6 +98,15 @@ class MultiSymbolScanner:
                         if stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
                             score += 1
 
+                        # Step 3: RS Momentum Slope (Linear regression slope over trailing bars)
+                        rs_ratio = (stock_returns / proxy_returns.replace(0, np.nan)).dropna()
+                        if len(rs_ratio) >= 3:
+                            tail = rs_ratio.iloc[-min(len(rs_ratio), 5):]
+                            x = np.arange(len(tail))
+                            slope, _ = np.polyfit(x, tail.values, 1)
+                            setup.rs_slope = round(float(slope * 100.0), 2)
+                            setup.rs_trend = "↗" if setup.rs_slope > 0.05 else ("↘" if setup.rs_slope < -0.05 else "→")
+
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
             # ----------------------------------------------------
@@ -188,9 +198,11 @@ class MultiSymbolScanner:
                 res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
                 sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
                 width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
-                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
-                htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
+                coil = f"\033[94m🗜️ Coil: {s.decay_ratio:.1f}x\033[0m" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
                 vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
+                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
+                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
+                htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
                 
                 if s.bias_score >= 2:
                     bias_text = f"Strong Upside Bias ({s.bias_score}/3)"
@@ -209,6 +221,8 @@ class MultiSymbolScanner:
                 parts = [f"  • {s.symbol:9}", res, sup]
                 if width:
                     parts.append(width)
+                if coil:
+                    parts.append(coil)
                 if vdu:
                     parts.append(vdu)
                 if sector:
@@ -246,7 +260,8 @@ class MultiSymbolScanner:
                     pnl_sign = "+" if s.pnl_pct >= 0 else ""
                     pnl_str = f"{pnl_color}P&L: {pnl_sign}{s.pnl_pct:.2f}%\033[0m"
                     
-                sector = f"[{s.sector_name}]" if s.sector_name else ""
+                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
+                sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
                 htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
                 
                 parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]

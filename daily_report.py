@@ -46,7 +46,7 @@ def run_pre_market_scan(watchlist_file: str):
     scanner = MultiSymbolScanner(provider, cfg)
     setups = scanner.scan(symbols, period='60d', interval='1h')
     
-    forming_box = [s for s in setups if s.state == State.CONTRACTION]
+    forming_box = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
     breaking_out = [s for s in setups if s.state in (State.BUY, State.SELL) and not s.retest_confirmed]
     retesting = [s for s in setups if s.state in (State.BUY, State.SELL) and s.retest_confirmed]
     idle = [s for s in setups if s.state in (State.IDLE, State.FAILED)]
@@ -59,13 +59,18 @@ def run_pre_market_scan(watchlist_file: str):
         box_rows = []
         for s in forming_box:
             w_str = f"W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+            coil_str = f"🗜️ Coil: {s.decay_ratio:.1f}x" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
             vdu_str = f"💧 VDU: {s.vdu_ratio:.1f}x" if s.vdu_confirmed else ""
+            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
+            sec_str = f"[{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = "⭐ 1D" if s.htf_confirmed else ""
             res = f"{s.resistance:.5g}" if s.resistance is not None else "-"
             sup = f"{s.support:.5g}" if s.support is not None else "-"
             parts = [f"{s.symbol:8}", f"R: {res}", f"S: {sup}"]
             if w_str: parts.append(w_str)
+            if coil_str: parts.append(coil_str)
             if vdu_str: parts.append(vdu_str)
+            if sec_str: parts.append(sec_str)
             parts.append(f"Bias: {s.bias_score}/3")
             if htf_str: parts.append(htf_str)
             box_rows.append(" | ".join(parts))
@@ -82,7 +87,10 @@ def run_pre_market_scan(watchlist_file: str):
             entry = f"{s.entry:.5g}" if s.entry is not None else "-"
             stop = f"{s.stop:.5g}" if s.stop is not None else "-"
             vol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
-            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str} | In: {entry} | SL: {stop}")
+            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
+            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
+            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
+            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str}{sec_str}{htf_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(bo_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently breaking out.</i>")
@@ -96,7 +104,10 @@ def run_pre_market_scan(watchlist_file: str):
             entry = f"{s.entry:.5g}" if s.entry is not None else "-"
             stop = f"{s.stop:.5g}" if s.stop is not None else "-"
             vol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
-            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str} | In: {entry} | SL: {stop}")
+            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
+            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
+            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
+            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str}{sec_str}{htf_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(rt_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently in pivot retest.</i>")

@@ -9,6 +9,7 @@ base:
   require_tightening: false
   min_setup_bars: 5
   max_setup_bars: 30
+  tightening_threshold: 0.70
 volume:
   use_volume_contraction: false
   volume_length: 20
