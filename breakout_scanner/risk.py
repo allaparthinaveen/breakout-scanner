@@ -16,13 +16,18 @@ class RiskEngine:
         """
         buf = self.cfg['breakout']['buffer_pct'] / 100.0
         d = setup.direction
-        level = setup.breakout_level
+        level = setup.breakout_level or (setup.resistance if d == 1 else setup.support) or setup.entry
+        if level is None:
+            return 0.0
         
         if method == 'baseline':
             return level * (1 - buf) if d == 1 else level * (1 + buf)
             
         elif method == 'box_invalidation':
-            return setup.support * (1 - buf) if d == 1 else setup.resistance * (1 + buf)
+            ref = setup.support if d == 1 else setup.resistance
+            if ref is None:
+                ref = level
+            return ref * (1 - buf) if d == 1 else ref * (1 + buf)
             
         elif method == 'retest_swing':
             # This requires access to the lows/highs during the retest phase.
@@ -47,6 +52,9 @@ class RiskEngine:
         """
         Calculates position size factoring in account size, risk %, and limits.
         """
+        if entry is None or stop is None or entry <= 0:
+            return 0.0
+
         max_positions = self.cfg['risk'].get('max_positions', 5)
         if current_positions >= max_positions:
             return 0.0 # Portfolio limit reached
@@ -55,7 +63,7 @@ class RiskEngine:
         risk_cash = capital * risk_pct
         
         risk_per_share = abs(entry - stop)
-        if risk_per_share == 0:
+        if risk_per_share <= 0:
             return 0.0
             
         shares = risk_cash / risk_per_share

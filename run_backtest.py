@@ -20,6 +20,7 @@ def run_historical_backtest():
     
     all_trades = []
     global_metrics = {}
+    os.makedirs('backtest', exist_ok=True)
     
     print("Starting 5-Year Daily (1D) Sector Scan...")
     

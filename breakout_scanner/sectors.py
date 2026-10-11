@@ -82,28 +82,96 @@ SECTOR_MAP = {
     'TSM': ('Semis', 'SMH'),
     'ASML': ('Semis', 'SMH'),
     'INTC': ('Semis', 'SMH'),
+    'AMD': ('Semis', 'SMH'),
+    'QCOM': ('Semis', 'SMH'),
+    'AVGO': ('Semis', 'SMH'),
 
-    # Big Tech / Cloud
+    # Big Tech, Software & Cloud
     'AAPL': ('Tech', 'QQQ'),
     'MSFT': ('Tech', 'QQQ'),
     'ACN': ('Tech Services', 'XLK'),
+    'PLTR': ('Enterprise Software', 'XLK'),
+    'ORCL': ('Enterprise Software', 'XLK'),
+    'CRM': ('Cloud/SaaS', 'XLK'),
+    'NOW': ('Cloud/SaaS', 'XLK'),
+    'ADBE': ('Software', 'XLK'),
+    'CSCO': ('Networking', 'XLK'),
+    'PANW': ('Cybersecurity', 'XLK'),
+    'ANET': ('Cloud Networking', 'XLK'),
 
-    # Media & Entertainment
+    # Media, Entertainment & Communication
     'NFLX': ('Media', 'XLC'),
     'TTWO': ('Gaming/Media', 'XLC'),
+    'EA': ('Gaming', 'XLC'),
+    'GOOGL': ('Media/Search', 'XLC'),
+    'META': ('Social Media', 'XLC'),
+    'DIS': ('Entertainment', 'XLC'),
+    'CMCSA': ('Telecom/Media', 'XLC'),
+    'TMUS': ('Telecom', 'XLC'),
+    'VZ': ('Telecom', 'XLC'),
+    'T': ('Telecom', 'XLC'),
 
-    # Financials
+    # Financials & Banking
     'GS': ('Banks', 'XLF'),
     'BAC': ('Banks', 'XLF'),
+    'JPM': ('Banks', 'XLF'),
+    'MS': ('Investment Banks', 'XLF'),
+    'C': ('Banks', 'XLF'),
+    'BX': ('Private Equity', 'XLF'),
+    'APO': ('Private Equity', 'XLF'),
+    'KKR': ('Private Equity', 'XLF'),
+    'BLK': ('Asset Mgmt', 'XLF'),
+    'SCHW': ('Brokerage', 'XLF'),
+    'HOOD': ('Fintech', 'XLF'),
+    'AXP': ('Financials', 'XLF'),
+    'V': ('Payments', 'XLK'),
+    'MA': ('Payments', 'XLK'),
 
-    # Healthcare
+    # Healthcare & Biotech
     'UNH': ('Healthcare', 'XLV'),
-    'GSK': ('Healthcare', 'XLV'),
+    'GSK': ('Pharma', 'XLV'),
+    'LLY': ('Pharma', 'XLV'),
+    'JNJ': ('Healthcare', 'XLV'),
+    'GILD': ('Biotech', 'XLV'),
+    'ABT': ('Healthcare', 'XLV'),
+    'MDT': ('MedTech', 'XLV'),
+    'ISRG': ('MedTech', 'XLV'),
+    'SYK': ('MedTech', 'XLV'),
+    'BSX': ('MedTech', 'XLV'),
+    'REGN': ('Biotech', 'XLV'),
+    'VRTX': ('Biotech', 'XLV'),
 
-    # Consumer Staples & Discretionary
+    # Consumer Staples & Defensive
     'KO': ('Staples', 'XLP'),
+    'PEP': ('Staples', 'XLP'),
+    'PG': ('Staples', 'XLP'),
+    'COST': ('Staples/Retail', 'XLP'),
+    'WMT': ('Staples/Retail', 'XLP'),
+    'PM': ('Staples', 'XLP'),
+    'MO': ('Staples', 'XLP'),
+    'MDLZ': ('Staples', 'XLP'),
+    'CL': ('Staples', 'XLP'),
+
+    # Consumer Discretionary & Retail
     'TSLA': ('Discretionary', 'XLY'),
     'NKE': ('Discretionary', 'XLY'),
+    'AMZN': ('E-Commerce', 'XLY'),
+    'MCD': ('Restaurants', 'XLY'),
+    'SBUX': ('Restaurants', 'XLY'),
+    'CMG': ('Restaurants', 'XLY'),
+    'HD': ('Home Improvement', 'XLY'),
+    'LOW': ('Home Improvement', 'XLY'),
+    'BKNG': ('Travel', 'XLY'),
+    'ABNB': ('Travel', 'XLY'),
+
+    # Energy, Materials & Utilities
+    'XOM': ('Energy', 'XLE'),
+    'CVX': ('Energy', 'XLE'),
+    'FCX': ('Materials', 'XLB'),
+    'LIN': ('Chemicals', 'XLB'),
+    'NEE': ('Utilities', 'XLU'),
+    'SO': ('Utilities', 'XLU'),
+    'DUK': ('Utilities', 'XLU'),
 }
 
 def get_sector_benchmark(symbol: str) -> Tuple[str, str]:

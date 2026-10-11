@@ -104,3 +104,17 @@ When you run `python3 daily_report.py` without any extra commands, it automatica
 
 (Note: We also created `config/crypto_watchlist.txt` and `config/top30_watchlist.txt` earlier. If you want to use a different file, you just pass it in like this: `python3 daily_report.py --watchlist config/your_custom_file.txt`).
 
+How to Apply It to Your Trading:
+Prioritize Ultra-Tight Setups ($\le 4.5%$):
+Look at AAPL (Width: 3.2%) vs ACN (Width: 12.3%).
+AAPL is coiled like a compressed spring. When overhead supply dries up to just $3.2%$, even a small wave of buying volume will cause an explosive price surge.
+ACN is still relatively loose ($12.3%$), meaning it may chop around inside the box a bit longer before taking off.
+Cheaper Stops & Better $R:R$:
+A $3.5%$ base width allows you to place a stop loss directly beneath the box with very low risk ($1% - 1.5%$), which lets you take a larger position size for the same dollar risk.
+
+How to Apply It:
+When you see TTWO | [Gaming/Media RS: +5.6%]:
+
+It tells you TTWO is outperforming its entire media peer group by $+5.6%$ over the last 20 bars.
+This proves institutional capital is actively rotating into TTWO above other media stocks.
+If a stock is in a breakout, but its sector RS is negative (e.g. $-2%$), the stock is lagging its group and the breakout is more prone to stalling.

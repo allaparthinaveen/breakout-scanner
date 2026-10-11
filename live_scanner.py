@@ -20,8 +20,8 @@ class LiveScanner:
         self.provider = YFinanceProvider()
         
         # Telegram Setup (Reads TELEGRAM_BOT_TOKEN / TG_BOT_TOKEN and TELEGRAM_CHAT_ID / TG_CHAT_ID from .env)
-        self.telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('TG_BOT_TOKEN', '8361061485:AAGUSvENq79eUhIztcae-7BPJt-gc1LVytk')
-        self.telegram_chat_id = os.environ.get('TELEGRAM_CHAT_ID') or os.environ.get('TG_CHAT_ID', '5480767676')
+        self.telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('TG_BOT_TOKEN')
+        self.telegram_chat_id = os.environ.get('TELEGRAM_CHAT_ID') or os.environ.get('TG_CHAT_ID')
         
         # Keep track of signaled symbols so we don't spam the same signal every 5 mins
         self.active_signals = {}
@@ -29,7 +29,7 @@ class LiveScanner:
     def load_watchlists(self):
         symbols = []
         # Load from all watchlist files
-        for filename in ['config/top30_watchlist.txt', 'config/crypto_watchlist.txt']:
+        for filename in ['config/watchlist.txt', 'config/top30_watchlist.txt', 'config/crypto_watchlist.txt', 'config/nsetop10_watchlist.txt']:
             if os.path.exists(filename):
                 with open(filename, 'r') as f:
                     for line in f:
@@ -46,10 +46,11 @@ class LiveScanner:
         breakout_type = "bullish" if setup.direction == 1 else "bearish"
         
         # Format the numbers
-        entry = f"${setup.entry:.2f}"
-        stop = f"${setup.stop:.2f}"
-        target = f"${setup.target:.2f}"
-        breakout_lvl = f"${setup.breakout_level:.2f}" if setup.breakout_level else entry
+        entry = f"${setup.entry:.2f}" if setup.entry is not None else "N/A"
+        stop = f"${setup.stop:.2f}" if setup.stop is not None else "N/A"
+        target_val = setup.target or setup.tp2
+        target = f"${target_val:.2f}" if target_val is not None else "N/A"
+        breakout_lvl = f"${setup.breakout_level:.2f}" if setup.breakout_level is not None else entry
         
         # Extract evidence for the checklist
         evidence_list = "\n".join([f"✅ {ev.capitalize()}" for ev in setup.evidence])

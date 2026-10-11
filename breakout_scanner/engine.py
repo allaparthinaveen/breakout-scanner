@@ -13,6 +13,8 @@ class BreakoutEngine:
 
     def run(self, raw):
         self.setup = Setup(self.symbol)
+        if raw is None or raw.empty or len(raw) < 10:
+            return self.setup
         df = raw.copy()
         c_trend = self.cfg['trend']
         c_base = self.cfg['base']
@@ -147,6 +149,8 @@ class BreakoutEngine:
                         self.setup.risk_pct = (risk / self.setup.entry) * 100.0 if self.setup.entry else 0.0
                         self.setup.tp1 = self.setup.entry + risk * c_tgt['tp1_r']
                         self.setup.tp2 = self.setup.entry + risk * c_tgt['tp2_r']
+                        self.setup.target = self.setup.tp2
+                        self.setup.breakout_level = self.setup.resistance
                         
                         structure_target = row['StructTgtHigh']
                         self.setup.tp3 = structure_target if structure_target > self.setup.tp2 else self.setup.entry + risk * 3.0
@@ -177,6 +181,8 @@ class BreakoutEngine:
                         self.setup.risk_pct = (risk / self.setup.entry) * 100.0 if self.setup.entry else 0.0
                         self.setup.tp1 = self.setup.entry - risk * c_tgt['tp1_r']
                         self.setup.tp2 = self.setup.entry - risk * c_tgt['tp2_r']
+                        self.setup.target = self.setup.tp2
+                        self.setup.breakout_level = self.setup.support
                         
                         structure_target = row['StructTgtLow']
                         self.setup.tp3 = structure_target if structure_target < self.setup.tp2 else self.setup.entry - risk * 3.0
@@ -192,8 +198,8 @@ class BreakoutEngine:
                 # Update held days
                 if self.setup.entry_day is not None and row['Day'] != self.setup.entry_day:
                     delta = row['Day'] - self.setup.entry_day
-                    days_diff = delta.days if hasattr(delta, 'days') else 1
-                    self.setup.held_days = days_diff
+                    days_diff = delta.days if hasattr(delta, 'days') else int(delta)
+                    self.setup.held_days = max(1, days_diff)
                 
                 # Check Retest Hold (Pullback to broken pivot that successfully holds)
                 if i > (self.setup.breakout_index or 0):
@@ -234,7 +240,10 @@ class BreakoutEngine:
                     self.setup = Setup(self.symbol)
                     
         # Calculate trailing trend for display
-        self.setup.trend = 1 if df['Close'].iloc[-1] > df['SMA'].iloc[-1] else -1
+        if not df.empty and not pd.isna(df['SMA'].iloc[-1]):
+            self.setup.trend = 1 if df['Close'].iloc[-1] > df['SMA'].iloc[-1] else -1
+        else:
+            self.setup.trend = 0
         self.setup.current_price = df['Close'].iloc[-1]
         
         # Calculate current unrealized PnL % if in trade

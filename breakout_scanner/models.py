@@ -51,3 +51,8 @@ class Setup:
     sector_rs_pct: Optional[float] = None
     breakout_type: str = "BREAKOUT"
     retest_confirmed: bool = False
+    breakout_level: Optional[float] = None
+
+    @property
+    def breakout_score(self) -> int:
+        return self.bias_score

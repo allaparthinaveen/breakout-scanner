@@ -88,13 +88,14 @@ class MultiSymbolScanner:
             # Point 2: Relative Strength against sector / benchmark
             if not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
                 stock_returns = df['Close'].iloc[-20:] / df['Close'].iloc[-20]
-                proxy_returns = proxy_df['Close'].reindex(stock_returns.index).ffill()
-                if not proxy_returns.empty and proxy_returns.iloc[0] > 0:
+                proxy_returns = proxy_df['Close'].reindex(stock_returns.index).ffill().bfill()
+                if not proxy_returns.empty and not pd.isna(proxy_returns.iloc[0]) and proxy_returns.iloc[0] > 0:
                     proxy_returns = proxy_returns / proxy_returns.iloc[0]
-                    rs_delta = (stock_returns.iloc[-1] - proxy_returns.iloc[-1]) * 100.0
-                    setup.sector_rs_pct = rs_delta
-                    if stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
-                        score += 1
+                    if not pd.isna(proxy_returns.iloc[-1]) and not pd.isna(stock_returns.iloc[-1]):
+                        rs_delta = (stock_returns.iloc[-1] - proxy_returns.iloc[-1]) * 100.0
+                        setup.sector_rs_pct = rs_delta
+                        if stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
+                            score += 1
 
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
@@ -103,17 +104,30 @@ class MultiSymbolScanner:
             is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
 
             if is_crypto:
-                # Crypto: Bitcoin Macro Regime (BTC-USD trading above 50 SMA)
-                if not proxy_df.empty and len(proxy_df) >= 50:
-                    btc_sma50 = proxy_df['Close'].rolling(50).mean()
-                    if proxy_df['Close'].iloc[-1] > btc_sma50.iloc[-1]:
+                # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above 50-day SMA)
+                if 'BTC-USD' not in self.provider.daily_cache:
+                    self.provider.daily_cache['BTC-USD'] = self.provider.candles('BTC-USD', period='1y', interval='1d')
+                btc_daily = self.provider.daily_cache.get('BTC-USD')
+                if btc_daily is not None and not btc_daily.empty and len(btc_daily) >= 50:
+                    btc_sma50 = btc_daily['Close'].rolling(50).mean().iloc[-1]
+                    if btc_daily['Close'].iloc[-1] > btc_sma50:
+                        score += 1
+                elif not proxy_df.empty and len(proxy_df) >= 50:
+                    btc_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
+                    if proxy_df['Close'].iloc[-1] > btc_sma50:
                         score += 1
             elif is_nse:
                 # NSE: Nifty 50 Trend Regime or Analyst Consensus if available
                 nifty_bullish = False
-                if not proxy_df.empty and len(proxy_df) >= 50:
-                    nifty_sma50 = proxy_df['Close'].rolling(50).mean()
-                    nifty_bullish = proxy_df['Close'].iloc[-1] > nifty_sma50.iloc[-1]
+                if '^NSEI' not in self.provider.daily_cache:
+                    self.provider.daily_cache['^NSEI'] = self.provider.candles('^NSEI', period='1y', interval='1d')
+                nifty_daily = self.provider.daily_cache.get('^NSEI')
+                if nifty_daily is not None and not nifty_daily.empty and len(nifty_daily) >= 50:
+                    nifty_sma50 = nifty_daily['Close'].rolling(50).mean().iloc[-1]
+                    nifty_bullish = nifty_daily['Close'].iloc[-1] > nifty_sma50
+                elif not proxy_df.empty and len(proxy_df) >= 50:
+                    nifty_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
+                    nifty_bullish = proxy_df['Close'].iloc[-1] > nifty_sma50
                 
                 has_analyst_buy = False
                 try:
@@ -216,10 +230,10 @@ class MultiSymbolScanner:
                 dir_arrow = "▲ BUY" if s.direction == 1 else "▼ SELL"
                 dir_str = f"{dir_color}{dir_arrow} [{tag}]\033[0m"
                 
-                cp_str = f"CP: {s.current_price:.5g}" if s.current_price else "CP: N/A"
-                entry = f"Entry: {s.entry:.5g}"
-                stop = f"Stop: {s.stop:.5g}"
-                targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}"
+                cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
+                entry = f"Entry: {s.entry:.5g}" if s.entry is not None else "Entry: N/A"
+                stop = f"Stop: {s.stop:.5g}" if s.stop is not None else "Stop: N/A"
+                targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
                 risk_str = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
                 
                 pnl_str = ""
@@ -240,7 +254,8 @@ class MultiSymbolScanner:
                     parts.append(sector)
                 if htf:
                     parts.append(htf)
-                parts.append(targets)
+                if targets:
+                    parts.append(targets)
                 print(" | ".join(parts))
                 
         print("\n")

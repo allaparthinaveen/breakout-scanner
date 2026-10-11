@@ -38,67 +38,64 @@ def run_pre_market_scan(watchlist_file: str):
     provider = YFinanceProvider()
     
     with open(watchlist_file, 'r') as f:
-        symbols = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        symbols = [line.split(',')[0].strip() for line in f if line.strip() and not line.strip().startswith('#')]
         
     print(f"Scanning {len(symbols)} symbols on the 1-hour timeframe...\n")
     
-    results = []
+    from breakout_scanner.scanner import MultiSymbolScanner
+    scanner = MultiSymbolScanner(provider, cfg)
+    setups = scanner.scan(symbols, period='60d', interval='1h')
     
-    for sym in symbols:
-        df = provider.candles(sym, period='60d', interval='1h')
-        if df.empty or len(df) < 100:
-            continue
-            
-        engine = BreakoutEngine(cfg, sym)
-        setup = engine.run(df)
-        
-        results.append({
-            'Symbol': sym,
-            'State': setup.state.name,
-            'Trend': "UP" if setup.trend == 1 else "DOWN" if setup.trend == -1 else "FLAT",
-            'Resistance': f"${setup.resistance:.2f}" if setup.resistance else "-",
-            'Support': f"${setup.support:.2f}" if setup.support else "-"
-        })
-        
-    # Group results
-    df_results = pd.DataFrame(results)
-    
-    forming_box = df_results[df_results['State'] == 'CONSOLIDATION']
-    breaking_out = df_results[df_results['State'] == 'ACCEPTANCE_WATCH']
+    forming_box = [s for s in setups if s.state == State.CONTRACTION]
+    breaking_out = [s for s in setups if s.state in (State.BUY, State.SELL) and not s.retest_confirmed]
+    retesting = [s for s in setups if s.state in (State.BUY, State.SELL) and s.retest_confirmed]
+    idle = [s for s in setups if s.state in (State.IDLE, State.FAILED)]
     
     report_lines = []
     report_lines.append("<b>🌅 PRE-MARKET BREAKOUT SCANNER</b>\n")
     
-    report_lines.append("<b>📦 STOCKS FORMING A BOX (CONSOLIDATION)</b>")
-    if not forming_box.empty:
-        report_lines.append("<pre>" + forming_box[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
+    report_lines.append("<b>📦 STOCKS FORMING A VCP BASE (CONSOLIDATION)</b>")
+    if forming_box:
+        box_rows = []
+        for s in forming_box:
+            w_str = f"W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+            htf_str = "⭐ 1D" if s.htf_confirmed else ""
+            res = f"{s.resistance:.5g}" if s.resistance is not None else "-"
+            sup = f"{s.support:.5g}" if s.support is not None else "-"
+            box_rows.append(f"{s.symbol:8} | R: {res} | S: {sup} | {w_str} | Bias: {s.bias_score}/3 {htf_str}".strip())
+        report_lines.append("<pre>" + "\n".join(box_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently forming a box.</i>")
         
-    report_lines.append("\n<b>💥 ACTIVELY BREAKING OUT (ACCEPTANCE)</b>")
-    if not breaking_out.empty:
-        report_lines.append("<pre>" + breaking_out[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
+    report_lines.append("\n<b>🚀 ACTIVELY BREAKING OUT (MOMENTUM)</b>")
+    if breaking_out:
+        bo_rows = []
+        for s in breaking_out:
+            dir_str = "BUY" if s.direction == 1 else "SELL"
+            cp = f"{s.current_price:.5g}" if s.current_price is not None else "-"
+            entry = f"{s.entry:.5g}" if s.entry is not None else "-"
+            stop = f"{s.stop:.5g}" if s.stop is not None else "-"
+            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp} | In: {entry} | SL: {stop}")
+        report_lines.append("<pre>" + "\n".join(bo_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently breaking out.</i>")
         
-    awaiting_retest = df_results[df_results['State'] == 'ACCEPTED_RETEST_WATCH']
-    report_lines.append("\n<b>⏳ AWAITING RETEST (Watch closely!)</b>")
-    if not awaiting_retest.empty:
-        report_lines.append("<pre>" + awaiting_retest[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
+    report_lines.append("\n<b>🔄 CONFIRMED PIVOT RETESTS (Watch closely!)</b>")
+    if retesting:
+        rt_rows = []
+        for s in retesting:
+            dir_str = "BUY" if s.direction == 1 else "SELL"
+            cp = f"{s.current_price:.5g}" if s.current_price is not None else "-"
+            entry = f"{s.entry:.5g}" if s.entry is not None else "-"
+            stop = f"{s.stop:.5g}" if s.stop is not None else "-"
+            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp} | In: {entry} | SL: {stop}")
+        report_lines.append("<pre>" + "\n".join(rt_rows) + "</pre>")
     else:
-        report_lines.append("<i>None currently awaiting retest.</i>")
-
-    entry_signals = df_results[df_results['State'].isin(['BUY', 'SELL'])]
-    report_lines.append("\n<b>🎯 ENTRY SIGNALS TRIGGERED!</b>")
-    if not entry_signals.empty:
-        report_lines.append("<pre>" + entry_signals[['Symbol', 'State', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
-    else:
-        report_lines.append("<i>No active entry triggers.</i>")
+        report_lines.append("<i>None currently in pivot retest.</i>")
         
-    idle = df_results[df_results['State'].isin(['IDLE', 'FAILED'])]
     report_lines.append("\n<b>💤 IDLE / FAILED STOCKS (Ignore today)</b>")
-    if not idle.empty:
-        report_lines.append("<code>" + ", ".join(idle['Symbol'].tolist()) + "</code>")
+    if idle:
+        report_lines.append("<code>" + ", ".join([s.symbol for s in idle]) + "</code>")
     else:
         report_lines.append("<i>None.</i>")
         
