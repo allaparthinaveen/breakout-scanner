@@ -165,7 +165,7 @@ class MultiSymbolScanner:
         print(" SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)")
         print("=======================================================")
         
-        base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 2]
+        base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
         base_setups.sort(key=lambda s: s.bias_score, reverse=True)
         if not base_setups:
             print("  (None)")
