@@ -24,6 +24,8 @@ class Setup:
     failure_reason: Optional[str] = None
     cons_index: Optional[int] = None
     breakout_index: Optional[int] = None
+    breakout_time: Optional[str] = None
+    retest_time: Optional[str] = None
     bars_since_breakout: Optional[int] = None
     
     # V2.3 Advanced Trade Management

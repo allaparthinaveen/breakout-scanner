@@ -1,146 +1,133 @@
 import os
-import time
-import schedule
-import pandas as pd
-from datetime import datetime
-import json
-import requests
-from dotenv import load_dotenv
+import argparse
+import logging
+from typing import Optional, Union
 
-load_dotenv()
+from breakout_scanner.models import Setup, State
+from breakout_scanner.scheduler import SessionScheduler, format_instant_alert
 
-from breakout_scanner.config import load_config
-from breakout_scanner.engine import BreakoutEngine
-from breakout_scanner.providers.yfinance_provider import YFinanceProvider
-from breakout_scanner.models import State
 
-class LiveScanner:
-    def __init__(self, cfg_path='config/default.yaml'):
-        self.cfg = load_config(cfg_path)
-        self.provider = YFinanceProvider()
-        
-        # Telegram Setup (Reads TELEGRAM_BOT_TOKEN / TG_BOT_TOKEN and TELEGRAM_CHAT_ID / TG_CHAT_ID from .env)
-        self.telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN') or os.environ.get('TG_BOT_TOKEN')
-        self.telegram_chat_id = os.environ.get('TELEGRAM_CHAT_ID') or os.environ.get('TG_CHAT_ID')
-        
-        # Keep track of signaled symbols so we don't spam the same signal every 5 mins
-        self.active_signals = {}
-        
-    def load_watchlists(self):
-        symbols = []
-        # Load from all watchlist files
-        for filename in ['config/watchlist.txt', 'config/top30_watchlist.txt', 'config/crypto_watchlist.txt', 'config/nsetop10_watchlist.txt']:
-            if os.path.exists(filename):
-                with open(filename, 'r') as f:
-                    for line in f:
-                        sym = line.split(',')[0].strip()
-                        if sym and not sym.startswith('#') and sym not in symbols:
-                            symbols.append(sym)
-        return symbols
+class LiveScanner(SessionScheduler):
+    """
+    Backwards-compatible wrapper around SessionScheduler for live background scanning.
+    """
+    def __init__(self, cfg_path: str = "config/default.yaml", **kwargs):
+        super().__init__(cfg_path=cfg_path, **kwargs)
 
-    def format_telegram_message(self, setup):
-        """
-        Formats a premium HTML message for Telegram based on the requested UI design.
-        """
-        direction = "BUY ZONE 🟢" if setup.direction == 1 else "SELL ZONE 🔴"
-        breakout_type = "bullish" if setup.direction == 1 else "bearish"
-        
-        # Format the numbers
-        entry = f"${setup.entry:.2f}" if setup.entry is not None else "N/A"
-        stop = f"${setup.stop:.2f}" if setup.stop is not None else "N/A"
-        target_val = setup.target or setup.tp2
-        target = f"${target_val:.2f}" if target_val is not None else "N/A"
-        breakout_lvl = f"${setup.breakout_level:.2f}" if setup.breakout_level is not None else entry
-        
-        # Extract evidence for the checklist
-        evidence_list = "\n".join([f"✅ {ev.capitalize()}" for ev in setup.evidence])
-        if not evidence_list:
-            evidence_list = "✅ Strong momentum expansion\n✅ Volatility contraction breakout"
+    def format_telegram_message(self, setup: Setup) -> str:
+        return format_instant_alert(setup, timeframe="1H")
 
-        msg = (
-            f"🎯 <b>MARKET SCANNER | High-Conviction Signal</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>{setup.symbol}</b> | {direction}\n\n"
-            f"<b>Confirmed {breakout_type} breakout</b>\n"
-            f"<i>Price has closed decisively outside the volatility contraction zone with expanding volume.</i>\n\n"
-            f"📊 <b>Confidence Score:</b> High (87%)\n"
-            f"⚠️ <b>Risk Level:</b> Medium\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🛠 <b>TRADE FRAMEWORK</b>\n"
-            f"• <b>Entry Trigger:</b> {entry}\n"
-            f"• <b>Breakout Level:</b> {breakout_lvl}\n"
-            f"• <b>Invalidation (Stop):</b> {stop}\n"
-            f"• <b>Initial Target:</b> {target}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"⚡️ <b>WHY THE SCANNER TRIGGERED</b>\n"
-            f"{evidence_list}\n"
+    def send_telegram_alert(self, setup_or_msg: Union[Setup, str]) -> bool:
+        if isinstance(setup_or_msg, Setup):
+            # If current price is not set, fallback to entry
+            if setup_or_msg.current_price is None and setup_or_msg.entry is not None:
+                setup_or_msg.current_price = setup_or_msg.entry
+            msg = format_instant_alert(setup_or_msg, timeframe="1H")
+        else:
+            msg = str(setup_or_msg)
+        return super().send_telegram_alert(msg)
+
+    def run_scan(self) -> dict:
+        return self.scan_and_alert()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Phase 2 Automated Session Scheduler & Background Daemon (Timing is Edge)"
+    )
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        help="Run continuously as a background daemon at :01 past every hour",
+    )
+    parser.add_argument(
+        "--now",
+        action="store_true",
+        help="Execute an immediate scan right now",
+    )
+    parser.add_argument(
+        "--minute-offset",
+        type=int,
+        default=1,
+        help="Minute past the hour to run candle close scan (default: 1 for :01)",
+    )
+    parser.add_argument(
+        "--sessions",
+        action="store_true",
+        help="Enable NSE & US market session specific schedules in addition to hourly :01",
+    )
+    parser.add_argument(
+        "--watchlists",
+        type=str,
+        default=None,
+        help="Comma-separated paths to watchlist files (e.g. config/watchlist.txt,config/crypto_watchlist.txt)",
+    )
+    parser.add_argument(
+        "--test-alert",
+        action="store_true",
+        help="Send a test instant push alert to Telegram to verify formatting and connection",
+    )
+    parser.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear the deduplication alert cache",
+    )
+    args = parser.parse_args()
+
+    watchlists = [f.strip() for f in args.watchlists.split(",")] if args.watchlists else None
+    scanner = LiveScanner(watchlist_files=watchlists)
+
+    if args.clear_cache:
+        scanner.deduplicator.clear()
+        print("🧹 Alert deduplication cache cleared.")
+
+    if args.test_alert:
+        print("📨 Sending test instant push alert to Telegram...")
+        test_setup = Setup(
+            symbol="DOT-USD",
+            state=State.BUY,
+            direction=1,
+            entry=1.2815,
+            stop=1.2650,
+            current_price=1.2818,
+            risk_pct=1.2,
+            composite_grade="B",
+            composite_score=79,
+            tp1=1.3012,
+            tp2=1.3209,
+            sector_name="Crypto",
+            sector_rs_pct=1.4,
+            rs_trend="↗",
+            rvol=2.1,
+            htf_confirmed=True,
+            breakout_type="BREAKOUT"
         )
-        return msg
+        success = scanner.send_telegram_alert(test_setup)
+        if success:
+            print("✅ Test alert successfully dispatched to Telegram!")
+        else:
+            print("❌ Failed to dispatch test alert. Check .env credentials.")
+        return
 
-    def send_telegram_alert(self, setup):
-        if not self.telegram_token or not self.telegram_chat_id:
-            print(f"⚠️ Telegram credentials missing. Would have sent: {setup.symbol} {setup.state}")
-            return
-            
-        text = self.format_telegram_message(setup)
-        url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-        payload = {
-            "chat_id": self.telegram_chat_id,
-            "text": text,
-            "parse_mode": "HTML"
-        }
-        try:
-            requests.post(url, json=payload)
-        except Exception as e:
-            print(f"Failed to send Telegram alert: {e}")
+    # If --daemon is specified, set up hourly schedule and run
+    if args.daemon:
+        scanner.schedule_hourly(minute_offset=args.minute_offset)
+        if args.sessions:
+            scanner.schedule_session_times()
+        run_now = args.now or True  # By default run on startup so user sees immediate feedback
+        scanner.start(run_immediately=run_now)
+    else:
+        # One-off scan mode
+        print("⚡ Running immediate candle scan...")
+        res = scanner.run_scan()
+        print(f"✅ Scan finished: {res}")
 
-    def run_scan(self):
-        print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting live scan...")
-        symbols = self.load_watchlists()
-        
-        for sym in symbols:
-            try:
-                # Fetch recent daily/hourly data (depends on config, default 1d for VCP)
-                df = self.provider.candles(sym, period='1y', interval='1d')
-                if df.empty or len(df) < 80:
-                    continue
-                    
-                engine = BreakoutEngine(self.cfg, sym)
-                setup = engine.run(df)
-                
-                # Check if it's a new BUY or SELL signal
-                if setup.state in (State.BUY, State.SELL):
-                    # Deduplication: Only send if we haven't signaled this today
-                    today = datetime.now().strftime('%Y-%m-%d')
-                    last_signal = self.active_signals.get(sym)
-                    
-                    if last_signal != today:
-                        print(f"🚀 SIGNAL DETECTED: {sym} -> {setup.state}")
-                        self.send_telegram_alert(setup)
-                        self.active_signals[sym] = today
-                
-                # Check for "Awaiting Breakout" (CONTRACTION)
-                elif setup.state == State.CONTRACTION:
-                    print(f"👀 WATCHING: {sym} is forming a tight VCP base.")
-                    
-            except Exception as e:
-                print(f"Error processing {sym}: {e}")
-                
-        print("Scan complete. Waiting for next schedule...")
 
 def start_scheduler():
     scanner = LiveScanner()
-    
-    # Run immediately on startup
-    scanner.run_scan()
-    
-    # Schedule to run every 15 minutes (or adjust as needed)
-    schedule.every(15).minutes.do(scanner.run_scan)
-    
-    print("Live Scanner Scheduler Started! Press Ctrl+C to exit.")
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+    scanner.schedule_hourly(minute_offset=1)
+    scanner.start(run_immediately=True)
+
 
 if __name__ == "__main__":
-    start_scheduler()
+    main()

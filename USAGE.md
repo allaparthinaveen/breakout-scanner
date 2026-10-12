@@ -264,3 +264,64 @@ python3 dashboard.py
 2. **Never buy a breakout on dry volume** $\rightarrow$ Demand `[Vol: >= 1.2x]`.
 3. **Never chase an entry that is more than $1.5\%$ above the pivot level** $\rightarrow$ If extended, wait for the `[🔄 RETEST]`.
 4. **Take $50\%$ profit at TP1 ($1.0R$) and move stop to Breakeven ($+0.1\%$)** $\rightarrow$ Guarantees you never let a winning trade turn into a losing trade.
+
+---
+
+## ⏱️ 8. Phase 2 Automated Session Scheduler (Timing is Edge)
+
+### Why Timing is the Ultimate Edge
+In swing trading and volatility contraction breakouts, **chasing after a candle has run for 30 minutes destroys your risk-to-reward ratio**. 
+
+The **Automated Session Scheduler** (`live_scanner.py` / `breakout_scanner/scheduler.py`) automates this process:
+
+```mermaid
+flowchart TD
+    A["⏱️ Top of the Hour (:00:00)"] -->|"Hourly Candle Finalizes"| B["⏰ Scheduler Wakes Up (:01 past hour)"]
+    B --> C["📥 Pull 1H Candles & Finalized Volume"]
+    C --> D["⚡ Run 5-Pillar Scorer & HTF Confluence"]
+    D --> E{"Candidate Qualifies?<br>• bars_since_breakout <= 1<br>• is_fresh_entry == True"}
+    E -->|No| F["💓 Log Heartbeat & Sleep Until Next :01"]
+    E -->|Yes| G{"Candle Signature in Dedup Cache?<br>(SYMBOL:TYPE:CANDLE_TIME)"}
+    G -->|Already Alerted| H["⏭️ Skip Duplicate"]
+    G -->|New Candle Alert| I["📱 Dispatch Instant Telegram Push Alert"]
+    I --> J["💾 Persist Signature to data/alert_dedup.json"]
+    J --> F
+```
+
+### 1. Instant Push Alert Format
+Within 60–90 seconds of candle close, your phone receives:
+
+```text
+🚨 FRESH BREAKOUT DETECTED: DOT-USD
+Entry: 1.2815 | Stop: 1.2650 | Risk: 1.2% | Grade: B [79]
+Triggered: Just now (1H candle close)
+Direction: ▲ BUY [BREAKOUT] | Current Price: 1.2818
+Targets: TP1: 1.3012 | TP2: 1.3209
+[Crypto RS: +1.4% ↗] | Vol: 2.1x | ⭐ 1D Confirmed
+```
+
+### 2. Candle-Close Deduplication (`CandleAlertDeduplicator`)
+* **Signature**: Each alert creates an immutable key: `SYMBOL:BREAKOUT_TYPE:CANDLE_TIMESTAMP`.
+* **State Persistence**: Saved to `data/alert_dedup.json`.
+* **Zero Phone Spam**: If the daemon restarts or scans run multiple times on the same hour, the deduplicator recognizes that this candle was already alerted and skips it automatically.
+* **Auto-Pruning**: Prunes signatures older than 7 days to maintain lightweight memory and disk footprint.
+
+### 3. How to Run the Scheduler Daemon
+
+```bash
+# Run in daemon mode (scheduled at :01 past every hour)
+python3 live_scanner.py --daemon
+
+# Run with optional market session checks (NSE: 09:35, 13:30, 15:15 IST)
+python3 live_scanner.py --daemon --sessions
+
+# Run an immediate manual check
+python3 live_scanner.py --now
+
+# Test phone push notification formatting
+python3 live_scanner.py --test-alert
+
+# Inspect daemon health and heartbeat logs
+tail -f logs/scanner.log
+```
+

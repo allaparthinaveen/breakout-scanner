@@ -145,3 +145,38 @@ All quantitative signals are aggregated into a single objective composite score 
 | **A** | **80 – 89** | **High Conviction Breakout** | Excellent structure with strong institutional tailwinds. Standard full size. |
 | **B** | **70 – 79** | **Playable Standard Setup** | Decent base, but either slightly wider width or neutral relative strength. Half size or tighter stop. |
 | **C** | **< 70** | **Filtered / Sub-optimal** | Poor volume, loose coil, or counter-trend. Skip or avoid. |
+
+---
+
+## ⏱️ 3. Phase 2 Automated Session Scheduler & Daemon (Timing is Edge)
+
+Breakouts are lost when entered late. The **Automated Session Scheduler** eliminates execution lag by running right as each hourly candle closes:
+
+* **Background Daemon (`:01` past every hour)**: Wakes up 60 seconds after candle close, ensuring volume and OHLC finality across exchanges.
+* **Instant Push Alert**: Delivers high-conviction signals straight to Telegram within 60–90 seconds of candle close.
+* **Persistent Deduplication**: Generates atomic candle signatures (`SYMBOL:TYPE:CANDLE_TIME`) persisted in `data/alert_dedup.json` so your phone is **never spammed** with duplicate alerts for the same candle.
+* **Heartbeat & System Logging**: Continuous tracking logged to `logs/scanner.log`.
+
+```bash
+# Start background daemon running at :01 past every hour
+python3 live_scanner.py --daemon
+
+# Run an immediate one-off candle scan
+python3 live_scanner.py --now
+
+# Send a test instant push alert to Telegram
+python3 live_scanner.py --test-alert
+
+# Clear deduplication cache
+python3 live_scanner.py --clear-cache
+```
+
+### Instant Push Alert Format
+```text
+🚨 FRESH BREAKOUT DETECTED: DOT-USD
+Entry: 1.2815 | Stop: 1.2650 | Risk: 1.2% | Grade: B [79]
+Triggered: Just now (1H candle close)
+Direction: ▲ BUY [BREAKOUT] | Current Price: 1.2818
+Targets: TP1: 1.3012 | TP2: 1.3209
+[Crypto RS: +1.4% ↗] | Vol: 2.1x | ⭐ 1D Confirmed
+```

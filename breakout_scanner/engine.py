@@ -166,6 +166,7 @@ class BreakoutEngine:
                         self.setup.tp3 = structure_target if structure_target > self.setup.tp2 else self.setup.entry + risk * 3.0
                         
                         self.setup.breakout_index = i
+                        self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
                         self.setup.entry_day = row['Day']
                         self.setup.tp1_hit = False
                         self.setup.tp2_hit = False
@@ -200,6 +201,7 @@ class BreakoutEngine:
                         self.setup.tp3 = structure_target if structure_target < self.setup.tp2 else self.setup.entry - risk * 3.0
                         
                         self.setup.breakout_index = i
+                        self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
                         self.setup.entry_day = row['Day']
                         self.setup.tp1_hit = False
                         self.setup.tp2_hit = False
@@ -223,12 +225,14 @@ class BreakoutEngine:
                         if retest_touch and retest_hold:
                             self.setup.retest_confirmed = True
                             self.setup.breakout_type = "RETEST_HOLD"
+                            self.setup.retest_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
                     elif active_dir == -1 and self.setup.support:
                         retest_touch = row['High'] >= self.setup.support * 0.992
                         retest_hold = row['Close'] <= self.setup.support * 1.002
                         if retest_touch and retest_hold:
                             self.setup.retest_confirmed = True
                             self.setup.breakout_type = "RETEST_HOLD"
+                            self.setup.retest_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
                 
                 # Check TP1
                 hit_tp1 = (row['High'] >= self.setup.tp1) if active_dir == 1 else (row['Low'] <= self.setup.tp1)

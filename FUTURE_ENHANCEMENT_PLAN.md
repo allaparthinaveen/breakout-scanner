@@ -91,20 +91,16 @@ Every improvement in this roadmap follows the **1% increment rule**:
 ### 🔹 Phase 2: Automation & Session-Aware Scheduling
 *Focus: Running the scanner automatically at key market turning points.*
 
-- [ ] **2.1 Market-Session Aligned Schedules**
-  - **NSE Market (IST)**:
-    - `09:35 AM IST`: Post-opening volatility settlement check.
-    - `01:30 PM IST`: European market open / institutional afternoon session.
-    - `03:15 PM IST`: EOD swing positioning scan.
-  - **US Market (EST)**:
-    - `09:45 AM EST`: Opening rush filter.
-    - `03:30 PM EST`: Power hour breakouts.
-  - **Crypto (24/7 UTC)**:
-    - Recurring scan synchronized with 4-hour candle closes (`00:00`, `04:00`, `08:00`, `12:00`, `16:00`, `20:00 UTC`).
+- [x] **2.1 Market-Session Aligned Schedules**
+  - **Hourly Candle Close (:01)**: Lightweight scheduler triggered 60s after each 1H candle closes across markets (`live_scanner.py`, `scheduler.py`).
+  - **NSE Market (IST)**: Optional triggers at `09:35 AM IST`, `01:30 PM IST`, `03:15 PM IST`.
+  - **US Market (EST)**: Optional triggers at `09:45 AM EST` and `03:30 PM EST`.
+  - **Crypto (24/7 UTC)**: Continuous hourly synchronization at `:01`.
 
-- [ ] **2.2 Candle-Close Deduplication & Heartbeat**
-  - Assign each signal a unique candle signature (`SYMBOL:TIMEFRAME:TIMESTAMP`) so telegram alerts never duplicate on the same candle.
-  - Add a lightweight health check logger (`logs/scanner.log`).
+- [x] **2.2 Candle-Close Deduplication & Heartbeat**
+  - Assign each signal a unique candle signature (`SYMBOL:SIGNAL_TYPE:CANDLE_TIMESTAMP`) cached to `data/alert_dedup.json` so telegram alerts never duplicate on the same candle.
+  - Dedicated heartbeat and scanner execution logger (`logs/scanner.log`).
+  - Instant high-conviction push alerts formatted matching trader requirements.
 
 ---
 
@@ -228,11 +224,12 @@ Following our **1% marginal gains / zero-disruption rule**:
 | **Higher Timeframe (1D) Confluence** | All | ✅ Completed | `engine.py`, `scanner.py` |
 | **Sector-Level Relative Strength** | NSE & US | ✅ Completed | `sectors.py`, `scanner.py` |
 | **Retest vs. Raw Breakout Classifier** | All | ✅ Completed | `engine.py`, `models.py`, `scanner.py` |
-| **Session-Aware Automated Scheduling** | All | 🟡 Queued | `live_scanner.py` |
+| **Session-Aware Automated Scheduling & Daemon** | All | ✅ Completed | `scheduler.py`, `live_scanner.py`, `logs/` |
 | **Quantum Signal Precision: Step 1 (VDU & RVOL)** | All | ✅ Completed | `engine.py`, `scanner.py`, `models.py` |
-| **Quantum Signal Precision: Step 2 (Wave Decay)** | All | 🟡 Next Up | `engine.py` |
-| **Quantum Signal Precision: Step 3 (RS Slope)** | All | ⚪ Planned | `scanner.py` |
-| **Quantum Signal Precision: Step 4 (0–100 Scorer)** | All | ⚪ Planned | `scanner.py`, `models.py` |
+| **Quantum Signal Precision: Step 2 (Wave Decay)** | All | ✅ Completed | `engine.py`, `models.py` |
+| **Quantum Signal Precision: Step 3 (RS Slope)** | All | ✅ Completed | `scanner.py`, `models.py` |
+| **Quantum Signal Precision: Step 4 (0–100 Scorer)** | All | ✅ Completed | `scorer.py`, `scanner.py`, `models.py` |
+| **Section 2A vs 2B Fresh Entry Partitioning** | All | ✅ Completed | `models.py`, `scanner.py`, `scan_now.py` |
 | **Flask Dashboard + TradingView UI** | All | ⚪ Planned | `dashboard.py`, `templates/` |
 | **Portfolio Backtest & Metrics Dashboard** | All | ⚪ Planned | `run_backtest.py` |
 | **Simulated Paper Trading Engine** | All | ⚪ Planned | `paper_broker.py` |
