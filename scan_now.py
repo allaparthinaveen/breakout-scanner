@@ -17,111 +17,44 @@ def send_telegram_message(message: str):
         return
         
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML"
-    }
+    
+    # Split message into chunks if larger than 4000 characters
+    chunks = []
+    if len(message) <= 4000:
+        chunks = [message]
+    else:
+        current = []
+        curr_len = 0
+        for block in message.split("\n\n"):
+            if curr_len + len(block) + 2 > 3900 and current:
+                chunks.append("\n\n".join(current))
+                current = [block]
+                curr_len = len(block)
+            else:
+                current.append(block)
+                curr_len += len(block) + 2
+        if current:
+            chunks.append("\n\n".join(current))
 
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        print("\n📱 Successfully sent report to Telegram!")
-    except Exception as e:
-        print(f"\n❌ Failed to send Telegram message: {e}")
+    for chunk in chunks:
+        payload = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "parse_mode": "HTML"
+        }
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            response.raise_for_status()
+        except Exception as e:
+            print(f"\n❌ Failed to send Telegram message: {e}")
+            return
+            
+    print("\n📱 Successfully sent report to Telegram!")
+
+from breakout_scanner.telegram_formatter import format_scan_report_html
 
 def build_report_string(setups):
-    lines = []
-    lines.append("<code>=======================")
-    lines.append(" SECTION 1: VCP BASE")
-    lines.append("=======================")
-    
-    base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-    base_setups.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
-    if not base_setups:
-        lines.append("  (None)")
-    else:
-        for s in base_setups:
-            if s.bias_score >= 2:
-                bias = f"Strong Upside Bias ({s.bias_score}/3)"
-            elif s.bias_score == 1:
-                bias = f"Weak Upside Bias ({s.bias_score}/3)"
-            else:
-                bias = f"Downside Bias ({s.bias_score}/3)"
-                
-            if s.earnings_warning:
-                bias += " ⚠️ EARNINGS RISK"
-                
-            width_str = f" | W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
-            coil_str = f" | 🗜️ Coil: {s.decay_ratio:.1f}x" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
-            vdu_str = f" | 💧 VDU: {s.vdu_ratio:.1f}x" if s.vdu_confirmed else ""
-            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
-            sector_str = f" | [{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_str}]" if (s.sector_name and s.sector_rs_pct is not None) else (f" | [{s.sector_name}]" if s.sector_name else "")
-            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            res_str = f"Res: {s.resistance:.5g}" if s.resistance is not None else "Res: N/A"
-            sup_str = f"Sup: {s.support:.5g}" if s.support is not None else "Sup: N/A"
-            lines.append(f"{s.symbol:9} | {res_str} | {sup_str}{width_str}{coil_str}{vdu_str}{sector_str}{htf_str}{grade_str} | Bias: {bias}")
-
-    lines.append("")
-    lines.append("=======================")
-    lines.append(" SECTION 2: NEW SIGNALS")
-    lines.append("=======================")
-    
-    # ONLY show signals that triggered in the last 24 bars (last 24 hours of trading)
-    active_setups = [s for s in setups if s.state in (State.BUY, State.SELL) and (s.bars_since_breakout is not None and s.bars_since_breakout <= 24)]
-    fresh_setups = [s for s in active_setups if s.is_fresh_entry]
-    in_progress_setups = [s for s in active_setups if not s.is_fresh_entry]
-
-    fresh_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
-    in_progress_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
-    
-    lines.append("")
-    lines.append("=======================")
-    lines.append(" SECTION 2A: FRESH ENTRIES (Playable Now)")
-    lines.append("=======================")
-    if not fresh_setups:
-        lines.append("  (None)")
-    else:
-        for s in fresh_setups:
-            tag = "RETEST" if s.retest_confirmed else "BREAKOUT"
-            dir_str = f"BUY [{tag}]" if s.direction == 1 else f"SELL [{tag}]"
-            cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
-            entry_str = f"In: {s.entry:.5g}" if s.entry is not None else "In: N/A"
-            sl_str = f"SL: {s.stop:.5g}" if s.stop is not None else "SL: N/A"
-            pnl_str = f" | PnL: {s.pnl_pct:+.1f}%" if s.pnl_pct is not None else ""
-            rvol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
-            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
-            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
-            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str}{rvol_str}{sec_str}{htf_str}{grade_str} | [ENTER NOW] | {entry_str} | {sl_str}")
-
-    lines.append("")
-    lines.append("=======================")
-    lines.append(" SECTION 2B: IN PROGRESS (Holders Only — Do Not Chase)")
-    lines.append("=======================")
-    if not in_progress_setups:
-        lines.append("  (None)")
-    else:
-        for s in in_progress_setups:
-            tag = "RETEST" if s.retest_confirmed else "BREAKOUT"
-            dir_str = f"BUY [{tag}]" if s.direction == 1 else f"SELL [{tag}]"
-            cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
-            entry_str = f"In: {s.entry:.5g}" if s.entry is not None else "In: N/A"
-            sl_str = f"SL: {s.stop:.5g}" if s.stop is not None else "SL: N/A"
-            pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
-            pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
-            status_tag = f"[TP1 HIT: {pnl_val}]" if s.is_tp1_reached else f"[EXTENDED: {pnl_val}]"
-            rvol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
-            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
-            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
-            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{rvol_str}{sec_str}{htf_str}{grade_str} | {status_tag} | {entry_str} | {sl_str}")
-            
-    lines.append("</code>")
-    return "\n".join(lines)
+    return format_scan_report_html(setups)
 
 def scan_now():
     parser = argparse.ArgumentParser(description="Run breakout scanner on a watchlist")

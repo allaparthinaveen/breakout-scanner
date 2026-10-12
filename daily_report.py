@@ -54,95 +54,9 @@ def run_pre_market_scan(watchlist_file: str):
     retesting.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
     idle = [s for s in setups if s.state in (State.IDLE, State.FAILED)]
     
-    report_lines = []
-    report_lines.append("<b>🌅 PRE-MARKET BREAKOUT SCANNER</b>\n")
-    
-    report_lines.append("<b>📦 STOCKS FORMING A VCP BASE (CONSOLIDATION)</b>")
-    if forming_box:
-        box_rows = []
-        for s in forming_box:
-            w_str = f"W: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
-            coil_str = f"🗜️ Coil: {s.decay_ratio:.1f}x" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
-            vdu_str = f"💧 VDU: {s.vdu_ratio:.1f}x" if s.vdu_confirmed else ""
-            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
-            sec_str = f"[{s.sector_name}{trend_str}]" if s.sector_name else ""
-            htf_str = "⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f"🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            res = f"{s.resistance:.5g}" if s.resistance is not None else "-"
-            sup = f"{s.support:.5g}" if s.support is not None else "-"
-            parts = [f"{s.symbol:8}", f"R: {res}", f"S: {sup}"]
-            if w_str: parts.append(w_str)
-            if coil_str: parts.append(coil_str)
-            if vdu_str: parts.append(vdu_str)
-            if sec_str: parts.append(sec_str)
-            if htf_str: parts.append(htf_str)
-            if grade_str: parts.append(grade_str)
-            parts.append(f"Bias: {s.bias_score}/3")
-            box_rows.append(" | ".join(parts))
-        report_lines.append("<pre>" + "\n".join(box_rows) + "</pre>")
-    else:
-        report_lines.append("<i>None currently forming a box.</i>")
-        
-    report_lines.append("\n<b>🚀 ACTIVELY BREAKING OUT (MOMENTUM)</b>")
-    if breaking_out:
-        bo_rows = []
-        for s in breaking_out:
-            dir_str = "BUY" if s.direction == 1 else "SELL"
-            cp = f"{s.current_price:.5g}" if s.current_price is not None else "-"
-            entry = f"{s.entry:.5g}" if s.entry is not None else "-"
-            stop = f"{s.stop:.5g}" if s.stop is not None else "-"
-            vol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
-            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
-            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
-            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
-            pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
-            if s.is_fresh_entry:
-                status_str = " | [ENTER NOW]"
-            elif s.is_tp1_reached:
-                status_str = f" | [TP1 HIT: {pnl_val}]"
-            else:
-                status_str = f" | [EXTENDED: {pnl_val}]"
-            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str}{status_str} | In: {entry} | SL: {stop}")
-        report_lines.append("<pre>" + "\n".join(bo_rows) + "</pre>")
-    else:
-        report_lines.append("<i>None currently breaking out.</i>")
-        
-    report_lines.append("\n<b>🔄 CONFIRMED PIVOT RETESTS (Watch closely!)</b>")
-    if retesting:
-        rt_rows = []
-        for s in retesting:
-            dir_str = "BUY" if s.direction == 1 else "SELL"
-            cp = f"{s.current_price:.5g}" if s.current_price is not None else "-"
-            entry = f"{s.entry:.5g}" if s.entry is not None else "-"
-            stop = f"{s.stop:.5g}" if s.stop is not None else "-"
-            vol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
-            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
-            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
-            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
-            pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
-            if s.is_fresh_entry:
-                status_str = " | [ENTER NOW]"
-            elif s.is_tp1_reached:
-                status_str = f" | [TP1 HIT: {pnl_val}]"
-            else:
-                status_str = f" | [EXTENDED: {pnl_val}]"
-            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str}{status_str} | In: {entry} | SL: {stop}")
-        report_lines.append("<pre>" + "\n".join(rt_rows) + "</pre>")
-    else:
-        report_lines.append("<i>None currently in pivot retest.</i>")
-        
-    report_lines.append("\n<b>💤 IDLE / FAILED STOCKS (Ignore today)</b>")
-    if idle:
-        report_lines.append("<code>" + ", ".join([s.symbol for s in idle]) + "</code>")
-    else:
-        report_lines.append("<i>None.</i>")
-        
-    final_report = "\n".join(report_lines)
-    clean_terminal = final_report.replace('<b>', '').replace('</b>', '').replace('<pre>', '\n').replace('</pre>', '').replace('<i>', '').replace('</i>', '').replace('<code>', '').replace('</code>', '')
+    from breakout_scanner.telegram_formatter import format_daily_briefing_html
+    final_report = format_daily_briefing_html(forming_box, breaking_out, retesting, idle)
+    clean_terminal = final_report.replace('<b>', '').replace('</b>', '').replace('<i>', '').replace('</i>', '').replace('<code>', '').replace('</code>', '')
     print("\n" + clean_terminal)
     
     # Send to Telegram

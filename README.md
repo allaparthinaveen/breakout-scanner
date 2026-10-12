@@ -161,14 +161,21 @@ Breakouts are lost when entered late. The **Automated Session Scheduler** elimin
 # Start background daemon running at :01 past every hour
 python3 live_scanner.py --daemon
 
+# Start background daemon with additional NSE/US session milestones
+python3 live_scanner.py --daemon --sessions
+
 # Run an immediate one-off candle scan
 python3 live_scanner.py --now
 
-# Send a test instant push alert to Telegram
+# Send a test instant push alert to your phone
 python3 live_scanner.py --test-alert
 
 # Clear deduplication cache
 python3 live_scanner.py --clear-cache
+
+# Monitor live daemon execution logs
+tail -f logs/scanner.log
+
 ```
 
 ### Instant Push Alert Format

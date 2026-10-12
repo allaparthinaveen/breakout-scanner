@@ -60,14 +60,15 @@ def test_format_instant_alert_buy():
     )
 
     alert_text = format_instant_alert(setup, timeframe="1H")
-    lines = alert_text.split("\n")
-    
-    assert lines[0] == "🚨 FRESH BREAKOUT DETECTED: DOT-USD"
-    assert lines[1] == "Entry: 1.2815 | Stop: 1.2650 | Risk: 1.2% | Grade: B [79]"
-    assert lines[2] == "Triggered: Just now (1H candle close)"
-    assert "▲ BUY [BREAKOUT]" in lines[3]
-    assert "Targets: TP1: 1.3012 | TP2: 1.3209" in alert_text
-    assert "[Crypto RS: +1.4% ↗]" in alert_text
+    assert "🚨 <b>FRESH BREAKOUT DETECTED: DOT-USD</b>" in alert_text
+    assert "Entry:" in alert_text and "1.2815" in alert_text
+    assert "Stop:" in alert_text and "1.2650" in alert_text
+    assert "Risk:" in alert_text and "1.2%" in alert_text
+    assert "Grade:" in alert_text and "B [79]" in alert_text
+    assert "Triggered:" in alert_text and "(1H candle close)" in alert_text
+    assert "▲ BUY [BREAKOUT]" in alert_text
+    assert "Targets:" in alert_text and "TP1:" in alert_text and "1.3012" in alert_text
+    assert "Crypto RS: +1.4% ↗" in alert_text
 
 
 def test_format_instant_alert_sell():
@@ -92,8 +93,9 @@ def test_format_instant_alert_sell():
     )
 
     alert_text = format_instant_alert(setup, timeframe="1H")
-    assert "🚨 FRESH BREAKDOWN DETECTED: INTC" in alert_text
-    assert "Entry: 105.11 | Stop: 107.25 | Risk: 2.0% | Grade: C [55]" in alert_text
+    assert "🚨 <b>FRESH BREAKDOWN DETECTED: INTC</b>" in alert_text
+    assert "Entry:" in alert_text and "105.11" in alert_text
+    assert "Stop:" in alert_text and "107.25" in alert_text
     assert "▼ SELL [BREAKDOWN]" in alert_text
 
 
@@ -115,8 +117,25 @@ def test_format_instant_alert_retest():
     )
 
     alert_text = format_instant_alert(setup, timeframe="1H")
-    assert "🔄 FRESH RETEST CONFIRMED: TSM" in alert_text
+    assert "🔄 <b>FRESH RETEST HOLD DETECTED: TSM</b>" in alert_text
     assert "▲ BUY [RETEST HOLD]" in alert_text
+
+
+def test_format_scan_report_html():
+    from breakout_scanner.telegram_formatter import format_scan_report_html
+    s_fresh = Setup(symbol="MSFT", state=State.BUY, direction=1, entry=541.73, current_price=540.68, stop=536.49, tp1=546.97, tp2=552.21, bars_since_breakout=0, composite_grade="A+", composite_score=90, risk_pct=0.97)
+    s_progress = Setup(symbol="NVDA", state=State.SELL, direction=-1, entry=229.32, current_price=226.49, stop=229.09, tp1=227.02, tp2=224.72, bars_since_breakout=5, composite_grade="B", composite_score=77, risk_pct=1.0)
+    s_base = Setup(symbol="AAPL", state=State.CONTRACTION, bias_score=3, resistance=341.57, support=330.70, base_width_pct=3.2, decay_ratio=0.6, tightening_confirmed=True, composite_grade="A", composite_score=81)
+
+    html = format_scan_report_html([s_fresh, s_progress, s_base])
+    assert "SECTION 2A: FRESH ENTRIES" in html
+    assert "MSFT" in html
+    assert "[ENTER NOW — FRESH]" in html
+    assert "SECTION 2B: IN PROGRESS" in html
+    assert "NVDA" in html
+    assert "[TP1 HIT:" in html
+    assert "SECTION 1: VCP BASES" in html
+    assert "AAPL" in html
 
 
 def test_scheduler_scan_and_deduplication(tmp_path):

@@ -94,62 +94,15 @@ class CandleAlertDeduplicator:
                 pass
 
 
-def format_price(val: Optional[float]) -> str:
-    if val is None:
-        return "N/A"
-    if abs(val) >= 100:
-        return f"{val:.2f}"
-    elif abs(val) >= 1:
-        return f"{val:.4f}"
-    else:
-        return f"{val:.5g}"
+from .telegram_formatter import format_instant_alert_html, format_price
 
 
 def format_instant_alert(setup: Setup, timeframe: str = "1H") -> str:
     """
     Formats the high-priority instant push alert for candle closes.
-    Follows the crisp, high-impact template specified for Phase 2.
+    Uses mobile-first card layout with rich HTML badges.
     """
-    is_retest = setup.retest_confirmed
-    if setup.direction == 1:
-        action_type = "BREAKOUT" if not is_retest else "RETEST HOLD"
-        headline = f"🚨 FRESH BREAKOUT DETECTED: {setup.symbol}" if not is_retest else f"🔄 FRESH RETEST CONFIRMED: {setup.symbol}"
-        dir_str = f"▲ BUY [{action_type}]"
-    else:
-        action_type = "BREAKDOWN" if not is_retest else "RETEST REJECT"
-        headline = f"🚨 FRESH BREAKDOWN DETECTED: {setup.symbol}" if not is_retest else f"🔄 FRESH RETEST CONFIRMED: {setup.symbol}"
-        dir_str = f"▼ SELL [{action_type}]"
-
-    entry_str = format_price(setup.entry)
-    stop_str = format_price(setup.stop)
-    risk_str = f"{setup.risk_pct:.1f}%" if setup.risk_pct is not None else "N/A"
-    grade_str = f"{setup.composite_grade} [{setup.composite_score}]" if setup.composite_grade else "N/A"
-    cp_str = format_price(setup.current_price)
-
-    lines = [
-        headline,
-        f"Entry: {entry_str} | Stop: {stop_str} | Risk: {risk_str} | Grade: {grade_str}",
-        f"Triggered: Just now ({timeframe} candle close)",
-        f"Direction: {dir_str} | Current Price: {cp_str}",
-    ]
-
-    if setup.tp1 is not None and setup.tp2 is not None:
-        lines.append(f"Targets: TP1: {format_price(setup.tp1)} | TP2: {format_price(setup.tp2)}")
-
-    extra = []
-    if setup.sector_name:
-        trend = f" {setup.rs_trend}" if setup.rs_trend else ""
-        rs_pct = f" RS: {setup.sector_rs_pct:+.1f}%" if setup.sector_rs_pct is not None else ""
-        extra.append(f"[{setup.sector_name}{rs_pct}{trend}]")
-    if setup.rvol is not None:
-        extra.append(f"Vol: {setup.rvol:.1f}x")
-    if setup.htf_confirmed:
-        extra.append("⭐ 1D Confirmed")
-
-    if extra:
-        lines.append(" | ".join(extra))
-
-    return "\n".join(lines)
+    return format_instant_alert_html(setup, timeframe)
 
 
 class SessionScheduler:
@@ -226,6 +179,7 @@ class SessionScheduler:
         payload = {
             "chat_id": self.telegram_chat_id,
             "text": message,
+            "parse_mode": "HTML"
         }
         try:
             res = requests.post(url, json=payload, timeout=10)
