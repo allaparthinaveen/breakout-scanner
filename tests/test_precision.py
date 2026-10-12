@@ -287,4 +287,37 @@ def test_composite_score_calculator():
     assert score_c < 70
     assert grade_c == "C"
 
+def test_fresh_entry_and_tp1_classifier():
+    from breakout_scanner.models import Setup, State
+
+    # 1. Fresh BUY (favorable distance 0.5% <= 1.0%, TP1 not hit)
+    s1 = Setup(symbol='TEST1', state=State.BUY, direction=1, entry=100.0, current_price=100.5, tp1=102.0)
+    assert s1.is_tp1_reached is False
+    assert s1.is_fresh_entry is True
+
+    # 2. TP1 Reached BUY (CP >= TP1)
+    s2 = Setup(symbol='TEST2', state=State.BUY, direction=1, entry=100.0, current_price=102.5, tp1=102.0)
+    assert s2.is_tp1_reached is True
+    assert s2.is_fresh_entry is False
+
+    # 3. Extended BUY (CP is +1.5% from entry, TP1 not hit yet)
+    s3 = Setup(symbol='TEST3', state=State.BUY, direction=1, entry=100.0, current_price=101.5, tp1=103.0)
+    assert s3.is_tp1_reached is False
+    assert s3.is_fresh_entry is False
+
+    # 4. Fresh SELL (favorable distance 0.4% <= 1.0%, TP1 not hit)
+    s4 = Setup(symbol='TEST4', state=State.SELL, direction=-1, entry=100.0, current_price=99.6, tp1=98.0)
+    assert s4.is_tp1_reached is False
+    assert s4.is_fresh_entry is True
+
+    # 5. TP1 Reached SELL (CP <= TP1)
+    s5 = Setup(symbol='TEST5', state=State.SELL, direction=-1, entry=100.0, current_price=97.5, tp1=98.0)
+    assert s5.is_tp1_reached is True
+    assert s5.is_fresh_entry is False
+
+    # 6. Extended SELL (CP is 1.4% below entry, TP1 not hit yet)
+    s6 = Setup(symbol='TEST6', state=State.SELL, direction=-1, entry=100.0, current_price=98.6, tp1=97.0)
+    assert s6.is_tp1_reached is False
+    assert s6.is_fresh_entry is False
+
 

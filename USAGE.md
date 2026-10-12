@@ -89,13 +89,44 @@ flowchart TD
 
 ## 🚀 3. Section 2: Active Signals (Execution & Management)
 
-### 🔍 Real Scanner Output Example
+The scanner automatically segments all triggered breakouts into two distinct sub-sections so you never accidentally chase an expired trade:
+
 ```text
 =======================================================
- SECTION 2: 🚀 ACTIVE SIGNALS (Trade In Progress)
+ SECTION 2A: 🟢 FRESH ACTIONABLE ENTRIES (Playable Now)
 =======================================================
-  • CVX       | ▲ BUY [🔄 RETEST] | CP: 212 | Entry: 210.66 | Stop: 210.88 | Risk: 1.09% | P&L: +0.63% | [Vol: 2.3x] | [Energy →] | ⭐ 1D | 🏆 A [89] | TP1: 212.97 | TP2: 215.27
+  • CVX       | ▲ BUY [🔄 RETEST] | CP: 212 | Entry: 210.66 | Stop: 210.88 | Risk: 1.09% | P&L: +0.63% | [Vol: 2.3x] | [Energy →] | ⭐ 1D | 🏆 A [89] | [ENTER NOW] | TP1: 212.97 | TP2: 215.27
+
+=======================================================
+ SECTION 2B: 🔒 TRADES IN PROGRESS (Holders Only — Do Not Chase)
+=======================================================
+  • NIGHT-USD | ▼ SELL [🔄 RETEST] | CP: 0.04665 | Entry: 0.048004 | Stop: 0.047956 | [TP1 HIT: +2.82% - DO NOT ENTER] | 🏆 C [63]
+  • SAND-USD  | ▼ SELL [🔄 RETEST] | CP: 0.06220 | Entry: 0.063200 | Stop: 0.063137 | [EXTENDED: +1.58% - DO NOT CHASE]  | 🏆 B [72]
 ```
+
+---
+
+### 🟢 Section 2A: Fresh Actionable Entries (Playable Now)
+* **Criteria**: Current Price is within **$< 1.0\%$ of Entry**, and **Take Profit 1 (TP1) has NOT been reached yet**.
+* **Action**: **PLAYABLE NOW**. The risk-to-reward ratio is pristine.
+* **The `CVX` Case Study**:
+  - `▲ BUY [🔄 RETEST]`: Price broke out, pulled back, tested support, and bounced.
+  - `CP: 212` vs `Entry: 210.66`: Price has only moved $+0.63\%$ from entry ($< 1.0\%$).
+  - `[Vol: 2.3x]`: Huge institutional commitment ($230\%$ volume).
+  - `[ENTER NOW]`: Green light to execute market/limit entry with stop at $\$210.88$.
+
+---
+
+### 🔒 Section 2B: Trades In Progress (Holders Only — Do Not Chase)
+* **Criteria**: Price has **already touched/passed TP1** or has moved **$> 1.0\%$ away from entry**.
+* **Action**: **DO NOT ENTER A NEW TRADE!**
+  - **If you are NOT in the trade**: Ignore it completely. Entering here means buying at the exact level where early buyers are selling.
+  - **If you are ALREADY holding**: This is your signal to bank $50\%$ profit at TP1 and move your stop loss to Breakeven!
+* **Case Studies**:
+  - `NIGHT-USD` (`[TP1 HIT: +2.82% - DO NOT ENTER]`): The price already fell through TP1 ($0.04688$) to $0.04665$. The first profit target has already been delivered.
+  - `SAND-USD` (`[EXTENDED: +1.58% - DO NOT CHASE]`): Price is already at $0.0622$, just a fraction of a cent away from TP1 ($0.06203$). Chasing here offers terrible risk/reward.
+
+---
 
 ### 🧩 Decoding Every Field (The `CVX` Case Study)
 
@@ -111,22 +142,24 @@ flowchart TD
 | **[Energy →]** | `[Energy →]` | Benchmark is Energy sector (`XLE`). | Relative strength against energy is steady/neutral (`→`). |
 | **⭐ 1D** | `⭐ 1D Confirmed` | Daily 50 SMA confluence. | Stock is aligned with the macro daily trend. |
 | **🏆 Quant Grade** | `Grade: A [89]` | 5-Pillar Composite Quant Score ($89/100$). | **High conviction setup**. Deserves full trade execution. |
+| **Status Tag** | `[ENTER NOW]` | Freshness classifier. | Validates that distance is $< 1.0\%$ and TP1 is not yet hit. |
 | **Targets** | `TP1: 212.97 \| TP2: 215.27` | Mathematical Risk/Reward milestones. | • **TP1 ($1.0R$)**: Take $50\%$ off, lock stop to Breakeven.<br>• **TP2 ($2.0R$)**: Take final $50\%$ off or trail 1H 20 SMA. |
 
 ---
 
-### 🎯 How to Make a Trading Decision on `CVX`
+### 🎯 How to Make a Trading Decision on Section 2 Signals
 
 ```mermaid
 flowchart TD
-    Signal["Scanner Fires: CVX | BUY (RETEST) | Grade A (89)"] --> ExtensionCheck{"Check Distance: Current Price ($212) vs Entry ($210.66)"}
-    ExtensionCheck -->|CP is only +0.63% above Entry (< 1.0%)| Playable["PLAYABLE: Stock is NOT extended"]
-    ExtensionCheck -->|CP is > 1.5% above Entry| ChaseWarn["EXTENDED: DO NOT CHASE! Wait for another pullback"]
+    Signal["Scanner Fires a Signal in Section 2"] --> ClassifyCheck{"Is it in Section 2A or 2B?"}
     
-    Playable --> VolCheck{"Check Volume: Is RVOL >= 1.2x?"}
-    VolCheck -->|Yes: RVOL is 2.3x (Massive)| Confirmed["Institutional Buying Confirmed! Enter Trade"]
+    ClassifyCheck -->|Section 2B: In Progress| Block["🔒 [TP1 HIT / EXTENDED]: DO NOT ENTER! (Holders bank 50% profit)"]
+    ClassifyCheck -->|Section 2A: Fresh Entry| VolCheck{"Check Volume: Is RVOL >= 1.2x & Grade A/A+?"}
     
-    Confirmed --> ExecutionPlan["Enter Long at Market / Limit ~$212.00"]
+    VolCheck -->|Yes: RVOL is 2.3x| Confirmed["Institutional Buying Confirmed! Enter Trade"]
+    VolCheck -->|No: Grade C or Low Vol| Skip["Skip trade (Lower institutional conviction)"]
+    
+    Confirmed --> ExecutionPlan["Enter Long at Market / Limit (e.g. CVX ~$212.00)"]
     ExecutionPlan --> StopSet["Set Stop Loss at $210.88"]
     
     StopSet --> MonitorTP1{"Price reaches TP1 ($212.97)?"}
@@ -139,14 +172,13 @@ flowchart TD
 ```
 
 #### Step-by-Step Execution Plan:
-1. **Can I Still Enter Right Now? (The Extension Check)**:
-   - Current Price is **`$212.00`**; Entry was **`$210.66`**.
-   - The stock is only $+0.63\%$ extended ($< 1.0\%$). **Yes, the trade is still in the valid buy zone.**
-2. **Immediate Order Execution**:
+1. **Section Check**:
+   - If ticker is in **Section 2A**: Green light to review for entry.
+   - If ticker is in **Section 2B**: Red light. Do not enter.
+2. **Immediate Order Execution for 2A**:
    - Buy long at current market ($\approx \$212.00$).
    - Stop Loss: Enter Stop-Market order at **`$210.88`**.
 3. **Approaching Take Profit 1 (`TP1: 212.97`)**:
-   - `CVX` is already at $\$212.00$, which is just **$\$0.97$** away from TP1 ($212.97$).
    - When price touches **`$212.97`**:
      - Sell **$50\%$** of your shares to lock in $+1.0R$ profit.
      - Move your Stop Loss on the remaining $50\%$ to **Breakeven ($\$210.88+$)**.

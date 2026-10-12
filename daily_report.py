@@ -96,7 +96,15 @@ def run_pre_market_scan(watchlist_file: str):
             sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
             grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str} | In: {entry} | SL: {stop}")
+            pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
+            pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
+            if s.is_fresh_entry:
+                status_str = " | [ENTER NOW]"
+            elif s.is_tp1_reached:
+                status_str = f" | [TP1 HIT: {pnl_val}]"
+            else:
+                status_str = f" | [EXTENDED: {pnl_val}]"
+            bo_rows.append(f"{s.symbol:8} | {dir_str} | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str}{status_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(bo_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently breaking out.</i>")
@@ -114,7 +122,15 @@ def run_pre_market_scan(watchlist_file: str):
             sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
             grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str} | In: {entry} | SL: {stop}")
+            pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
+            pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
+            if s.is_fresh_entry:
+                status_str = " | [ENTER NOW]"
+            elif s.is_tp1_reached:
+                status_str = f" | [TP1 HIT: {pnl_val}]"
+            else:
+                status_str = f" | [EXTENDED: {pnl_val}]"
+            rt_rows.append(f"{s.symbol:8} | {dir_str} [RETEST] | CP: {cp}{vol_str}{sec_str}{htf_str}{grade_str}{status_str} | In: {entry} | SL: {stop}")
         report_lines.append("<pre>" + "\n".join(rt_rows) + "</pre>")
     else:
         report_lines.append("<i>None currently in pivot retest.</i>")

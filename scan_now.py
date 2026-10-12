@@ -70,12 +70,20 @@ def build_report_string(setups):
     
     # ONLY show signals that triggered in the last 24 bars (last 24 hours of trading)
     active_setups = [s for s in setups if s.state in (State.BUY, State.SELL) and (s.bars_since_breakout is not None and s.bars_since_breakout <= 24)]
-    active_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
+    fresh_setups = [s for s in active_setups if s.is_fresh_entry]
+    in_progress_setups = [s for s in active_setups if not s.is_fresh_entry]
+
+    fresh_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
+    in_progress_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
     
-    if not active_setups:
+    lines.append("")
+    lines.append("=======================")
+    lines.append(" SECTION 2A: FRESH ENTRIES (Playable Now)")
+    lines.append("=======================")
+    if not fresh_setups:
         lines.append("  (None)")
     else:
-        for s in active_setups:
+        for s in fresh_setups:
             tag = "RETEST" if s.retest_confirmed else "BREAKOUT"
             dir_str = f"BUY [{tag}]" if s.direction == 1 else f"SELL [{tag}]"
             cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
@@ -87,7 +95,30 @@ def build_report_string(setups):
             sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
             grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str}{rvol_str}{sec_str}{htf_str}{grade_str} | {entry_str} | {sl_str}")
+            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{pnl_str}{rvol_str}{sec_str}{htf_str}{grade_str} | [ENTER NOW] | {entry_str} | {sl_str}")
+
+    lines.append("")
+    lines.append("=======================")
+    lines.append(" SECTION 2B: IN PROGRESS (Holders Only — Do Not Chase)")
+    lines.append("=======================")
+    if not in_progress_setups:
+        lines.append("  (None)")
+    else:
+        for s in in_progress_setups:
+            tag = "RETEST" if s.retest_confirmed else "BREAKOUT"
+            dir_str = f"BUY [{tag}]" if s.direction == 1 else f"SELL [{tag}]"
+            cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
+            entry_str = f"In: {s.entry:.5g}" if s.entry is not None else "In: N/A"
+            sl_str = f"SL: {s.stop:.5g}" if s.stop is not None else "SL: N/A"
+            pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
+            pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
+            status_tag = f"[TP1 HIT: {pnl_val}]" if s.is_tp1_reached else f"[EXTENDED: {pnl_val}]"
+            rvol_str = f" | Vol: {s.rvol:.1f}x" if s.rvol is not None else ""
+            trend_str = f" {s.rs_trend}" if s.rs_trend else ""
+            sec_str = f" | [{s.sector_name}{trend_str}]" if s.sector_name else ""
+            htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
+            grade_str = f" | 🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
+            lines.append(f"{s.symbol:9} | {dir_str} | {cp_str}{rvol_str}{sec_str}{htf_str}{grade_str} | {status_tag} | {entry_str} | {sl_str}")
             
     lines.append("</code>")
     return "\n".join(lines)

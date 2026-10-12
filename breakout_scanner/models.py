@@ -67,3 +67,27 @@ class Setup:
     @property
     def breakout_score(self) -> int:
         return self.bias_score
+
+    @property
+    def is_tp1_reached(self) -> bool:
+        if self.current_price is None or self.tp1 is None or self.entry is None:
+            return False
+        if self.direction == 1:
+            return self.current_price >= self.tp1
+        elif self.direction == -1:
+            return self.current_price <= self.tp1
+        return False
+
+    @property
+    def is_fresh_entry(self) -> bool:
+        if self.current_price is None or self.entry is None or self.entry <= 0:
+            return False
+        if self.is_tp1_reached:
+            return False
+        if self.direction == 1:
+            favorable_dist = (self.current_price - self.entry) / self.entry * 100.0
+        elif self.direction == -1:
+            favorable_dist = (self.entry - self.current_price) / self.entry * 100.0
+        else:
+            favorable_dist = 0.0
+        return favorable_dist <= 1.0

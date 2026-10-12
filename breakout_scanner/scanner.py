@@ -239,56 +239,83 @@ class MultiSymbolScanner:
                 parts.append(bias_str)
                 print(" | ".join(parts))
 
-        print("\n=======================================================")
-        print(" SECTION 2: 🚀 ACTIVE SIGNALS (Trade In Progress)")
-        print("=======================================================")
-        
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
-        active_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
-        if not active_setups:
+        fresh_setups = [s for s in active_setups if s.is_fresh_entry]
+        progress_setups = [s for s in active_setups if not s.is_fresh_entry]
+
+        fresh_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
+        progress_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
+
+        print("\n=======================================================")
+        print(" SECTION 2A: 🟢 FRESH ACTIONABLE ENTRIES (Playable Now)")
+        print("=======================================================")
+        if not fresh_setups:
             print("  (None)")
         else:
-            for s in active_setups:
-                tag = "🔄 RETEST" if s.retest_confirmed else "🚀 BREAKOUT"
-                dir_color = "\033[92m" if s.direction == 1 else "\033[91m"
-                dir_arrow = "▲ BUY" if s.direction == 1 else "▼ SELL"
-                dir_str = f"{dir_color}{dir_arrow} [{tag}]\033[0m"
-                
-                cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
-                entry = f"Entry: {s.entry:.5g}" if s.entry is not None else "Entry: N/A"
-                stop = f"Stop: {s.stop:.5g}" if s.stop is not None else "Stop: N/A"
-                targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
-                risk_str = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
-                rvol_str = f"[Vol: {s.rvol:.1f}x]" if s.rvol is not None else ""
-                
-                pnl_str = ""
-                if s.pnl_pct is not None:
-                    pnl_color = "\033[92m" if s.pnl_pct >= 0 else "\033[91m"
-                    pnl_sign = "+" if s.pnl_pct >= 0 else ""
-                    pnl_str = f"{pnl_color}P&L: {pnl_sign}{s.pnl_pct:.2f}%\033[0m"
-                    
-                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
-                sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
-                htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
-                grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
-                
-                parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
-                if risk_str:
-                    parts.append(risk_str)
-                if pnl_str:
-                    parts.append(pnl_str)
-                if rvol_str:
-                    parts.append(rvol_str)
-                if sector:
-                    parts.append(sector)
-                if htf:
-                    parts.append(htf)
-                if grade_badge:
-                    parts.append(grade_badge)
-                if targets:
-                    parts.append(targets)
-                print(" | ".join(parts))
+            for s in fresh_setups:
+                print(self.format_active_setup(s, is_fresh=True))
+
+        print("\n=======================================================")
+        print(" SECTION 2B: 🔒 TRADES IN PROGRESS (Holders Only — Do Not Chase)")
+        print("=======================================================")
+        if not progress_setups:
+            print("  (None)")
+        else:
+            for s in progress_setups:
+                print(self.format_active_setup(s, is_fresh=False))
                 
         print("\n")
+
+    def format_active_setup(self, s: Setup, is_fresh: bool) -> str:
+        tag = "🔄 RETEST" if s.retest_confirmed else "🚀 BREAKOUT"
+        dir_color = "\033[92m" if s.direction == 1 else "\033[91m"
+        dir_arrow = "▲ BUY" if s.direction == 1 else "▼ SELL"
+        dir_str = f"{dir_color}{dir_arrow} [{tag}]\033[0m"
+        
+        cp_str = f"CP: {s.current_price:.5g}" if s.current_price is not None else "CP: N/A"
+        entry = f"Entry: {s.entry:.5g}" if s.entry is not None else "Entry: N/A"
+        stop = f"Stop: {s.stop:.5g}" if s.stop is not None else "Stop: N/A"
+        targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
+        risk_str = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
+        rvol_str = f"[Vol: {s.rvol:.1f}x]" if s.rvol is not None else ""
+        
+        pnl_str = ""
+        pnl_sign = ""
+        if s.pnl_pct is not None:
+            pnl_color = "\033[92m" if s.pnl_pct >= 0 else "\033[91m"
+            pnl_sign = "+" if s.pnl_pct >= 0 else ""
+            pnl_str = f"{pnl_color}P&L: {pnl_sign}{s.pnl_pct:.2f}%\033[0m"
+            
+        trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
+        sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
+        htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
+        grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
+        
+        parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
+        if risk_str:
+            parts.append(risk_str)
+        if pnl_str:
+            parts.append(pnl_str)
+        if rvol_str:
+            parts.append(rvol_str)
+        if sector:
+            parts.append(sector)
+        if htf:
+            parts.append(htf)
+        if grade_badge:
+            parts.append(grade_badge)
+            
+        if not is_fresh:
+            pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
+            if s.is_tp1_reached:
+                parts.append(f"\033[91m[TP1 HIT: {pnl_val} - DO NOT ENTER]\033[0m")
+            else:
+                parts.append(f"\033[93m[EXTENDED: {pnl_val} - DO NOT CHASE]\033[0m")
+        else:
+            parts.append("\033[92m[ENTER NOW]\033[0m")
+            
+        if targets:
+            parts.append(targets)
+        return " | ".join(parts)
 
 
