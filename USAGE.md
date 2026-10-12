@@ -33,50 +33,57 @@ graph TD
 
 ### 🔍 Real Scanner Output Example
 ```text
-• TTWO | Resistance: 212.33 | Support: 201.32 | Width: 5.3% | 🗜️ Coil: 0.1x | 💧 VDU: 0.7x | [Gaming/Media RS: +5.6% ↗] | 🏆 Grade: A [81] | Bias: Strong Upside Bias (3/3)
+=======================================================
+ SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)
+=======================================================
+  • NOW       | Resistance: 142.51 | Support: 135.58 | Width: 5.0% | 🗜️ Coil: 0.2x | 💧 VDU: 0.6x | [Cloud/SaaS RS: +2.7% ↗] | ⭐ 1D Confirmed | 🏆 Grade: A+ [93] | Bias: Strong Upside Bias (3/3)
 ```
 
-### 🧩 Decoding Every Field
+### 🧩 Decoding Every Field (The `NOW` Case Study)
 
-| Diagnostic Flag | Value Example | What It Means | Institutional Significance |
+| Diagnostic Flag | Value in `NOW` | Mechanical Meaning | Institutional Edge & Action |
 | :--- | :--- | :--- | :--- |
-| **Symbol** | `TTWO` | Ticker on watch. | Eligible for trade staging. |
-| **Resistance** | `212.33` | The upper ceiling of the base. | Sellers previously capped price here. **Entry trigger line**. |
-| **Support** | `201.32` | The lower floor of the base. | Institutional buyers defend price here. Pattern invalidation line. |
-| **Width** | `5.3%` | Total base height: $(R - S) / Mid$. | **Sweet spot ($3.5\% - 6.5\%$)**. Provides cheap stops ($< 2\%$). Bases $> 10\%$ are loose and prone to chop. |
-| **🗜️ Coil Ratio** | `0.1x` | $\frac{\text{Tight 5-bar range}}{\text{Prior swing range}}$. | Volatility has collapsed by $90\%$ ($0.1\times$). Price is tightly wound like a spring against resistance. |
-| **💧 VDU** | `0.7x` | **Volume Dry-Up** ratio. | Recent volume is only $70\%$ of average. Sellers are exhausted; little buying volume will cause rapid expansion. |
-| **Sector RS** | `[Gaming RS: +5.6%]` | Trailing 20-bar return vs sector. | TTWO is beating its peer group basket by $+5.6\%$. Institutional rotation is positive. |
-| **RS Slope** | `↗` | Linear regression slope of RS line. | • **`↗`**: Alpha is accelerating upward.<br>• **`→`**: Alpha is neutral.<br>• **`↘`**: Alpha is weakening/lagging. |
-| **⭐ 1D** | `⭐ 1D Confirmed` | Daily (1D) Macro alignment. | The daily candle is trading above the upward-sloping Daily 50 SMA. **Never take hourly trades against the 1D trend**. |
-| **🏆 Quant Grade** | `Grade: A [81]` | 5-Pillar Composite Score ($0–100$). | Quantifies setup quality into tier grades: `A+`, `A`, `B`, or `C`. |
-| **Bias** | `Strong Upside (3/3)` | Trend + RS + Macro alignment. | All three foundational filters are green. |
+| **Symbol** | `NOW` | ServiceNow (Cloud / Enterprise SaaS). | Focus stock forming an institutional base. |
+| **Resistance** | `142.51` | Multi-week ceiling of the consolidation box. | Where sellers previously capped price. **Your entry trigger level**. |
+| **Support** | `135.58` | Floor of the consolidation box. | Where institutions defended the stock. Base invalidation level. |
+| **Width** | `5.0%` | Base height: $(142.51 - 135.58) / 139.05 = 5.0\%$. | **Ideal Sweet Spot ($3.5\% - 6.0\%$)**. Tight base allows a $< 1.5\%$ stop loss with high position sizing. |
+| **🗜️ Coil Ratio** | `0.2x` | $\frac{\text{Tightest 5-bar range}}{\text{Prior swing range}}$. | Volatility has collapsed by **80% ($0.2\times$)**. The stock has stopped swinging and is coiled tight like a compressed spring against resistance. |
+| **💧 VDU** | `0.6x` | **Volume Dry-Up** ratio. | Volume during the tight coil dropped to **60% of average (40% drop)**. Confirms supply exhaustion; sellers have finished dumping. |
+| **Sector RS & Slope** | `[Cloud/SaaS RS: +2.7% ↗]` | • Relative Strength vs Cloud proxy: **$+2.7\%$**<br>• Linear regression slope: **`↗` (Accelerating)** | `NOW` is outperforming peer software stocks, and the upward arrow (`↗`) proves institutional capital is actively rotating into `NOW` right now. |
+| **⭐ 1D** | `⭐ 1D Confirmed` | Daily timeframe macro alignment. | Trading above the rising Daily 50 SMA. The macro tailwind is completely behind this trade. |
+| **🏆 Quant Grade** | `Grade: A+ [93]` | 5-Pillar Composite Quant Score ($93/100$). | **Institutional "God-Tier" setup**. Deserves maximum attention and full position sizing. |
+| **Bias** | `Strong Upside (3/3)` | Trend + Sector RS + Macro regime. | All 3 foundational directional filters are positive (no headwinds). |
 
 ---
 
-### 🎯 How to Make a Decision on Section 1 Setups
+### 🎯 How to Make a Trading Decision on `NOW`
 
 ```mermaid
 flowchart TD
-    Start["Ticker appears in Section 1"] --> CheckGrade{"Check Quant Grade"}
-    CheckGrade -->|Grade A+ (90-100)| Step1["Top Priority: Ultra-tight coil + VDU + 1D aligned"]
-    CheckGrade -->|Grade A (80-89)| Step2["High Conviction: Full standard position size"]
-    CheckGrade -->|Grade B (70-79)| Step3["Moderate Conviction: Cut size to 50% or demand retest"]
+    Scan["Scanner Alerts: NOW | Grade A+ (93) | Section 1"] --> CheckState{"Is NOW Breaking Out Right Now?"}
+    CheckState -->|No, price is inside 135.58 - 142.51| Rule1["DO NOT BUY YET! Be patient inside the box"]
     
-    Step1 --> Action["Set broker alert 0.2% below Resistance"]
-    Step2 --> Action
-    Step3 --> Action
+    Rule1 --> AlertPrep["Set Broker / Chart Alert at $142.20 (0.2% below 142.51)"]
+    AlertPrep --> SizePrep["Calculate Full Position Size (Grade A+ = 1.5% to 2.0% account risk)"]
     
-    Action --> Wait["DO NOT buy inside the box! Wait for 1H candle breakout"]
+    SizePrep --> TriggerWatch{"1H Candle Pierces and Closes > $142.51 with Volume >= 1.2x?"}
+    TriggerWatch -->|Yes| BuyLong["BUY Long at $142.55 - $142.75"]
+    TriggerWatch -->|No / Wick Rejection| WaitLong["Stay in cash, let the coil develop further"]
+    
+    BuyLong --> StopPlan["Place Stop Loss beneath coil low: ~$140.40 (Risk: ~1.5%)"]
+    StopPlan --> TargetPlan["Set TP1 at $144.60 (+1R) and TP2 at $146.80 (+2R)"]
 ```
 
-1. **Rule #1: Do NOT Buy Inside the Consolidation Box**:
-   - The stock is coiled, but it has not broken out yet. Buying early risks capital sitting idle for days while the stock continues to chop.
-2. **Rule #2: Set Price Alerts**:
-   - For `TTWO` ($R: 212.33$), set a price alert at **`212.00`** on TradingView or your broker terminal.
-3. **Rule #3: Sizing Allocation by Grade**:
-   - **`Grade A+ / A`**: Prepare full risk allocation ($1.0\% - 2.0\%$ account risk).
-   - **`Grade B`**: Prepare half risk allocation ($0.5\% - 1.0\%$ account risk) due to wider base or neutral RS.
+#### Step-by-Step Execution Plan:
+1. **Right Now (Preparation Phase)**:
+   - Do **NOT** buy inside the box at $\$138$ or $\$140$. Buying early ties up capital while the coil may stay compressed for several more hours.
+   - Set an audible alert on TradingView / broker at **`$142.20`**.
+2. **On the Breakout (Execution Phase)**:
+   - When an hourly candle closes above **`142.51`** with volume expansion ($\ge 1.2\times$ average), buy the breakout.
+   - Entry range: **`$142.55 - $142.75`**.
+   - Stop Loss: Place beneath the tight coil floor ($\approx \$140.40$, roughly $1.5\%$ risk).
+   - Target 1 (1:1 R/R): Scale $50\%$ at $\approx \$144.60$, move stop to Breakeven.
+   - Target 2 (2:1 R/R): Scale remaining $50\%$ at $\approx \$146.80$.
 
 ---
 
@@ -84,40 +91,69 @@ flowchart TD
 
 ### 🔍 Real Scanner Output Example
 ```text
-• KO | ▲ BUY [🔄 RETEST] | CP: 88.05 | Entry: 87.78 | Stop: 87.083 | Risk: 0.79% | P&L: +0.31% | [Vol: 1.2x] | [Staples →] | ⭐ 1D | 🏆 A [83] | TP1: 88.477 | TP2: 89.174
+=======================================================
+ SECTION 2: 🚀 ACTIVE SIGNALS (Trade In Progress)
+=======================================================
+  • CVX       | ▲ BUY [🔄 RETEST] | CP: 212 | Entry: 210.66 | Stop: 210.88 | Risk: 1.09% | P&L: +0.63% | [Vol: 2.3x] | [Energy →] | ⭐ 1D | 🏆 A [89] | TP1: 212.97 | TP2: 215.27
 ```
 
-### 🧩 Decoding Every Field
+### 🧩 Decoding Every Field (The `CVX` Case Study)
 
-| Diagnostic Flag | Value Example | What It Means | Actionable Trade Rule |
+| Diagnostic Flag | Value in `CVX` | Mechanical Meaning | Institutional Edge & Action |
 | :--- | :--- | :--- | :--- |
-| **Direction & Type** | `▲ BUY [🔄 RETEST]` | Direction and breakout stage. | • `🚀 BREAKOUT`: Fresh momentum breakout of pivot.<br>• `🔄 RETEST`: Price pulled back, tested broken resistance as support, and bounced. |
-| **CP** | `CP: 88.05` | Current live market price. | Where price is trading right now. |
-| **Entry** | `Entry: 87.78` | System trigger price. | Compare CP with Entry: If CP is $< 1\%$ from Entry, the trade is still playable. If $> 2.5\%$ extended, do not chase. |
-| **Stop** | `Stop: 87.083` | Structural Stop Loss level. | Placed safely beneath the tight coil low or pivot structure. |
-| **Risk** | `Risk: 0.79%` | Percentage distance from Entry to Stop. | Extremely tight ($< 1\%$). Allows high position sizing with tiny account risk. |
-| **P&L** | `P&L: +0.31%` | Unrealized gain/loss since entry. | Tracks whether the trade is in profit or experiencing initial pullback. |
-| **[Vol: X.Xx]** | `[Vol: 1.2x]` | Breakout candle Relative Volume (RVOL). | Breakout candle volume is $1.2\times$ average. Validates institutional participation. |
-| **Targets** | `TP1: 88.48 \| TP2: 89.17` | Take-profit milestone levels. | • **TP1**: $1.0R$ target $\rightarrow$ Sell $50\%$, move stop to Breakeven.<br>• **TP2**: $2.0R$ target $\rightarrow$ Sell remaining $50\%$ or trail with 1H 20 SMA. |
+| **Direction & Type** | `▲ BUY [🔄 RETEST]` | Direction is LONG; Type is **Confirmed Pivot Retest**. | Price broke out above old resistance, pulled back to test it as new support, held, and bounced. **Highest win-rate pattern in quantitative trading**. |
+| **CP** | `CP: 212` | Current live market price right now. | Where the stock is currently trading. |
+| **Entry** | `Entry: 210.66` | The breakout/retest trigger price. | Reference price where the signal was generated. |
+| **Stop** | `Stop: 210.88` | Trailing / structure Stop Loss level. | Stop is placed safely beneath the structural pivot shelf. |
+| **Risk** | `Risk: 1.09%` | Percentage distance from Entry to Stop. | Very tight ($1.09\%$). Allows high position size with minimal capital at risk. |
+| **P&L** | `P&L: +0.63%` | Unrealized gain since signal trigger. | Trade is actively working and moving in our favor toward TP1. |
+| **[Vol: X.Xx]** | `[Vol: 2.3x]` | Relative Volume (RVOL) on breakout candle. | **Massive institutional volume ($230\%$ of average)**. Proves real institutional buying, not a low-volume retail fakeout. |
+| **[Energy →]** | `[Energy →]` | Benchmark is Energy sector (`XLE`). | Relative strength against energy is steady/neutral (`→`). |
+| **⭐ 1D** | `⭐ 1D Confirmed` | Daily 50 SMA confluence. | Stock is aligned with the macro daily trend. |
+| **🏆 Quant Grade** | `Grade: A [89]` | 5-Pillar Composite Quant Score ($89/100$). | **High conviction setup**. Deserves full trade execution. |
+| **Targets** | `TP1: 212.97 \| TP2: 215.27` | Mathematical Risk/Reward milestones. | • **TP1 ($1.0R$)**: Take $50\%$ off, lock stop to Breakeven.<br>• **TP2 ($2.0R$)**: Take final $50\%$ off or trail 1H 20 SMA. |
 
 ---
 
-### 🎯 How to Make a Decision on Section 2 Signals
+### 🎯 How to Make a Trading Decision on `CVX`
 
 ```mermaid
 flowchart TD
-    Signal["New Signal Appears in Section 2"] --> ChasingCheck{"Is Current Price <= 1.0% from Entry?"}
-    ChasingCheck -->|Yes| CheckVol{"Is RVOL >= 1.2x and Grade A/A+?"}
-    ChasingCheck -->|No (> 1.5% extended)| WaitPullback["DO NOT CHASE! Wait for a 🔄 RETEST pullback"]
+    Signal["Scanner Fires: CVX | BUY (RETEST) | Grade A (89)"] --> ExtensionCheck{"Check Distance: Current Price ($212) vs Entry ($210.66)"}
+    ExtensionCheck -->|CP is only +0.63% above Entry (< 1.0%)| Playable["PLAYABLE: Stock is NOT extended"]
+    ExtensionCheck -->|CP is > 1.5% above Entry| ChaseWarn["EXTENDED: DO NOT CHASE! Wait for another pullback"]
     
-    CheckVol -->|Yes| Execute["Execute Market / Limit Order"]
-    CheckVol -->|No (RVOL < 1.0x or Grade C)| Skip["Skip trade (Low institutional commitment)"]
+    Playable --> VolCheck{"Check Volume: Is RVOL >= 1.2x?"}
+    VolCheck -->|Yes: RVOL is 2.3x (Massive)| Confirmed["Institutional Buying Confirmed! Enter Trade"]
     
-    Execute --> PlaceOrders["Immediately place Stop Loss and OCO Target Orders"]
-    PlaceOrders --> Monitor{"Price reaches TP1 (1R)?"}
-    Monitor -->|Yes| LockProfit["Close 50% position, move Stop to Breakeven (+0.1%)"]
-    Monitor -->|No| HoldStop["Let stop loss protect capital"]
+    Confirmed --> ExecutionPlan["Enter Long at Market / Limit ~$212.00"]
+    ExecutionPlan --> StopSet["Set Stop Loss at $210.88"]
+    
+    StopSet --> MonitorTP1{"Price reaches TP1 ($212.97)?"}
+    MonitorTP1 -->|Yes ($0.97 away)| LockBank["SELL 50% Position to Bank +1.0R Profit"]
+    LockBank --> MoveBE["Move Stop Loss to Breakeven ($210.88+)"]
+    
+    MoveBE --> MonitorTP2{"Price reaches TP2 ($215.27)?"}
+    MonitorTP2 -->|Yes| FullExit["SELL Remaining 50% for +2.0R Profit"]
+    MonitorTP2 -->|Trails Higher| TrailSMA["Trail remainder using 1-Hour 20 SMA"]
 ```
+
+#### Step-by-Step Execution Plan:
+1. **Can I Still Enter Right Now? (The Extension Check)**:
+   - Current Price is **`$212.00`**; Entry was **`$210.66`**.
+   - The stock is only $+0.63\%$ extended ($< 1.0\%$). **Yes, the trade is still in the valid buy zone.**
+2. **Immediate Order Execution**:
+   - Buy long at current market ($\approx \$212.00$).
+   - Stop Loss: Enter Stop-Market order at **`$210.88`**.
+3. **Approaching Take Profit 1 (`TP1: 212.97`)**:
+   - `CVX` is already at $\$212.00$, which is just **$\$0.97$** away from TP1 ($212.97$).
+   - When price touches **`$212.97`**:
+     - Sell **$50\%$** of your shares to lock in $+1.0R$ profit.
+     - Move your Stop Loss on the remaining $50\%$ to **Breakeven ($\$210.88+$)**.
+     - You now have a **100% risk-free trade** with banked profit!
+4. **Riding to Take Profit 2 (`TP2: 215.27`)**:
+   - Let the remaining $50\%$ runner aim for **`$215.27`** ($+2.0R$).
+   - If momentum continues past $\$215.27$, trail the position with the 1-Hour 20 SMA until a candle closes below it.
 
 ---
 
