@@ -120,12 +120,29 @@ flowchart TD
   python3 run_backtest.py --market us --watchlist config/top30_watchlist.txt --period 3y
   python3 run_backtest.py --market crypto --watchlist config/crypto_watchlist.txt --period 3y
   ```
-* Computes and persists:
-  - Win Rate (%)
-  - Profit Factor
-  - Average R-Multiple
-  - Max Drawdown (%)
-  - Gross & Net P&L (after slippage & commissions)
-  - Full trade execution logs (`backtest/all_trades.csv`)
-  - Portfolio summary (`backtest/portfolio_summary.json`)
+* **Verified Backtest Results (`config/watchlist.txt` — 16 Stocks, 3-Year Daily)**:
+  | Metric | Value |
+  | :--- | :--- |
+  | **Total Completed Trades** | **305** |
+  | **Win / Loss Distribution** | 139 Wins / 166 Losses |
+  | **Realized Win Rate** | **45.57%** |
+  | **Profit Factor** | **1.51** |
+  | **Average R-Multiple** | **+0.15R** |
+  | **TP1 (1.0R) Scale-Out Hit Rate** | **41.64%** |
+  | **Total Gross P&L** | **+$57,006.84** |
+  | **Total Frictions (Slippage & Fees)** | **$10,390.39** |
+  | **Net Realized P&L** | **+$46,616.45** |
+  | **Portfolio Net Return** | **+46.62%** |
+  | **Portfolio Max Drawdown** | **7.62%** |
+  | **Trade Execution Log** | [`backtest/all_trades.csv`](file:///Users/naveen/Git/breakout-scanner/backtest/all_trades.csv) (305 trades) |
+  | **Portfolio Summary JSON** | [`backtest/portfolio_summary.json`](file:///Users/naveen/Git/breakout-scanner/backtest/portfolio_summary.json) |
+
+* **Per-Symbol Highlights**:
+  - `ACN`: 22 trades, 68.2% win rate, Profit Factor **4.67**, Net Return **+12.75%**
+  - `NKE`: 20 trades, 55.0% win rate, Profit Factor **2.56**, Net Return **+7.49%**
+  - `MSFT`: 25 trades, 44.0% win rate, Profit Factor **1.70**, Net Return **+5.20%**
+  - `GS`: 23 trades, 43.5% win rate, Profit Factor **1.68**, Net Return **+4.69%**
+  - `NFLX`: 23 trades, 47.8% win rate, Profit Factor **1.72**, Net Return **+4.23%**
+  - `ASML`: 14 trades, 57.1% win rate, Profit Factor **2.21**, Net Return **+4.14%**
+
 
