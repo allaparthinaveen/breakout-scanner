@@ -25,11 +25,15 @@ SECTOR_MAP = {
     'SBIN.NS': ('Banking', '^NSEBANK'),
     'KOTAKBANK.NS': ('Banking', '^NSEBANK'),
     'AXISBANK.NS': ('Banking', '^NSEBANK'),
-    'BAJFINANCE.NS': ('Financials', '^NSEBANK'),
-    'BAJAJFINSV.NS': ('Financials', '^NSEBANK'),
-    'LICI.NS': ('Financials', '^NSEBANK'),
-    'SBILIFE.NS': ('Financials', '^NSEBANK'),
-    'SHRIRAMFIN.NS': ('Financials', '^NSEBANK'),
+    'INDUSINDBK.NS': ('Banking', '^NSEBANK'),
+    
+    # Non-Bank Financial Services & Insurance
+    'BAJFINANCE.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'BAJAJFINSV.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'LICI.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'SBILIFE.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'HDFCLIFE.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'SHRIRAMFIN.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
 
     # Auto & Mobility
     'MARUTI.NS': ('Auto', '^CNXAUTO'),
@@ -62,17 +66,19 @@ SECTOR_MAP = {
     'COLPAL.NS': ('FMCG', '^CNXFMCG'),
     'EMAMILTD.NS': ('FMCG', '^CNXFMCG'),
 
-    # Energy, Oil & Power
+    # Energy & Oil
     'RELIANCE.NS': ('Energy', '^CNXENERGY'),
     'ONGC.NS': ('Energy', '^CNXENERGY'),
     'IOC.NS': ('Energy', '^CNXENERGY'),
     'BPCL.NS': ('Energy', '^CNXENERGY'),
     'GAIL.NS': ('Energy', '^CNXENERGY'),
-    'NTPC.NS': ('Energy', '^CNXENERGY'),
-    'POWERGRID.NS': ('Energy', '^CNXENERGY'),
-    'ADANIGREEN.NS': ('Energy', '^CNXENERGY'),
-    'TATAPOWER.NS': ('Energy', '^CNXENERGY'),
     'OIL.NS': ('Energy', '^CNXENERGY'),
+
+    # Utilities, Power & Infrastructure
+    'NTPC.NS': ('Utilities', '^CNXINFRA'),
+    'POWERGRID.NS': ('Utilities', '^CNXINFRA'),
+    'TATAPOWER.NS': ('Utilities', '^CNXINFRA'),
+    'ADANIGREEN.NS': ('Utilities', '^CNXINFRA'),
 
     # ----------------------------------------------------
     # US Market Sector Mappings

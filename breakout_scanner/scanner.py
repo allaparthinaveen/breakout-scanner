@@ -41,7 +41,12 @@ class MultiSymbolScanner:
 
     def enrich_bias(self, setup: Setup, df, period, interval):
         score = 0
-        if setup.trend == 1:
+        target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.trend >= 0 else -1)
+        
+        # Pillar 1: 1H Trend Alignment
+        if target_dir == 1 and setup.trend == 1:
+            score += 1
+        elif target_dir == -1 and setup.trend == -1:
             score += 1
             
         try:
@@ -63,16 +68,14 @@ class MultiSymbolScanner:
                 daily_close = daily_df['Close'].iloc[-1]
                 setup.htf_trend = 1 if daily_close > daily_sma50 else -1
                 
-                # Check HTF alignment with current setup
-                if setup.direction == 1 and setup.htf_trend == 1:
+                # Check HTF alignment with current setup direction
+                if target_dir == 1 and setup.htf_trend == 1:
                     setup.htf_confirmed = True
-                elif setup.direction == -1 and setup.htf_trend == -1:
-                    setup.htf_confirmed = True
-                elif setup.state == State.CONTRACTION and setup.htf_trend == 1:
+                elif target_dir == -1 and setup.htf_trend == -1:
                     setup.htf_confirmed = True
 
             # ----------------------------------------------------
-            # 2. Sector-Level Relative Strength
+            # 2. Sector-Level Relative Strength (Forward-Only Alignment)
             # ----------------------------------------------------
             sector_name, benchmark_symbol = get_sector_benchmark(setup.symbol)
             setup.sector_name = sector_name
@@ -87,16 +90,28 @@ class MultiSymbolScanner:
                 
             proxy_df = self.provider.market_cache[cache_key]
             
-            # Point 2: Relative Strength against sector / benchmark
+            # Relative Strength without backward-filling future data
             if not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
-                stock_returns = df['Close'].iloc[-20:] / df['Close'].iloc[-20]
-                proxy_returns = proxy_df['Close'].reindex(stock_returns.index).ffill().bfill()
-                if not proxy_returns.empty and not pd.isna(proxy_returns.iloc[0]) and proxy_returns.iloc[0] > 0:
-                    proxy_returns = proxy_returns / proxy_returns.iloc[0]
-                    if not pd.isna(proxy_returns.iloc[-1]) and not pd.isna(stock_returns.iloc[-1]):
+                stock_tail = df['Close'].iloc[-20:]
+                proxy_aligned = proxy_df['Close'].reindex(stock_tail.index).ffill()
+                
+                # Drop leading NaNs if proxy history started after stock_tail (NO bfill!)
+                valid_idx = proxy_aligned.dropna().index
+                if len(valid_idx) >= 10:
+                    proxy_aligned = proxy_aligned.loc[valid_idx]
+                    stock_aligned = stock_tail.loc[valid_idx]
+                    
+                    if proxy_aligned.iloc[0] > 0 and stock_aligned.iloc[0] > 0:
+                        stock_returns = stock_aligned / stock_aligned.iloc[0]
+                        proxy_returns = proxy_aligned / proxy_aligned.iloc[0]
+                        
                         rs_delta = (stock_returns.iloc[-1] - proxy_returns.iloc[-1]) * 100.0
-                        setup.sector_rs_pct = rs_delta
-                        if stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
+                        setup.sector_rs_pct = round(rs_delta, 2)
+                        
+                        # Symmetric RS evaluation
+                        if target_dir == 1 and stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
+                            score += 1
+                        elif target_dir == -1 and stock_returns.iloc[-1] < proxy_returns.iloc[-1]:
                             score += 1
 
                         # Step 3: RS Momentum Slope (Linear regression slope over trailing bars)
@@ -119,14 +134,19 @@ class MultiSymbolScanner:
                 if 'BTC-USD' not in self.provider.daily_cache:
                     self.provider.daily_cache['BTC-USD'] = self.provider.candles('BTC-USD', period='1y', interval='1d')
                 btc_daily = self.provider.daily_cache.get('BTC-USD')
+                btc_bullish = False
                 if btc_daily is not None and not btc_daily.empty and len(btc_daily) >= 50:
                     btc_sma50 = btc_daily['Close'].rolling(50).mean().iloc[-1]
-                    if btc_daily['Close'].iloc[-1] > btc_sma50:
-                        score += 1
+                    btc_bullish = btc_daily['Close'].iloc[-1] > btc_sma50
                 elif not proxy_df.empty and len(proxy_df) >= 50:
                     btc_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
-                    if proxy_df['Close'].iloc[-1] > btc_sma50:
-                        score += 1
+                    btc_bullish = proxy_df['Close'].iloc[-1] > btc_sma50
+                
+                if target_dir == 1 and btc_bullish:
+                    score += 1
+                elif target_dir == -1 and not btc_bullish:
+                    score += 1
+
             elif is_nse:
                 # NSE: Nifty 50 Trend Regime or Analyst Consensus if available
                 nifty_bullish = False
@@ -150,7 +170,9 @@ class MultiSymbolScanner:
                 except Exception:
                     pass
                     
-                if has_analyst_buy or nifty_bullish:
+                if target_dir == 1 and (has_analyst_buy or nifty_bullish):
+                    score += 1
+                elif target_dir == -1 and not nifty_bullish:
                     score += 1
             else:
                 # US Stocks: Wall Street Analyst Ratings & Earnings Risk
@@ -209,15 +231,17 @@ class MultiSymbolScanner:
                 htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
                 grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
                 
+                target_dir = s.direction if s.direction in (1, -1) else (1 if s.trend >= 0 else -1)
+                bias_label = "Upside" if target_dir == 1 else "Downside"
                 if s.bias_score >= 2:
-                    bias_text = f"Strong Upside Bias ({s.bias_score}/3)"
-                    bias_color = "\033[92m"
+                    bias_text = f"Strong {bias_label} Bias ({s.bias_score}/3)"
+                    bias_color = "\033[92m" if target_dir == 1 else "\033[91m"
                 elif s.bias_score == 1:
-                    bias_text = f"Weak Upside Bias ({s.bias_score}/3)"
+                    bias_text = f"Weak {bias_label} Bias ({s.bias_score}/3)"
                     bias_color = "\033[93m"
                 else:
-                    bias_text = f"Downside Bias ({s.bias_score}/3)"
-                    bias_color = "\033[91m"
+                    bias_text = f"Neutral/Counter Bias ({s.bias_score}/3)"
+                    bias_color = "\033[90m"
                     
                 if s.earnings_warning:
                     bias_text += " ⚠️ EARNINGS RISK"

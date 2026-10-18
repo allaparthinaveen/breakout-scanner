@@ -87,16 +87,18 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     # Pillar 3: Multi-Timeframe Trend Template (Max 20 pts)
     # ----------------------------------------------------
     p3 = 0
+    target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.trend >= 0 else -1)
+    
     # Daily (1D) Macro alignment (Max 12 pts)
     if setup.htf_confirmed:
         p3 += 12
-    elif setup.htf_trend == 1 or (setup.direction == -1 and setup.htf_trend == -1):
+    elif (target_dir == 1 and setup.htf_trend == 1) or (target_dir == -1 and setup.htf_trend == -1):
         p3 += 8
     else:
         p3 += 2
 
     # Hourly (1H) Trend alignment (Max 8 pts)
-    if setup.trend == 1 or (setup.direction != 0 and setup.state in (State.BUY, State.SELL)):
+    if (target_dir == 1 and setup.trend == 1) or (target_dir == -1 and setup.trend == -1):
         p3 += 8
     else:
         p3 += 4
@@ -107,26 +109,46 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     p4 = 0
     # Sector RS Delta (Max 10 pts)
     if setup.sector_rs_pct is not None:
-        if setup.sector_rs_pct >= 3.0:
-            p4 += 10
-        elif setup.sector_rs_pct > 0.0:
-            p4 += 8
-        elif setup.sector_rs_pct >= -2.0:
-            p4 += 5
-        else:
-            p4 += 2
+        if target_dir == 1:  # Long
+            if setup.sector_rs_pct >= 3.0:
+                p4 += 10
+            elif setup.sector_rs_pct > 0.0:
+                p4 += 8
+            elif setup.sector_rs_pct >= -2.0:
+                p4 += 5
+            else:
+                p4 += 2
+        else:  # Short: Underperformance indicates selling pressure
+            if setup.sector_rs_pct <= -3.0:
+                p4 += 10
+            elif setup.sector_rs_pct < 0.0:
+                p4 += 8
+            elif setup.sector_rs_pct <= 2.0:
+                p4 += 5
+            else:
+                p4 += 2
     else:
         p4 += 6  # Neutral fallback
 
     # RS Linear Regression Slope (Max 10 pts)
-    if setup.rs_trend == "↗":
-        p4 += 10
-    elif setup.rs_trend == "→":
-        p4 += 6
-    elif setup.rs_trend == "":
-        p4 += 5
-    else:  # "↘"
-        p4 += 1
+    if target_dir == 1:
+        if setup.rs_trend == "↗":
+            p4 += 10
+        elif setup.rs_trend == "→":
+            p4 += 6
+        elif setup.rs_trend == "":
+            p4 += 5
+        else:  # "↘"
+            p4 += 1
+    else:  # Short setup
+        if setup.rs_trend == "↘":
+            p4 += 10
+        elif setup.rs_trend == "→":
+            p4 += 6
+        elif setup.rs_trend == "":
+            p4 += 5
+        else:  # "↗"
+            p4 += 1
 
     # ----------------------------------------------------
     # Pillar 5: Risk-Reward Asymmetry & Execution Structure (Max 20 pts)
