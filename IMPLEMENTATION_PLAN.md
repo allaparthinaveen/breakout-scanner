@@ -157,5 +157,24 @@ flowchart TD
 * **Dynamic Position Sizing**: Every trade dynamically scales share count so total dollar risk is mathematically locked to exactly **1.0% of capital**.
 * **Variable Shadowing Fix**: Eliminated inner `risk_pct` variable collision that caused sizing distortions.
 
+### 5.2 Fix 2 (P0): Time-Exit Calendar/Timeframe Synchronization ✅ COMPLETED
+* **Elapsed Days via Timestamps**: Synchronized holding periods in both `engine.py` and `backtester.py` to calculate elapsed calendar days using timestamps (`(current_dt - entry_dt).total_seconds() / 86400.0`).
+* **Timeframe Scaling Fallback**: For integer-indexed datasets, automatically scales bars by timeframe (e.g. 7 bars/day for NSE 1H, 24 bars/day for crypto 1H, 25 bars/day for 15M).
+* **Prevention of Premature 1H Exits**: Trades on 1-hour or 15-minute timeframes now hold for the intended swing horizon (e.g. 10 days / 70+ hourly bars) instead of prematurely exiting after 10 hours.
+* **Verification**: Verified with `test_hourly_timeframe_hold_days_synchronization` in `tests/test_backtester.py`.
+
+### 5.3 Fix 3 (P1): Scorer Integrity & Missing Evidence Handling ✅ COMPLETED
+* **Zero Phantom Points**: Completely eliminated fake fallback points (+5, +4, +10, +6) across all 5 quantitative pillars in `scorer.py`.
+* **Zero-Point Pillar Rule**: Missing evidence strictly yields $0$ points for that pillar, preventing unearned grade inflation.
+* **Unconfirmed Evidence Flags**: Automatically flags missing pillars on `setup.evidence_status` (`Unconfirmed HTF`, `Unconfirmed Sector`, `Unconfirmed Volume`).
+* **Verification**: Verified with `test_missing_evidence_zero_points_and_unconfirmed_flags` in `tests/test_precision.py`.
+
+### 5.4 Fix 4 (P1): Provider Closed-Candle Default & Cache Invalidation ✅ COMPLETED
+* **Closed Candle Default**: `YFinanceProvider` and `validate_and_clean_candles` now default to `enforce_closed_candle = True` to prevent unclosed bar lookahead in live and test environments.
+* **Cache TTL & Session Invalidation**: In-memory `daily_cache` and `market_cache` now track timestamps (`daily_cache_ts`) and automatically invalidate entries after 4 hours or whenever the calendar date/session advances.
+* **SMA50 Slope Verification**: Higher-timeframe 1D confirmation now requires positive slope (`SMA50[-1] > SMA50[-5]`) for Bullish setups and negative slope (`SMA50[-1] < SMA50[-5]`) for Bearish setups.
+* **Verification**: Verified with `test_provider_enforce_closed_candle_default` and `test_sma50_slope_check_and_cache_ttl` in `tests/test_validation.py`.
+
+
 
 

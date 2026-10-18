@@ -65,6 +65,7 @@ class Setup:
     rs_trend: str = ""
     composite_score: int = 0
     composite_grade: str = ""
+    evidence_status: list[str] = field(default_factory=list)
 
     @property
     def breakout_score(self) -> int:

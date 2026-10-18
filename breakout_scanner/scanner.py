@@ -54,25 +54,57 @@ class MultiSymbolScanner:
             import datetime
             
             # ----------------------------------------------------
-            # 1. Higher-Timeframe (1D) Confluence Check
+            # 1. Higher-Timeframe (1D) Confluence Check & Cache TTL
             # ----------------------------------------------------
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
             if not hasattr(self.provider, 'daily_cache'):
                 self.provider.daily_cache = {}
+            if not hasattr(self.provider, 'daily_cache_ts'):
+                self.provider.daily_cache_ts = {}
+
+            def get_cached_daily(sym: str) -> pd.DataFrame:
+                cached_df = self.provider.daily_cache.get(sym)
+                cached_ts = self.provider.daily_cache_ts.get(sym)
+                is_stale = False
+                if cached_df is None or cached_ts is None:
+                    is_stale = True
+                else:
+                    elapsed = (now_utc - cached_ts).total_seconds()
+                    # Invalidate if older than 4 hours or if calendar day/session has advanced
+                    if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
+                        is_stale = True
+                if is_stale:
+                    fresh_df = self.provider.candles(sym, period='1y', interval='1d')
+                    self.provider.daily_cache[sym] = fresh_df
+                    self.provider.daily_cache_ts[sym] = now_utc
+                    return fresh_df
+                return cached_df
                 
-            if setup.symbol not in self.provider.daily_cache:
-                self.provider.daily_cache[setup.symbol] = self.provider.candles(setup.symbol, period='1y', interval='1d')
-                
-            daily_df = self.provider.daily_cache[setup.symbol]
-            if not daily_df.empty and len(daily_df) >= 50:
-                daily_sma50 = daily_df['Close'].rolling(50).mean().iloc[-1]
+            daily_df = get_cached_daily(setup.symbol)
+            if not daily_df.empty and len(daily_df) >= 55:
+                daily_sma = daily_df['Close'].rolling(50).mean()
+                sma50_curr = daily_sma.iloc[-1]
+                sma50_prev5 = daily_sma.iloc[-5]
                 daily_close = daily_df['Close'].iloc[-1]
-                setup.htf_trend = 1 if daily_close > daily_sma50 else -1
+                
+                # SMA50 slope check: SMA50[-1] > SMA50[-5]
+                slope_up = sma50_curr > sma50_prev5
+                slope_down = sma50_curr < sma50_prev5
+                
+                if daily_close > sma50_curr and slope_up:
+                    setup.htf_trend = 1
+                elif daily_close < sma50_curr and slope_down:
+                    setup.htf_trend = -1
+                else:
+                    setup.htf_trend = 0
                 
                 # Check HTF alignment with current setup direction
                 if target_dir == 1 and setup.htf_trend == 1:
                     setup.htf_confirmed = True
                 elif target_dir == -1 and setup.htf_trend == -1:
                     setup.htf_confirmed = True
+                else:
+                    setup.htf_confirmed = False
 
             # ----------------------------------------------------
             # 2. Sector-Level Relative Strength (Forward-Only Alignment)
@@ -84,11 +116,27 @@ class MultiSymbolScanner:
             cache_key = f"{proxy}_{period}_{interval}"
             if not hasattr(self.provider, 'market_cache'):
                 self.provider.market_cache = {}
+            if not hasattr(self.provider, 'market_cache_ts'):
+                self.provider.market_cache_ts = {}
+
+            def get_cached_proxy(key: str, p_sym: str, p_per: str, p_int: str) -> pd.DataFrame:
+                cached_df = self.provider.market_cache.get(key)
+                cached_ts = self.provider.market_cache_ts.get(key)
+                is_stale = False
+                if cached_df is None or cached_ts is None:
+                    is_stale = True
+                else:
+                    elapsed = (now_utc - cached_ts).total_seconds()
+                    if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
+                        is_stale = True
+                if is_stale:
+                    fresh_df = self.provider.candles(p_sym, period=p_per, interval=p_int)
+                    self.provider.market_cache[key] = fresh_df
+                    self.provider.market_cache_ts[key] = now_utc
+                    return fresh_df
+                return cached_df
             
-            if cache_key not in self.provider.market_cache:
-                self.provider.market_cache[cache_key] = self.provider.candles(proxy, period, interval)
-                
-            proxy_df = self.provider.market_cache[cache_key]
+            proxy_df = get_cached_proxy(cache_key, proxy, period, interval)
             
             # Relative Strength without backward-filling future data
             if not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
@@ -130,17 +178,15 @@ class MultiSymbolScanner:
             is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
 
             if is_crypto:
-                # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above 50-day SMA)
-                if 'BTC-USD' not in self.provider.daily_cache:
-                    self.provider.daily_cache['BTC-USD'] = self.provider.candles('BTC-USD', period='1y', interval='1d')
-                btc_daily = self.provider.daily_cache.get('BTC-USD')
+                # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above upward-sloping 50-day SMA)
+                btc_daily = get_cached_daily('BTC-USD')
                 btc_bullish = False
-                if btc_daily is not None and not btc_daily.empty and len(btc_daily) >= 50:
-                    btc_sma50 = btc_daily['Close'].rolling(50).mean().iloc[-1]
-                    btc_bullish = btc_daily['Close'].iloc[-1] > btc_sma50
-                elif not proxy_df.empty and len(proxy_df) >= 50:
-                    btc_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
-                    btc_bullish = proxy_df['Close'].iloc[-1] > btc_sma50
+                if btc_daily is not None and not btc_daily.empty and len(btc_daily) >= 55:
+                    btc_sma = btc_daily['Close'].rolling(50).mean()
+                    btc_bullish = (btc_daily['Close'].iloc[-1] > btc_sma.iloc[-1]) and (btc_sma.iloc[-1] > btc_sma.iloc[-5])
+                elif not proxy_df.empty and len(proxy_df) >= 55:
+                    btc_sma = proxy_df['Close'].rolling(50).mean()
+                    btc_bullish = (proxy_df['Close'].iloc[-1] > btc_sma.iloc[-1]) and (btc_sma.iloc[-1] > btc_sma.iloc[-5])
                 
                 if target_dir == 1 and btc_bullish:
                     score += 1
@@ -150,15 +196,13 @@ class MultiSymbolScanner:
             elif is_nse:
                 # NSE: Nifty 50 Trend Regime or Analyst Consensus if available
                 nifty_bullish = False
-                if '^NSEI' not in self.provider.daily_cache:
-                    self.provider.daily_cache['^NSEI'] = self.provider.candles('^NSEI', period='1y', interval='1d')
-                nifty_daily = self.provider.daily_cache.get('^NSEI')
-                if nifty_daily is not None and not nifty_daily.empty and len(nifty_daily) >= 50:
-                    nifty_sma50 = nifty_daily['Close'].rolling(50).mean().iloc[-1]
-                    nifty_bullish = nifty_daily['Close'].iloc[-1] > nifty_sma50
-                elif not proxy_df.empty and len(proxy_df) >= 50:
-                    nifty_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
-                    nifty_bullish = proxy_df['Close'].iloc[-1] > nifty_sma50
+                nifty_daily = get_cached_daily('^NSEI')
+                if nifty_daily is not None and not nifty_daily.empty and len(nifty_daily) >= 55:
+                    nifty_sma = nifty_daily['Close'].rolling(50).mean()
+                    nifty_bullish = (nifty_daily['Close'].iloc[-1] > nifty_sma.iloc[-1]) and (nifty_sma.iloc[-1] > nifty_sma.iloc[-5])
+                elif not proxy_df.empty and len(proxy_df) >= 55:
+                    nifty_sma = proxy_df['Close'].rolling(50).mean()
+                    nifty_bullish = (proxy_df['Close'].iloc[-1] > nifty_sma.iloc[-1]) and (nifty_sma.iloc[-1] > nifty_sma.iloc[-5])
                 
                 has_analyst_buy = False
                 try:

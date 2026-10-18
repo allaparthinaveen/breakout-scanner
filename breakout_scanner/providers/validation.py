@@ -28,7 +28,7 @@ def validate_and_clean_candles(
     df: pd.DataFrame,
     symbol: str = "UNKNOWN",
     min_bars: int = 50,
-    enforce_closed_candle: bool = False,
+    enforce_closed_candle: bool = True,
     timeframe: str = "1h"
 ) -> pd.DataFrame:
     """

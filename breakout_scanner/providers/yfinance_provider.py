@@ -8,11 +8,13 @@ logger = logging.getLogger("yfinance_provider")
 
 
 class YFinanceProvider(MarketDataProvider):
-    def __init__(self, enforce_closed_candle: bool = False, min_bars: int = 50):
+    def __init__(self, enforce_closed_candle: bool = True, min_bars: int = 50):
         self.enforce_closed_candle = enforce_closed_candle
         self.min_bars = min_bars
         self.daily_cache = {}
+        self.daily_cache_ts = {}
         self.market_cache = {}
+        self.market_cache_ts = {}
 
     def candles(
         self,

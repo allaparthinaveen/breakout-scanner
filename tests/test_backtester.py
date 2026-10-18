@@ -366,3 +366,58 @@ def test_metrics_calculation_and_drawdown():
     assert m['max_drawdown_pct'] > 0  # from 100200 down to 100100 is ~0.10%
     assert m['total_commissions'] == 30.0
 
+
+def test_hourly_timeframe_hold_days_synchronization():
+    """Verify that on 1H intraday candles, max_hold_days measures elapsed days via timestamps,
+    preventing premature exit after just N hourly bars."""
+    cfg = load_config()
+    cfg['volume']['use_breakout_volume'] = False
+    cfg['trend']['use_trend_filter'] = False
+    cfg['base']['require_tightening'] = False
+    cfg['risk']['slippage_pct'] = 0.0
+    cfg['risk']['commission_pct'] = 0.0
+    cfg['management']['use_time_exit'] = True
+    cfg['management']['max_hold_days'] = 2  # 2 days hold
+    
+    # 100 hourly bars (approx 4+ days of data)
+    dates = pd.date_range('2024-01-01 09:00', periods=100, freq='h')
+    closes = np.full(100, 100.0)
+    df = pd.DataFrame({
+        'Open': closes - 0.1,
+        'High': closes + 0.5,
+        'Low': closes - 0.5,
+        'Close': closes,
+        'Volume': np.full(100, 100000.0)
+    }, index=dates)
+    
+    # Breakout at bar 50 (2024-01-03 11:00)
+    df.loc[df.index[50], 'Open'] = 101.0
+    df.loc[df.index[50], 'High'] = 106.0
+    df.loc[df.index[50], 'Low'] = 100.5
+    df.loc[df.index[50], 'Close'] = 105.0
+    
+    # Bar 51: Entry (2024-01-03 12:00)
+    df.loc[df.index[51], 'Open'] = 105.0
+    df.loc[df.index[51], 'High'] = 105.5
+    df.loc[df.index[51], 'Low'] = 104.5
+    df.loc[df.index[51], 'Close'] = 105.0
+    
+    # Bars 52-99: Hover around 105.0 without hitting stop or target
+    for b in range(52, 100):
+        df.loc[df.index[b], 'Open'] = 105.0
+        df.loc[df.index[b], 'High'] = 105.5
+        df.loc[df.index[b], 'Low'] = 104.5
+        df.loc[df.index[b], 'Close'] = 105.0
+        
+    tester = Backtester(cfg)
+    tester.run('TEST_1H', df)
+    
+    assert len(tester.results) >= 1
+    trade = tester.results[0]
+    # Bar 51 + 2 bars = Bar 53 (only 2 hours in). It should NOT exit here!
+    # With max_hold_days=2, it should exit after 48 hours (Bar 51 + 48 = Bar 99)
+    assert trade['exit_reason'] == 'TIME_EXIT'
+    assert trade['held_bars'] >= 48
+    assert trade['held_days'] >= 2.0
+
+

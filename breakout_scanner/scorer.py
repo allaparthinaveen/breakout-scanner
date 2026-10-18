@@ -1,5 +1,5 @@
 """
-Composite Quant Scorer (Phase 3 Step 4)
+Composite Quant Scorer (Phase 3 Step 4 & Audit Fix 3)
 Aggregates all 5 quantitative pillars into an objective 0–100 score and tier grade:
 1. Contraction Physics (Coil Decay & Base Width): 20 pts
 2. Volume Footprint (VDU & RVOL): 20 pts
@@ -12,16 +12,23 @@ Grade Tiers:
 - A  [80 - 89]:  High Conviction Setup
 - B  [70 - 79]:  Playable Standard Setup
 - C  [< 70]:     Filtered / Lower Conviction Setup
+
+Audit Fix 3 (P1) Integrity Rule:
+- No artificial fallback points for missing data. Missing evidence yields 0 points.
+- Flags unconfirmed pillars on setup.evidence_status ('Unconfirmed HTF', 'Unconfirmed Sector', 'Unconfirmed Volume').
 """
 
-from typing import Tuple
+from typing import Tuple, List
 from .models import Setup, State
 
 def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     """
     Computes a composite score (0-100) and grade ('A+', 'A', 'B', 'C')
-    for a given Setup.
+    for a given Setup without phantom fallback points.
+    Flags unconfirmed evidence pillars on setup.evidence_status.
     """
+    unconfirmed: List[str] = []
+
     # ----------------------------------------------------
     # Pillar 1: Contraction Physics (Max 20 pts)
     # ----------------------------------------------------
@@ -38,8 +45,7 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p1 += 3
         else:
             p1 += 1
-    else:
-        p1 += 5
+    # Missing base_width_pct yields 0 points
 
     # Coil decay & tightness confirmation (Max 10 pts)
     if setup.tightening_confirmed and setup.decay_ratio is not None and setup.decay_ratio <= 0.40:
@@ -48,10 +54,9 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
         p1 += 8
     elif setup.decay_ratio is not None and setup.decay_ratio <= 0.85:
         p1 += 5
-    elif setup.decay_ratio is None:
-        p1 += 4
-    else:
+    elif setup.decay_ratio is not None:
         p1 += 2
+    # Missing decay_ratio yields 0 points
 
     # ----------------------------------------------------
     # Pillar 2: Volume Footprint (Max 20 pts)
@@ -64,10 +69,11 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p2 = 16
         elif setup.vdu_ratio is not None and setup.vdu_ratio <= 0.90:
             p2 = 11
-        elif setup.vdu_ratio is None:
-            p2 = 10  # Neutral fallback for volume-free assets
-        else:
+        elif setup.vdu_ratio is not None:
             p2 = 5
+        else:
+            p2 = 0
+            unconfirmed.append("Unconfirmed Volume")
     else:  # Active Breakout / Retest
         if setup.rvol is not None:
             if setup.rvol >= 2.0:
@@ -81,7 +87,8 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             else:
                 p2 = 5
         else:
-            p2 = 10
+            p2 = 0
+            unconfirmed.append("Unconfirmed Volume")
 
     # ----------------------------------------------------
     # Pillar 3: Multi-Timeframe Trend Template (Max 20 pts)
@@ -92,16 +99,23 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     # Daily (1D) Macro alignment (Max 12 pts)
     if setup.htf_confirmed:
         p3 += 12
-    elif (target_dir == 1 and setup.htf_trend == 1) or (target_dir == -1 and setup.htf_trend == -1):
-        p3 += 8
+    elif setup.htf_trend is not None and setup.htf_trend != 0:
+        if (target_dir == 1 and setup.htf_trend == 1) or (target_dir == -1 and setup.htf_trend == -1):
+            p3 += 8
+        else:
+            p3 += 0  # Opposing trend yields 0 pts
     else:
-        p3 += 2
+        p3 += 0  # Missing HTF evidence yields 0 pts
+        unconfirmed.append("Unconfirmed HTF")
 
     # Hourly (1H) Trend alignment (Max 8 pts)
-    if (target_dir == 1 and setup.trend == 1) or (target_dir == -1 and setup.trend == -1):
-        p3 += 8
+    if setup.trend is not None and setup.trend != 0:
+        if (target_dir == 1 and setup.trend == 1) or (target_dir == -1 and setup.trend == -1):
+            p3 += 8
+        else:
+            p3 += 0  # Opposing 1H trend yields 0 pts
     else:
-        p3 += 4
+        p3 += 0
 
     # ----------------------------------------------------
     # Pillar 4: Relative Strength Alpha & Momentum Slope (Max 20 pts)
@@ -128,7 +142,8 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             else:
                 p4 += 2
     else:
-        p4 += 6  # Neutral fallback
+        p4 += 0  # Missing sector evidence yields 0 pts
+        unconfirmed.append("Unconfirmed Sector")
 
     # RS Linear Regression Slope (Max 10 pts)
     if target_dir == 1:
@@ -136,19 +151,19 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p4 += 10
         elif setup.rs_trend == "→":
             p4 += 6
-        elif setup.rs_trend == "":
-            p4 += 5
-        else:  # "↘"
+        elif setup.rs_trend == "↘":
             p4 += 1
+        else:
+            p4 += 0  # Missing / empty slope yields 0 pts
     else:  # Short setup
         if setup.rs_trend == "↘":
             p4 += 10
         elif setup.rs_trend == "→":
             p4 += 6
-        elif setup.rs_trend == "":
-            p4 += 5
-        else:  # "↗"
+        elif setup.rs_trend == "↗":
             p4 += 1
+        else:
+            p4 += 0  # Missing / empty slope yields 0 pts
 
     # ----------------------------------------------------
     # Pillar 5: Risk-Reward Asymmetry & Execution Structure (Max 20 pts)
@@ -162,8 +177,10 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p5 += 9
         elif setup.risk_pct <= 3.0:
             p5 += 6
-        else:
+        elif setup.risk_pct <= 5.0:
             p5 += 2
+        else:
+            p5 += 0
     elif setup.base_width_pct is not None:
         if setup.base_width_pct <= 4.5:
             p5 += 12
@@ -171,22 +188,28 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p5 += 9
         elif setup.base_width_pct <= 10.0:
             p5 += 6
-        else:
+        elif setup.base_width_pct <= 12.0:
             p5 += 3
+        else:
+            p5 += 0
     else:
-        p5 += 6
+        p5 += 0  # Missing risk and base width yields 0 pts
 
     # Pattern / Invalidation Quality (Max 8 pts)
     if setup.state in (State.BUY, State.SELL):
         if setup.retest_confirmed:
             p5 += 8
-        else:
+        elif setup.breakout_level is not None or setup.entry is not None:
             p5 += 6
+        else:
+            p5 += 0
     else:
         if setup.resistance is not None and setup.support is not None:
             p5 += 8
-        else:
+        elif setup.resistance is not None or setup.support is not None:
             p5 += 4
+        else:
+            p5 += 0
 
     total_score = min(100, max(0, p1 + p2 + p3 + p4 + p5))
 
@@ -198,5 +221,10 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
         grade = "B"
     else:
         grade = "C"
+
+    # Persist score, grade, and unconfirmed evidence flags onto Setup model
+    setup.composite_score = total_score
+    setup.composite_grade = grade
+    setup.evidence_status = list(dict.fromkeys(unconfirmed))
 
     return total_score, grade

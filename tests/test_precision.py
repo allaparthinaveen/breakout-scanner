@@ -321,3 +321,43 @@ def test_fresh_entry_and_tp1_classifier():
     assert s6.is_fresh_entry is False
 
 
+def test_missing_evidence_zero_points_and_unconfirmed_flags():
+    """Verify Audit Fix 3: Missing evidence yields 0 points (no fake fallbacks)
+    and populates unconfirmed flags ('Unconfirmed HTF', 'Unconfirmed Sector', 'Unconfirmed Volume')."""
+    from breakout_scanner.scorer import calculate_composite_score
+    from breakout_scanner.models import Setup, State
+
+    # Completely blank setup with no HTF, no sector, no volume, no base width
+    blank_setup = Setup(symbol="EMPTY_TEST")
+    score, grade = calculate_composite_score(blank_setup)
+
+    assert score == 0
+    assert grade == "C"
+    assert "Unconfirmed HTF" in blank_setup.evidence_status
+    assert "Unconfirmed Sector" in blank_setup.evidence_status
+    assert "Unconfirmed Volume" in blank_setup.evidence_status
+
+    # Setup with valid base/coil but missing HTF and Sector
+    partial_setup = Setup(
+        symbol="PARTIAL_TEST",
+        state=State.CONTRACTION,
+        base_width_pct=3.5,     # 10 pts
+        decay_ratio=0.30,       # 10 pts
+        tightening_confirmed=True,
+        vdu_confirmed=True,
+        vdu_ratio=0.55,         # 20 pts
+        resistance=100.0,
+        support=97.0            # 8 pts (pattern) + 12 pts (base width <= 4.5) = 20 pts
+    )
+    # Total points from P1 (20) + P2 (20) + P5 (20) = 60 pts
+    # HTF is missing (0 pts), Sector is missing (0 pts) -> Total = 60 pts
+    score_p, grade_p = calculate_composite_score(partial_setup)
+
+    assert score_p == 60
+    assert grade_p == "C"
+    assert "Unconfirmed HTF" in partial_setup.evidence_status
+    assert "Unconfirmed Sector" in partial_setup.evidence_status
+    assert "Unconfirmed Volume" not in partial_setup.evidence_status
+
+
+

@@ -202,6 +202,23 @@ class Backtester:
                 bars_held = i - active_trade['entry_bar']
                 active_trade['held_bars'] = bars_held
                 
+                # Time-Exit Calendar/Timeframe Synchronization:
+                # Measure elapsed days via timestamps (or timeframe-scaled bars for 1h/15m)
+                try:
+                    cur_dt = pd.to_datetime(bar_time)
+                    entry_dt = pd.to_datetime(active_trade['entry_time'])
+                    held_days = (cur_dt - entry_dt).total_seconds() / 86400.0
+                except Exception:
+                    tf = str(self.cfg.get('interval', self.cfg.get('timeframe', '1d'))).lower()
+                    bars_per_day = 1
+                    if tf in ('1h', '60m'):
+                        bars_per_day = 7 if str(self.cfg.get('market', '')).lower() == 'nse' else 24
+                    elif tf in ('15m',):
+                        bars_per_day = 25
+                    held_days = bars_held / bars_per_day
+                    
+                active_trade['held_days'] = round(float(held_days), 2)
+                
                 if t_dir == 1:  # LONG MANAGEMENT
                     # 1. Open gap-through-stop check (subsequent bars only)
                     if i > active_trade['entry_bar'] and cur_open <= active_trade['stop']:
@@ -285,7 +302,7 @@ class Backtester:
                                 state = State.IDLE
                                 
                             # Check Time Exit
-                            elif c_mgmt.get('use_time_exit', True) and bars_held >= c_mgmt.get('max_hold_days', 10):
+                            elif c_mgmt.get('use_time_exit', True) and held_days >= c_mgmt.get('max_hold_days', 10):
                                 exit_fill = cur_close * (1.0 - slippage_pct)
                                 rem_shares = active_trade['shares_remaining']
                                 pnl_rem = (exit_fill - active_trade['entry_price']) * rem_shares
@@ -385,7 +402,7 @@ class Backtester:
                                 state = State.IDLE
                                 
                             # Check Time Exit
-                            elif c_mgmt.get('use_time_exit', True) and bars_held >= c_mgmt.get('max_hold_days', 10):
+                            elif c_mgmt.get('use_time_exit', True) and held_days >= c_mgmt.get('max_hold_days', 10):
                                 exit_fill = cur_close * (1.0 + slippage_pct)
                                 rem_shares = active_trade['shares_remaining']
                                 pnl_rem = (active_trade['entry_price'] - exit_fill) * rem_shares

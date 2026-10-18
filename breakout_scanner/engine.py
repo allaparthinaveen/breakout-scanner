@@ -27,8 +27,21 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df['StructTgtHigh'] = df['High'].shift(1).rolling(c_tgt['target_lookback']).max()
     df['StructTgtLow'] = df['Low'].shift(1).rolling(c_tgt['target_lookback']).min()
     
-    # Simple Day Counter based on index changes if DatetimeIndex
-    df['Day'] = df.index.floor('D') if isinstance(df.index, pd.DatetimeIndex) else df.index // 24
+    # Day Counter based on index timestamps or timeframe scaling
+    if isinstance(df.index, pd.DatetimeIndex):
+        df['Day'] = df.index.floor('D')
+    else:
+        try:
+            dt_idx = pd.to_datetime(df.index)
+            df['Day'] = dt_idx.floor('D')
+        except Exception:
+            tf = str(cfg.get('management', {}).get('timeframe', cfg.get('interval', '1d'))).lower()
+            bars_per_day = 1
+            if tf in ('1h', '60m'):
+                bars_per_day = 7 if str(cfg.get('market', '')).lower() == 'nse' else 24
+            elif tf in ('15m',):
+                bars_per_day = 25
+            df['Day'] = df.index // bars_per_day
     
     # Precompute indicators (shift where necessary)
     df['SMA'] = get_sma(df['Close'], c_trend['sma_length'])
