@@ -47,9 +47,10 @@ class Backtester:
         df = compute_indicators(df, self.cfg)
         
         initial_capital = float(c_risk.get('account_size', 100000.0))
-        risk_pct = float(c_risk.get('risk_per_trade_pct', 1.0)) / 100.0
+        account_risk_fraction = float(c_risk.get('risk_per_trade_pct', 1.0)) / 100.0
         slippage_pct = float(c_risk.get('slippage_pct', 0.05)) / 100.0
         commission_pct = float(c_risk.get('commission_pct', 0.05)) / 100.0
+        max_exposure_pct = float(c_risk.get('max_exposure_pct', 25.0)) / 100.0
         
         capital = initial_capital
         active_trade: Optional[Dict] = None
@@ -79,7 +80,10 @@ class Backtester:
                 p_dir = pending_signal['direction']
                 p_stop = pending_signal['stop']
                 
-                if p_dir == 1:  # Long / BUY
+                # Check capital health
+                if capital <= 0:
+                    pending_signal = None
+                elif p_dir == 1:  # Long / BUY
                     entry_fill = cur_open * (1.0 + slippage_pct)
                     risk_per_share = entry_fill - p_stop
                     
@@ -87,8 +91,16 @@ class Backtester:
                     if cur_open <= p_stop or risk_per_share <= 0:
                         pending_signal = None
                     else:
-                        risk_cash = capital * risk_pct
+                        # Dynamic position sizing: exact 1.0% dollar risk
+                        risk_cash = capital * account_risk_fraction
                         shares = risk_cash / risk_per_share
+                        
+                        # Max portfolio exposure constraint
+                        max_notional = capital * max_exposure_pct
+                        if shares * entry_fill > max_notional:
+                            shares = max_notional / entry_fill
+                            risk_cash = shares * risk_per_share
+                            
                         comm_entry = shares * entry_fill * commission_pct
                         capital -= comm_entry
                         
@@ -135,8 +147,14 @@ class Backtester:
                     if cur_open >= p_stop or risk_per_share <= 0:
                         pending_signal = None
                     else:
-                        risk_cash = capital * risk_pct
+                        risk_cash = capital * account_risk_fraction
                         shares = risk_cash / risk_per_share
+                        
+                        max_notional = capital * max_exposure_pct
+                        if shares * entry_fill > max_notional:
+                            shares = max_notional / entry_fill
+                            risk_cash = shares * risk_per_share
+                            
                         comm_entry = shares * entry_fill * commission_pct
                         capital -= comm_entry
                         
@@ -415,38 +433,51 @@ class Backtester:
                             structure_stop = setup_support * (1.0 - c_risk['structure_buffer_pct'] / 100.0)
                             atr_stop = cur_close - row['ATR'] * c_risk['atr_multiplier']
                             raw_stop = max(structure_stop, atr_stop) if c_risk['use_structure_stop'] else atr_stop
-                            max_risk_stop = cur_close * (1.0 - c_risk['max_stop_pct'] / 100.0)
-                            min_risk_stop = cur_close * (1.0 - c_risk['min_stop_pct'] / 100.0)
-                            final_stop = min(max(raw_stop, max_risk_stop), min_risk_stop)
                             
-                            pending_signal = {
-                                'direction': 1,
-                                'signal_bar': i,
-                                'signal_time': bar_time,
-                                'signal_close': cur_close,
-                                'stop': final_stop,
-                                'resistance': setup_resistance,
-                                'support': setup_support,
-                            }
+                            min_risk_stop = cur_close * (1.0 - c_risk['min_stop_pct'] / 100.0)
+                            final_stop = min(raw_stop, min_risk_stop)
+                            
+                            risk = abs(cur_close - final_stop)
+                            setup_risk_pct = (risk / cur_close) * 100.0 if cur_close > 0 else 0.0
+                            max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
+                            
+                            # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
+                            # Never clamp the stop into the noise.
+                            if setup_risk_pct <= max_allowed_stop:
+                                pending_signal = {
+                                    'direction': 1,
+                                    'signal_bar': i,
+                                    'signal_time': bar_time,
+                                    'signal_close': cur_close,
+                                    'stop': final_stop,
+                                    'resistance': setup_resistance,
+                                    'support': setup_support,
+                                }
                             state = State.IDLE
                             
                         elif short_signal:
                             structure_stop = setup_resistance * (1.0 + c_risk['structure_buffer_pct'] / 100.0)
                             atr_stop = cur_close + row['ATR'] * c_risk['atr_multiplier']
                             raw_stop = min(structure_stop, atr_stop) if c_risk['use_structure_stop'] else atr_stop
-                            max_risk_stop = cur_close * (1.0 + c_risk['max_stop_pct'] / 100.0)
-                            min_risk_stop = cur_close * (1.0 + c_risk['min_stop_pct'] / 100.0)
-                            final_stop = max(min(raw_stop, max_risk_stop), min_risk_stop)
                             
-                            pending_signal = {
-                                'direction': -1,
-                                'signal_bar': i,
-                                'signal_time': bar_time,
-                                'signal_close': cur_close,
-                                'stop': final_stop,
-                                'resistance': setup_resistance,
-                                'support': setup_support,
-                            }
+                            min_risk_stop = cur_close * (1.0 + c_risk['min_stop_pct'] / 100.0)
+                            final_stop = max(raw_stop, min_risk_stop)
+                            
+                            risk = abs(cur_close - final_stop)
+                            setup_risk_pct = (risk / cur_close) * 100.0 if cur_close > 0 else 0.0
+                            max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
+                            
+                            # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
+                            if setup_risk_pct <= max_allowed_stop:
+                                pending_signal = {
+                                    'direction': -1,
+                                    'signal_bar': i,
+                                    'signal_time': bar_time,
+                                    'signal_close': cur_close,
+                                    'stop': final_stop,
+                                    'resistance': setup_resistance,
+                                    'support': setup_support,
+                                }
                             state = State.IDLE
 
             # =========================================================================

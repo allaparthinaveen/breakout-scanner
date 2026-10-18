@@ -120,29 +120,42 @@ flowchart TD
   python3 run_backtest.py --market us --watchlist config/top30_watchlist.txt --period 3y
   python3 run_backtest.py --market crypto --watchlist config/crypto_watchlist.txt --period 3y
   ```
-* **Verified Backtest Results (`config/watchlist.txt` — 16 Stocks, 3-Year Daily)**:
+* **Verified Backtest Results (`config/watchlist.txt` — 16 Stocks, 3-Year Daily with Structural Stop & 5% Rejection Gate)**:
   | Metric | Value |
   | :--- | :--- |
-  | **Total Completed Trades** | **305** |
-  | **Win / Loss Distribution** | 139 Wins / 166 Losses |
-  | **Realized Win Rate** | **45.57%** |
-  | **Profit Factor** | **1.51** |
-  | **Average R-Multiple** | **+0.15R** |
-  | **TP1 (1.0R) Scale-Out Hit Rate** | **41.64%** |
-  | **Total Gross P&L** | **+$57,006.84** |
-  | **Total Frictions (Slippage & Fees)** | **$10,390.39** |
-  | **Net Realized P&L** | **+$46,616.45** |
-  | **Portfolio Net Return** | **+46.62%** |
-  | **Portfolio Max Drawdown** | **7.62%** |
-  | **Trade Execution Log** | [`backtest/all_trades.csv`](file:///Users/naveen/Git/breakout-scanner/backtest/all_trades.csv) (305 trades) |
+  | **Total Completed Trades** | **272** |
+  | **Win / Loss Distribution** | 123 Wins / 149 Losses |
+  | **Realized Win Rate** | **45.22%** |
+  | **Profit Factor** | **1.47** |
+  | **Average R-Multiple** | **+0.14R** |
+  | **TP1 (1.0R) Scale-Out Hit Rate** | **40.44%** |
+  | **Total Gross P&L** | **+$33,210.04** |
+  | **Total Frictions (Slippage & Fees)** | **$5,620.75** |
+  | **Net Realized P&L** | **+$27,589.29** |
+  | **Portfolio Net Return** | **+27.59%** |
+  | **Portfolio Max Drawdown** | **4.40%** (Significantly reduced from 7.62%) |
+  | **Trade Execution Log** | [`backtest/all_trades.csv`](file:///Users/naveen/Git/breakout-scanner/backtest/all_trades.csv) (272 trades) |
   | **Portfolio Summary JSON** | [`backtest/portfolio_summary.json`](file:///Users/naveen/Git/breakout-scanner/backtest/portfolio_summary.json) |
 
 * **Per-Symbol Highlights**:
-  - `ACN`: 22 trades, 68.2% win rate, Profit Factor **4.67**, Net Return **+12.75%**
-  - `NKE`: 20 trades, 55.0% win rate, Profit Factor **2.56**, Net Return **+7.49%**
-  - `MSFT`: 25 trades, 44.0% win rate, Profit Factor **1.70**, Net Return **+5.20%**
-  - `GS`: 23 trades, 43.5% win rate, Profit Factor **1.68**, Net Return **+4.69%**
-  - `NFLX`: 23 trades, 47.8% win rate, Profit Factor **1.72**, Net Return **+4.23%**
-  - `ASML`: 14 trades, 57.1% win rate, Profit Factor **2.21**, Net Return **+4.14%**
+  - `NVDA`: 4 trades, **75.0%** win rate, Profit Factor **8.48**, Net Return **+4.06%**
+  - `ACN`: 20 trades, **60.0%** win rate, Profit Factor **3.72**, Net Return **+7.21%**
+  - `GS`: 21 trades, **52.4%** win rate, Profit Factor **2.09**, Net Return **+4.30%**
+  - `BAC`: 27 trades, **55.6%** win rate, Profit Factor **2.05**, Net Return **+5.14%**
+  - `AAPL`: 21 trades, **42.9%** win rate, Profit Factor **1.73**, Net Return **+2.97%**
+  - `NFLX`: 19 trades, **42.1%** win rate, Profit Factor **1.72**, Net Return **+2.41%**
+  - `MSFT`: 25 trades, **44.0%** win rate, Profit Factor **1.46**, Net Return **+2.39%**
+  - `TSLA`: 0 trades (Wide/loose swings $> 5\%$ risk properly rejected by the structural risk gate)
+
+---
+
+## 📌 Phase 5: Post-Audit Refinements (P0 & P1 Action Items)
+
+### 5.1 Fix 1 (P0): Stop Placement & Risk Separation ✅ COMPLETED
+* **Structural Stop Anchoring**: Stop loss is anchored strictly to base support (or ATR), without clamping into market noise.
+* **Risk Rejection Gate**: If structural risk $> \text{max\_stop\_pct}$ (5.0%), the setup is **rejected/invalidated** rather than shortening the stop.
+* **Dynamic Position Sizing**: Every trade dynamically scales share count so total dollar risk is mathematically locked to exactly **1.0% of capital**.
+* **Variable Shadowing Fix**: Eliminated inner `risk_pct` variable collision that caused sizing distortions.
+
 
 

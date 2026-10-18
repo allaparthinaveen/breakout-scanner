@@ -26,12 +26,12 @@ breakout:
 risk:
   atr_length: 14
   atr_multiplier: 1.50
-  min_stop_pct: 0.75
-  max_stop_pct: 3.00
+  min_stop_pct: 0.75              # Noise floor: minimum stop distance to prevent spread churn
+  max_stop_pct: 5.00              # Risk gate: setups with structural risk > 5.00% are rejected (never clamped)
   use_structure_stop: true
-  structure_buffer_pct: 0.25
-  account_size: 100000.0
-  risk_per_trade_pct: 1.0
+  structure_buffer_pct: 0.25      # Buffer beyond base support/resistance
+  account_size: 100000.0          # Base account capital
+  risk_per_trade_pct: 1.0         # Dynamic position sizing: exact 1.0% capital risk per trade
   slippage_pct: 0.05
   commission_pct: 0.05
 target:

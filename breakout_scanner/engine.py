@@ -152,66 +152,81 @@ class BreakoutEngine:
                                     row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
                                     
                     if long_signal:
-                        state = State.BUY
-                        self.setup.state = State.BUY
-                        self.setup.direction = 1
-                        self.setup.entry = row['Close']
-                        
                         structure_stop = self.setup.support * (1.0 - c_risk['structure_buffer_pct']/100.0)
-                        atr_stop = self.setup.entry - row['ATR'] * c_risk['atr_multiplier']
+                        atr_stop = row['Close'] - row['ATR'] * c_risk['atr_multiplier']
                         raw_stop = max(structure_stop, atr_stop) if c_risk['use_structure_stop'] else atr_stop
                         
-                        max_risk_stop = self.setup.entry * (1.0 - c_risk['max_stop_pct']/100.0)
-                        min_risk_stop = self.setup.entry * (1.0 - c_risk['min_stop_pct']/100.0)
-                        final_stop = min(max(raw_stop, max_risk_stop), min_risk_stop)
+                        # Apply minimum stop floor (noise filter)
+                        min_risk_stop = row['Close'] * (1.0 - c_risk['min_stop_pct']/100.0)
+                        final_stop = min(raw_stop, min_risk_stop)
                         
-                        self.setup.stop = final_stop
-                        self.setup.original_stop = final_stop
+                        # Calculate structural risk percentage
+                        risk = abs(row['Close'] - final_stop)
+                        risk_pct = (risk / row['Close']) * 100.0 if row['Close'] else 0.0
+                        max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                         
-                        risk = abs(self.setup.entry - self.setup.stop)
-                        self.setup.risk_pct = (risk / self.setup.entry) * 100.0 if self.setup.entry else 0.0
-                        self.setup.tp1 = self.setup.entry + risk * c_tgt['tp1_r']
-                        self.setup.tp2 = self.setup.entry + risk * c_tgt['tp2_r']
-                        self.setup.target = self.setup.tp2
-                        self.setup.breakout_level = self.setup.resistance
-                        
-                        structure_target = row['StructTgtHigh']
-                        self.setup.tp3 = structure_target if structure_target > self.setup.tp2 else self.setup.entry + risk * 3.0
-                        
-                        self.setup.breakout_index = i
-                        self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
-                        self.setup.entry_day = row['Day']
-                        self.setup.tp1_hit = False
-                        self.setup.tp2_hit = False
-                        if row['AvgVolume'] > 0:
-                            self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
+                        # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
+                        # Never clamp the stop into the noise.
+                        if risk_pct > max_allowed_stop:
+                            state = State.IDLE
+                            self.setup = Setup(self.symbol)
+                        else:
+                            state = State.BUY
+                            self.setup.state = State.BUY
+                            self.setup.direction = 1
+                            self.setup.entry = row['Close']
+                            self.setup.stop = final_stop
+                            self.setup.original_stop = final_stop
+                            self.setup.risk_pct = risk_pct
+                            self.setup.tp1 = self.setup.entry + risk * c_tgt['tp1_r']
+                            self.setup.tp2 = self.setup.entry + risk * c_tgt['tp2_r']
+                            self.setup.target = self.setup.tp2
+                            self.setup.breakout_level = self.setup.resistance
+                            
+                            structure_target = row['StructTgtHigh']
+                            self.setup.tp3 = structure_target if structure_target > self.setup.tp2 else self.setup.entry + risk * 3.0
+                            
+                            self.setup.breakout_index = i
+                            self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
+                            self.setup.entry_day = row['Day']
+                            self.setup.tp1_hit = False
+                            self.setup.tp2_hit = False
+                            if row['AvgVolume'] > 0:
+                                self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
                         
                     elif short_signal:
-                        state = State.SELL
-                        self.setup.state = State.SELL
-                        self.setup.direction = -1
-                        self.setup.entry = row['Close']
-                        
                         structure_stop = self.setup.resistance * (1.0 + c_risk['structure_buffer_pct']/100.0)
-                        atr_stop = self.setup.entry + row['ATR'] * c_risk['atr_multiplier']
+                        atr_stop = row['Close'] + row['ATR'] * c_risk['atr_multiplier']
                         raw_stop = min(structure_stop, atr_stop) if c_risk['use_structure_stop'] else atr_stop
                         
-                        max_risk_stop = self.setup.entry * (1.0 + c_risk['max_stop_pct']/100.0)
-                        min_risk_stop = self.setup.entry * (1.0 + c_risk['min_stop_pct']/100.0)
-                        final_stop = max(min(raw_stop, max_risk_stop), min_risk_stop)
+                        # Apply minimum stop floor (noise filter)
+                        min_risk_stop = row['Close'] * (1.0 + c_risk['min_stop_pct']/100.0)
+                        final_stop = max(raw_stop, min_risk_stop)
                         
-                        self.setup.stop = final_stop
-                        self.setup.original_stop = final_stop
+                        # Calculate structural risk percentage
+                        risk = abs(row['Close'] - final_stop)
+                        risk_pct = (risk / row['Close']) * 100.0 if row['Close'] else 0.0
+                        max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                         
-                        risk = abs(self.setup.entry - self.setup.stop)
-                        self.setup.risk_pct = (risk / self.setup.entry) * 100.0 if self.setup.entry else 0.0
-                        self.setup.tp1 = self.setup.entry - risk * c_tgt['tp1_r']
-                        self.setup.tp2 = self.setup.entry - risk * c_tgt['tp2_r']
-                        self.setup.target = self.setup.tp2
-                        self.setup.breakout_level = self.setup.support
-                        
-                        structure_target = row['StructTgtLow']
-                        self.setup.tp3 = structure_target if structure_target < self.setup.tp2 else self.setup.entry - risk * 3.0
+                        # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
+                        if risk_pct > max_allowed_stop:
+                            state = State.IDLE
+                            self.setup = Setup(self.symbol)
+                        else:
+                            state = State.SELL
+                            self.setup.state = State.SELL
+                            self.setup.direction = -1
+                            self.setup.entry = row['Close']
+                            self.setup.stop = final_stop
+                            self.setup.original_stop = final_stop
+                            self.setup.risk_pct = risk_pct
+                            self.setup.tp1 = self.setup.entry - risk * c_tgt['tp1_r']
+                            self.setup.tp2 = self.setup.entry - risk * c_tgt['tp2_r']
+                            self.setup.target = self.setup.tp2
+                            self.setup.breakout_level = self.setup.support
+                            
+                            structure_target = row['StructTgtLow']
+                            self.setup.tp3 = structure_target if structure_target < self.setup.tp2 else self.setup.entry - risk * 3.0
                         
                         self.setup.breakout_index = i
                         self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
