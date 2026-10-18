@@ -1,42 +1,34 @@
 {
-    "BTC-USD": {
-        "trades": 18,
-        "win_rate": 0.7778,
-        "profit_factor": 3.65,
-        "expectancy": 639.52,
-        "average_r": 0.61,
-        "net_return_pct": 11.51
+    "TCS.NS": {
+        "trades": 6,
+        "wins": 3,
+        "losses": 3,
+        "win_rate": 0.5,
+        "profit_factor": 1.79,
+        "expectancy": 219.7,
+        "average_r": 0.22,
+        "tp1_hit_rate": 0.5,
+        "max_drawdown_pct": 1.15,
+        "net_return_pct": 1.32,
+        "total_net_pnl": 1318.2,
+        "total_commissions": 193.01,
+        "initial_capital": 100000.0,
+        "final_capital": 101318.2
     },
-    "ETH-USD": {
-        "trades": 23,
-        "win_rate": 0.6957,
-        "profit_factor": 2.21,
-        "expectancy": 449.61,
-        "average_r": 0.43,
-        "net_return_pct": 10.34
-    },
-    "SOL-USD": {
-        "trades": 9,
-        "win_rate": 0.6667,
-        "profit_factor": 2.33,
-        "expectancy": 446.55,
-        "average_r": 0.44,
-        "net_return_pct": 4.02
-    },
-    "DOGE-USD": {
-        "trades": 8,
-        "win_rate": 0.625,
-        "profit_factor": 1.66,
-        "expectancy": 247.43,
-        "average_r": 0.25,
-        "net_return_pct": 1.98
-    },
-    "LINK-USD": {
-        "trades": 16,
-        "win_rate": 0.75,
-        "profit_factor": 3.24,
-        "expectancy": 582.13,
-        "average_r": 0.56,
-        "net_return_pct": 9.31
+    "INFY.NS": {
+        "trades": 7,
+        "wins": 2,
+        "losses": 5,
+        "win_rate": 0.2857,
+        "profit_factor": 0.56,
+        "expectancy": -198.52,
+        "average_r": -0.2,
+        "tp1_hit_rate": 0.1429,
+        "max_drawdown_pct": 2.56,
+        "net_return_pct": -1.39,
+        "total_net_pnl": -1389.63,
+        "total_commissions": 257.47,
+        "initial_capital": 100000.0,
+        "final_capital": 98610.37
     }
 }

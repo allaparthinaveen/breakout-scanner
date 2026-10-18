@@ -30,6 +30,10 @@ risk:
   max_stop_pct: 3.00
   use_structure_stop: true
   structure_buffer_pct: 0.25
+  account_size: 100000.0
+  risk_per_trade_pct: 1.0
+  slippage_pct: 0.05
+  commission_pct: 0.05
 target:
   target_lookback: 50
   tp1_r: 1.0

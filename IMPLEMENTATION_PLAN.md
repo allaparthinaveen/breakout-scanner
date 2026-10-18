@@ -89,41 +89,43 @@ flowchart TD
 
 ---
 
-## 📌 Phase 3: Unified Institutional Backtest Engine (Priority 1 Critical Fix)
+---
 
-### 3.1 Chronological Bar-by-Bar Simulator (`backtester.py`)
-* **Problem**: [backtester.py](file:///Users/naveen/Git/breakout-scanner/breakout_scanner/backtester.py) checks the signal candle's High/Low on the same bar of entry, creating unrealistic same-bar stop/target fills.
-* **Solution**:
-  - **Realistic Entry Timing**: When a breakout triggers on the close of Bar $i$, the trade enters at the **Open of Bar $i+1$** ($Open_{i+1}$).
-  - Trade execution checks begin strictly on Bar $i+1$, preventing same-bar lookahead.
+## 📌 Phase 3: Unified Institutional Backtest Engine (Priority 1 Critical Fix) ✅ COMPLETED
 
-### 3.2 100% Live Engine Trade Parity
-* Replicate all live trade management mechanics from [engine.py](file:///Users/naveen/Git/breakout-scanner/breakout_scanner/engine.py):
-  1. **TP1 (1.0R)**: Scales out partial profit and trails stop loss to Breakeven ($+0.1\%$).
+### 3.1 Chronological Bar-by-Bar Simulator (`backtester.py`) ✅
+* **Zero Lookahead**: Signals confirmed at Bar $i$ Close $\rightarrow$ Execution strictly at Bar $i+1$ Open.
+* Trade execution checks begin strictly on Bar $i+1$ and beyond.
+
+### 3.2 100% Live Engine Trade Parity ✅
+* Replicated all live trade management mechanics from [engine.py](file:///Users/naveen/Git/breakout-scanner/breakout_scanner/engine.py):
+  1. **TP1 (1.0R)**: Scales out 50% shares and trails stop loss to Breakeven ($+0.10\%$).
   2. **TP2 (2.0R)**: Fully closes remaining position.
   3. **Time-Based Exit**: Closes position if held longer than `max_hold_days`.
 
-### 3.3 Friction & Edge Accounting
-* **Slippage**: Model 0.05% slippage on entry and exit.
-* **Transaction Costs**: Apply brokerage, STT, and exchange fees (0.05% - 0.10%).
-* **Gap-Through-Stop**: If Bar $i+1$ opens below the stop price for a long, exit at $Open_{i+1}$, not the theoretical stop.
-* **End-of-Test Settlement**: Mark-to-market all remaining open positions at test end.
+### 3.3 Friction & Edge Accounting ✅
+* **Slippage**: 0.05% slippage on entry and exit legs.
+* **Transaction Costs**: 0.05% brokerage and exchange fees on every leg.
+* **Gap-Through-Stop**: Filled at Open price if candle opens past the stop level.
+* **End-of-Test Settlement**: Mark-to-market all remaining open positions at test end with `END_OF_DATA`.
 
 ---
 
-## 📌 Phase 4: NSE Backtesting Suite & Out-of-Sample Verification
+## 📌 Phase 4: NSE Backtesting Suite & Out-of-Sample Verification ✅ COMPLETED
 
-### 4.1 Multi-Market Backtest CLI (`run_backtest.py`)
-* Add command-line arguments:
+### 4.1 Multi-Market Backtest CLI (`run_backtest.py`) ✅
+* Added CLI arguments:
   ```bash
   python3 run_backtest.py --market nse --watchlist config/nsetop10_watchlist.txt --period 3y
   python3 run_backtest.py --market us --watchlist config/top30_watchlist.txt --period 3y
   python3 run_backtest.py --market crypto --watchlist config/crypto_watchlist.txt --period 3y
   ```
-* Compute and persist:
+* Computes and persists:
   - Win Rate (%)
   - Profit Factor
   - Average R-Multiple
   - Max Drawdown (%)
-  - Total Net P&L (after slippage & commissions)
+  - Gross & Net P&L (after slippage & commissions)
   - Full trade execution logs (`backtest/all_trades.csv`)
+  - Portfolio summary (`backtest/portfolio_summary.json`)
+

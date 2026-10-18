@@ -1,0 +1,18 @@
+{
+    "market": "nse",
+    "period": "1y",
+    "interval": "1d",
+    "symbols_tested": 2,
+    "total_trades": 13,
+    "winning_trades": 5,
+    "losing_trades": 8,
+    "win_rate_pct": 38.46,
+    "profit_factor": 0.99,
+    "average_r": -0.0,
+    "tp1_hit_rate_pct": 30.77,
+    "gross_pnl": 379.04,
+    "total_commissions": 450.48,
+    "net_pnl": -71.44,
+    "portfolio_net_return_pct": -0.07,
+    "max_drawdown_pct": 2.52
+}
