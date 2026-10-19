@@ -1,52 +1,75 @@
-# 🚀 The Breakout Engine: Explained for Kids!
+![alt text](image.png)
 
-Imagine you are playing a video game where you have to predict which race cars are going to suddenly zoom forward super fast. That’s exactly what this trading strategy does with stocks! 
+# Breakout Scanner – Multi-Market Coverage (IST & SGT)
 
-Here is the secret 5-step recipe our robot uses to find the best stocks:
-
-### 1. The Fast Car (Trend) 🏎️
-First, the robot looks for a stock that is already moving up the hill. We don't want a slow car, we want a car that has already proven it can go fast!
-
-### 2. The Pit Stop (Tight Consolidation) 🛑
-Even fast cars need to stop for gas. The robot looks for a car that has parked inside a tiny, tight little box. It's just sitting there, building up energy. The longer it sits in the tiny box without moving much, the more energy it builds up!
-
-### 3. Breaking the Wall (Breakout) 💥
-Suddenly, the car smashes through the roof of the box! But wait... is it a real breakout, or just a fake trick? The robot grades the smash on a scale of 1 to 5. We only care if it smashed the wall with a score of **4 out of 5** (lots of volume and a strong push).
-
-### 4. Holding Ground (Acceptance) 🛡️
-Sometimes cars smash the wall but immediately fall back into the box. That’s a trap! Our robot waits to see if the car *stays* outside the box. It has to survive outside the box for a little bit to prove it's really free.
-
-### 5. The Goodbye Tap (Retest & Entry) 🏁
-This is the coolest part. Right before the car zooms away into the sunset, it usually backs up just a tiny bit to "tap" the roof of the box it just broke out of. If it taps the roof and doesn't fall back in, **BAM!** The robot presses the BUY button. 
+| Market | Region | IST (UTC+5:30) | SGT (UTC+8) | Coverage |
+|--------|--------|----------------|-------------|----------|
+| 🇯🇵 Japan | Tokyo Stock Exchange | **05:30 – 11:30** | **08:00 – 14:00** | Early Morning |
+| 🇭🇰 Hong Kong | HKEX | **07:00 – 13:00** | **09:30 – 15:30** | Early Morning |
+| 🇮🇳 India | NSE / BSE | **09:15 – 15:30** | **11:45 – 18:00** | Morning → Afternoon |
+| 🇬🇧 Europe | London Stock Exchange | **13:30 – 22:00** | **16:00 – 00:30** | Afternoon → Evening |
+| 🇺🇸 US | NYSE / Nasdaq | **19:00 – 01:30** | **21:30 – 04:00** | Evening → After Midnight |
+| ₿ Crypto | Binance / Coinbase / Bybit | **24/7** | **24/7** | All Day & Night |
 
 ---
 
-## 🎮 How to Use It
+## Daily Scanner Timeline
 
-Using the robot is as easy as looking at a dashboard:
-
-1. **Turn it on:** You run the `dashboard.py` file on your computer.
-2. **Look at the screen:** The dashboard will show you a grid of different stocks (like Apple, Home Depot, or McDonald's).
-3. **Read the labels:** The robot will tag every stock with what it is currently doing:
-   * 🟡 **CONSOLIDATION:** Taking a pit stop.
-   * 🔵 **ACCEPTANCE_WATCH:** Smashed the wall, waiting to see if it's real.
-   * 🟢 **BUY:** It tapped the roof and it's time to go!
-4. **Safety First:** The robot has a built-in "Kill Switch" (like a seatbelt). If the market gets too crazy, it stops trading automatically so you don't lose your allowance money!
+| Time Block | IST | SGT | Primary Market |
+|------------|-----|-----|----------------|
+| Early Morning | 05:30 – 13:00 | 08:00 – 15:30 | Japan & Hong Kong |
+| Morning | 09:15 – 15:30 | 11:45 – 18:00 | NSE / BSE |
+| Afternoon | 13:30 – 18:00 | 16:00 – 20:30 | Europe Opens |
+| Evening | 19:00 – 22:00 | 21:30 – 00:30 | US + Europe Overlap |
+| Late Night | 22:00 – 01:30 | 00:30 – 04:00 | US Session |
+| Overnight | 01:30 – 05:30 | 04:00 – 08:00 | Crypto Only |
 
 ---
 
-## 💬 Sample Robot Chats!
+## Ideal Scan Frequency
 
-The dashboard has a special **Prediction Chat** where you can ask the robot *why* it did something. Here are some examples of what the robot might say:
+| Market | Scan Interval |
+|--------|---------------|
+| Crypto | Every 1–5 minutes |
+| NSE | Every 5 minutes (1h breakout evaluation on closed candles) |
+| Japan / Hong Kong | Every 5 minutes |
+| Europe | Every 5 minutes |
+| US | Every 2–5 minutes |
 
-### Example 1: The Trap!
-**You:** "Hey robot, what happened to Microsoft (MSFT)?"  
-**Robot 🤖:** "Microsoft tried to smash through the wall, but it was a fake! It immediately fell back into its pit stop box. I labeled it a TRAP, so I didn't press the BUY button. We saved our money!"
+# Breakout Scanner — Global Market Coverage
 
-### Example 2: The Perfect Setup
-**You:** "Why is Apple (AAPL) labeled BUY right now?"  
-**Robot 🤖:** "Apple is looking great! It rested in a tight box, smashed through the wall with lots of volume, survived outside the box, and just gave the wall a 'goodbye tap' (Retest). It's ready to zoom, so I pressed BUY!"
+All times are shown in **IST (Indian Standard Time)** and **SGT (Singapore Time)**. Both time zones are UTC+5:30 and UTC+8:00 respectively, so **SGT is 2 hours 30 minutes ahead of IST**.
 
-### Example 3: Waiting Patiently
-**You:** "What is Nvidia (NVDA) doing?"  
-**Robot 🤖:** "Nvidia is just taking a long pit stop right now. It is in CONSOLIDATION mode. We are just sitting back and watching to see if it can build up enough energy to break the wall later."
+> **Important:** These are approximate regular trading-session times, not a guarantee that every instrument or exchange is open. Exchange holidays, daylight-saving changes, lunch breaks, and special sessions can change the schedule. Crypto markets generally trade 24/7.
+
+| Market / Region | Example Exchanges / Instruments | Regular Session (Local Market Time) | Session in IST | Session in SGT | Scanner Coverage |
+|---|---|---|---|---|---|
+| Japan | Tokyo Stock Exchange equities | 09:00–11:30, 12:30–15:30 JST | 05:30–08:00, 09:00–12:00 | 08:00–10:30, 11:30–14:30 | Early morning |
+| Hong Kong | Hong Kong Stock Exchange equities | 09:30–12:00, 13:00–16:00 HKT | 06:30–09:00, 10:30–13:30 | 09:00–11:30, 13:00–16:00 | Early morning to afternoon |
+| India | NSE / BSE equities | 09:15–15:30 IST | 09:15–15:30 | 11:45–18:00 | Morning to afternoon |
+| Europe — London | London Stock Exchange equities | 08:00–16:30 UK local time | Usually 12:30–21:00 during UK summer time; 13:30–22:00 during UK winter time | Usually 15:00–23:30 during UK summer time; 16:00–00:30 during UK winter time | Afternoon to evening |
+| United States | NYSE / Nasdaq regular equities session | 09:30–16:00 US Eastern Time | Usually 19:00–01:30 next day during US daylight time; 20:00–02:30 next day during US standard time | Usually 21:30–04:00 next day during US daylight time; 22:30–05:00 next day during US standard time | Evening to after midnight |
+| Crypto | Spot crypto (e.g., BTC / ETH) | 24 hours a day, 7 days a week | 00:00–24:00, every day | 02:30–02:30 next day, every day | All day and night |
+
+## Suggested Scanner Priority
+
+1. **NSE / BSE** — keep as the baseline because the existing scanner is already NSE-focused.
+2. **US equities** — next major stock-market expansion; account for US daylight-saving changes and earnings events.
+3. **BTC / ETH crypto** — adds genuine weekend and overnight coverage, but requires separate rules for crypto volatility, exchange liquidity, funding (for derivatives), and execution.
+4. **Japan / Hong Kong / Europe** — add after validating data quality, market-specific rules, costs, and out-of-sample results.
+
+## Implementation Notes
+
+- Store all timestamps internally in UTC; display session schedules in IST and SGT.
+- Use exchange calendars rather than hard-coded opening times.
+- Distinguish regular trading hours from pre-market, after-hours, auctions, and special sessions.
+- Use separate configurations and validation reports for each market; do not assume NSE settings transfer unchanged.
+- Keep scanning continuously if desired, but only generate actionable alerts when the relevant market is open and the setup passes its rules.
+- For crypto, specify the exchange and product (spot or derivatives), because liquidity and trading costs vary by venue.
+
+## Time Zone Reference
+
+| Time Zone | UTC Offset | Relationship |
+|---|---:|---|
+| IST — India Standard Time | UTC+05:30 | Reference time |
+| SGT — Singapore Time | UTC+08:00 | 2 hours 30 minutes ahead of IST |

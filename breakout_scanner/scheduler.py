@@ -127,7 +127,9 @@ class SessionScheduler:
             "config/watchlist.txt",
             "config/crypto_watchlist.txt",
             "config/top30_watchlist.txt",
-            "config/nsetop10_watchlist.txt"
+            "config/nsetop10_watchlist.txt",
+            "config/hk_top30_watchlist.txt",
+            "config/japan_top30_watchlist.txt"
         ]
 
         self.telegram_token = os.getenv("TG_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")

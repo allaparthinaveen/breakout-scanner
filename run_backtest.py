@@ -19,8 +19,8 @@ def load_watchlist(path: str) -> List[str]:
 
 def run_backtest_cli():
     parser = argparse.ArgumentParser(description="Breakout Scanner Institutional Multi-Market Backtester")
-    parser.add_argument('--market', type=str, choices=['nse', 'crypto', 'us'], default='nse',
-                        help="Target market: nse, crypto, or us (default: nse)")
+    parser.add_argument('--market', type=str, choices=['nse', 'crypto', 'us', 'hk', 'japan', 'jp'], default='nse',
+                        help="Target market: nse, crypto, us, hk, or japan (default: nse)")
     parser.add_argument('--watchlist', type=str, default=None,
                         help="Path to custom watchlist file (overrides --market default)")
     parser.add_argument('--period', type=str, default='3y',
@@ -45,6 +45,10 @@ def run_backtest_cli():
             watchlist_path = 'config/crypto_watchlist.txt'
         elif args.market == 'us':
             watchlist_path = 'config/top30_watchlist.txt'
+        elif args.market == 'hk':
+            watchlist_path = 'config/hk_top30_watchlist.txt'
+        elif args.market in ('japan', 'jp'):
+            watchlist_path = 'config/japan_top30_watchlist.txt'
         else:
             watchlist_path = 'config/nsetop10_watchlist.txt'
             
