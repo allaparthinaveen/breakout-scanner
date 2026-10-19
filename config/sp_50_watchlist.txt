@@ -1,0 +1,65 @@
+# Technology / Semiconductors
+AAPL
+MSFT
+NVDA
+AVGO
+ORCL
+CRM
+AMD
+QCOM
+CSCO
+IBM
+
+# Financials
+JPM
+BAC
+WFC
+GS
+MS
+BLK
+AXP
+V
+MA
+SPGI
+
+# Consumer Discretionary
+AMZN
+TSLA
+HD
+MCD
+NKE
+BKNG
+LOW
+TJX
+
+# Healthcare
+LLY
+UNH
+JNJ
+ABBV
+MRK
+ABT
+ISRG
+VRTX
+
+# Consumer Staples
+WMT
+COST
+PG
+KO
+PEP
+PM
+
+# Communication Services
+GOOGL
+META
+NFLX
+DIS
+TMUS
+
+# Energy / Industrials / Utilities
+XOM
+CVX
+CAT
+GE
+NEE
