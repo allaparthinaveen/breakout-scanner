@@ -71,17 +71,30 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df['EarlierMid'] = (df['EarlierHigh'] + df['EarlierLow']) / 2
     df['EarlierRangePct'] = np.where(df['EarlierMid'] > 0, (df['EarlierHigh'] - df['EarlierLow']) / df['EarlierMid'] * 100, 999.0)
     df['RangeTightening'] = df['TightRangePct'] < df['EarlierRangePct']
-    df['TighteningOK'] = ~c_base['require_tightening'] | df['RangeTightening']
+    df['TighteningOK'] = df['RangeTightening'] if c_base.get('require_tightening', False) else True
     
-    # Volume
-    df['AvgVolume'] = get_sma(df['Volume'], c_vol['volume_length'])
-    df['BaseAvgVol'] = get_sma(df['Volume'], c_base['base_lookback'])
-    df['TightAvgVol'] = get_sma(df['Volume'], c_base['tight_lookback'])
+    # Volume: use shift(1) so current breakout bar does not inflate its own benchmark
+    prev_vol = df['Volume'].shift(1)
+    df['AvgVolume'] = get_sma(prev_vol, c_vol['volume_length'])
+    df['BaseAvgVol'] = get_sma(prev_vol, c_base['base_lookback'])
+    df['TightAvgVol'] = get_sma(prev_vol, c_base['tight_lookback'])
     df['VolContracting'] = df['TightAvgVol'] <= df['BaseAvgVol'] * c_vol['contraction_ratio']
-    df['VolContractionOK'] = ~c_vol['use_volume_contraction'] | df['VolContracting']
+    df['VolContractionOK'] = df['VolContracting'] if c_vol.get('use_volume_contraction', False) else True
     
-    df['VolExpansion'] = df['Volume'] >= df['AvgVolume'] * c_vol['breakout_multiplier']
-    df['BreakoutVolOK'] = ~c_vol['use_breakout_volume'] | df['VolExpansion']
+    # Hourly Volume Profile (Same-hour-of-day median across prior sessions)
+    benchmark_vol = df['AvgVolume']
+    if c_vol.get('use_hourly_volume_profile', False) and hasattr(df.index, 'hour'):
+        hour_series = df.index.hour
+        lookback = c_vol.get('hourly_profile_days', 20)
+        hourly_benchmark = pd.Series(index=df.index, dtype=float)
+        for h in hour_series.unique():
+            mask = (hour_series == h)
+            h_vols = df.loc[mask, 'Volume'].shift(1)
+            hourly_benchmark.loc[mask] = h_vols.rolling(lookback, min_periods=3).median()
+        benchmark_vol = hourly_benchmark.combine_first(df['AvgVolume'])
+
+    df['VolExpansion'] = df['Volume'] >= (benchmark_vol * c_vol['breakout_multiplier'])
+    df['BreakoutVolOK'] = df['VolExpansion'] if c_vol.get('use_breakout_volume', True) else True
     
     # Qualification
     df['BaseSmallEnough'] = df['BaseRangePct'] <= c_base['max_base_range_pct']
@@ -91,12 +104,24 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     # Trend
     df['BullTrend'] = df['Close'] > df['SMA']
     df['BearTrend'] = df['Close'] < df['SMA']
-    df['LongTrendOK'] = ~c_trend['use_trend_filter'] | df['BullTrend']
-    df['ShortTrendOK'] = ~c_trend['use_trend_filter'] | df['BearTrend']
+    
+    if c_trend.get('use_slope_filter', False):
+        slope_bars = c_trend.get('slope_lookback_bars', 5)
+        sma_slope_up = df['SMA'] > df['SMA'].shift(slope_bars)
+        sma_slope_down = df['SMA'] < df['SMA'].shift(slope_bars)
+        bull_trend_ok = df['BullTrend'] & sma_slope_up
+        bear_trend_ok = df['BearTrend'] & sma_slope_down
+    else:
+        bull_trend_ok = df['BullTrend']
+        bear_trend_ok = df['BearTrend']
+
+    df['LongTrendOK'] = bull_trend_ok if c_trend.get('use_trend_filter', True) else True
+    df['ShortTrendOK'] = bear_trend_ok if c_trend.get('use_trend_filter', True) else True
     
     # Momentum
-    df['BullMom'] = (df['Close'] > df['Open']) & (df['BullCloseLoc'] >= c_break['close_location']) & (~c_break['require_momentum_candle'] | (df['BodyPct'] >= c_break['min_body_pct']))
-    df['BearMom'] = (df['Close'] < df['Open']) & (df['BearCloseLoc'] >= c_break['close_location']) & (~c_break['require_momentum_candle'] | (df['BodyPct'] >= c_break['min_body_pct']))
+    mom_candle_ok = (df['BodyPct'] >= c_break['min_body_pct']) if c_break.get('require_momentum_candle', True) else True
+    df['BullMom'] = (df['Close'] > df['Open']) & (df['BullCloseLoc'] >= c_break['close_location']) & mom_candle_ok
+    df['BearMom'] = (df['Close'] < df['Open']) & (df['BearCloseLoc'] >= c_break['close_location']) & mom_candle_ok
 
     return df
 
@@ -178,9 +203,13 @@ class BreakoutEngine:
                         risk_pct = (risk / row['Close']) * 100.0 if row['Close'] else 0.0
                         max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                         
-                        # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
-                        # Never clamp the stop into the noise.
-                        if risk_pct > max_allowed_stop:
+                        # Cost / Friction Gate: round-trip cost relative to stop distance
+                        round_trip_cost_pct = 2.0 * (c_risk.get('slippage_pct', 0.05) + c_risk.get('commission_pct', 0.05))
+                        friction_r = (round_trip_cost_pct / risk_pct) if risk_pct > 0 else 999.0
+                        cost_ok = (friction_r <= c_risk.get('max_friction_r', 0.15)) if c_risk.get('use_cost_filter', False) else True
+                        
+                        # Risk Separation Rule: If structural risk > max_stop_pct or friction too high, REJECT setup!
+                        if risk_pct > max_allowed_stop or not cost_ok:
                             state = State.IDLE
                             self.setup = Setup(self.symbol)
                         else:
@@ -191,6 +220,7 @@ class BreakoutEngine:
                             self.setup.stop = final_stop
                             self.setup.original_stop = final_stop
                             self.setup.risk_pct = risk_pct
+                            self.setup.friction_r = round(float(friction_r), 3)
                             self.setup.tp1 = self.setup.entry + risk * c_tgt['tp1_r']
                             self.setup.tp2 = self.setup.entry + risk * c_tgt['tp2_r']
                             self.setup.target = self.setup.tp2
@@ -221,8 +251,13 @@ class BreakoutEngine:
                         risk_pct = (risk / row['Close']) * 100.0 if row['Close'] else 0.0
                         max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                         
-                        # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
-                        if risk_pct > max_allowed_stop:
+                        # Cost / Friction Gate: round-trip cost relative to stop distance
+                        round_trip_cost_pct = 2.0 * (c_risk.get('slippage_pct', 0.05) + c_risk.get('commission_pct', 0.05))
+                        friction_r = (round_trip_cost_pct / risk_pct) if risk_pct > 0 else 999.0
+                        cost_ok = (friction_r <= c_risk.get('max_friction_r', 0.15)) if c_risk.get('use_cost_filter', False) else True
+                        
+                        # Risk Separation Rule: If structural risk > max_stop_pct or friction too high, REJECT setup!
+                        if risk_pct > max_allowed_stop or not cost_ok:
                             state = State.IDLE
                             self.setup = Setup(self.symbol)
                         else:
@@ -233,6 +268,7 @@ class BreakoutEngine:
                             self.setup.stop = final_stop
                             self.setup.original_stop = final_stop
                             self.setup.risk_pct = risk_pct
+                            self.setup.friction_r = round(float(friction_r), 3)
                             self.setup.tp1 = self.setup.entry - risk * c_tgt['tp1_r']
                             self.setup.tp2 = self.setup.entry - risk * c_tgt['tp2_r']
                             self.setup.target = self.setup.tp2
@@ -294,7 +330,21 @@ class BreakoutEngine:
                 hit_stop = (row['Low'] <= self.setup.stop) if active_dir == 1 else (row['High'] >= self.setup.stop)
                 hit_time = c_mgmt['use_time_exit'] and self.setup.held_days >= c_mgmt['max_hold_days']
                 
-                if hit_stop or hit_time or hit_tp2:
+                # Failed Breakout Exit Check
+                bars_in_trade = i - (self.setup.breakout_index or i)
+                hit_failed_breakout = False
+                if c_mgmt.get('use_failed_breakout_exit', False) and bars_in_trade <= c_mgmt.get('failed_breakout_max_bars', 3):
+                    if active_dir == 1 and self.setup.resistance and row['Close'] < self.setup.resistance:
+                        hit_failed_breakout = True
+                    elif active_dir == -1 and self.setup.support and row['Close'] > self.setup.support:
+                        hit_failed_breakout = True
+
+                if hit_failed_breakout:
+                    self.setup.state = State.FAILED
+                    self.setup.failed_breakout_confirmed = True
+                    state = State.IDLE
+                    self.setup = Setup(self.symbol)
+                elif hit_stop or hit_time or hit_tp2:
                     state = State.IDLE
                     self.setup = Setup(self.symbol)
                     

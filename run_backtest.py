@@ -118,6 +118,9 @@ def run_backtest_cli():
     print("=" * 70)
     
     if all_trades:
+        # Sort all trades chronologically by exit_time (or entry_time) for authentic timeline tracking
+        all_trades.sort(key=lambda t: str(t.get('exit_time') or t.get('entry_time') or ''))
+        
         trades_df = pd.DataFrame(all_trades)
         trades_csv_path = os.path.join(args.output_dir, "all_trades.csv")
         trades_df.to_csv(trades_csv_path, index=False)
@@ -139,6 +142,14 @@ def run_backtest_cli():
         tot_commissions = sum(t['commissions'] for t in all_trades)
         tot_gross_pnl = sum(t['gross_pnl'] for t in all_trades)
         
+        # Long vs Short breakdown
+        long_trades = [t for t in all_trades if t['direction'] == 1]
+        short_trades = [t for t in all_trades if t['direction'] == -1]
+        long_net_pnl = sum(t['net_pnl'] for t in long_trades)
+        short_net_pnl = sum(t['net_pnl'] for t in short_trades)
+        long_avg_r = float(np.mean([t['realized_r'] for t in long_trades])) if long_trades else 0.0
+        short_avg_r = float(np.mean([t['realized_r'] for t in short_trades])) if short_trades else 0.0
+        
         # Portfolio drawdown across chronological sequence of all trades
         cum_pnl = np.cumsum([t['net_pnl'] for t in all_trades])
         initial_cap = float(c_risk.get('account_size', 100000.0))
@@ -148,6 +159,13 @@ def run_backtest_cli():
         portfolio_max_dd = float(abs(np.min(drawdowns))) if len(drawdowns) > 0 else 0.0
         portfolio_net_return = (tot_net_pnl / initial_cap) * 100.0
         
+        # Excursion & Diagnostics Metrics
+        avg_mfe = float(np.mean([t['mfe_r'] for t in all_trades if 'mfe_r' in t])) if tot_trades > 0 else 0.0
+        avg_mae = float(np.mean([t['mae_r'] for t in all_trades if 'mae_r' in t])) if tot_trades > 0 else 0.0
+        floor_binding_count = sum(1 for t in all_trades if t.get('stop_floor_binding'))
+        floor_binding_pct = (floor_binding_count / tot_trades * 100.0) if tot_trades > 0 else 0.0
+        failed_breakout_count = sum(1 for t in all_trades if t.get('exit_reason') == 'FAILED_BREAKOUT')
+
         summary = {
             'market': args.market,
             'period': args.period,
@@ -164,18 +182,32 @@ def run_backtest_cli():
             'total_commissions': round(tot_commissions, 2),
             'net_pnl': round(tot_net_pnl, 2),
             'portfolio_net_return_pct': round(portfolio_net_return, 2),
-            'max_drawdown_pct': round(portfolio_max_dd, 2)
+            'max_drawdown_pct': round(portfolio_max_dd, 2),
+            'long_trades': len(long_trades),
+            'long_net_pnl': round(long_net_pnl, 2),
+            'long_avg_r': round(long_avg_r, 2),
+            'short_trades': len(short_trades),
+            'short_net_pnl': round(short_net_pnl, 2),
+            'short_avg_r': round(short_avg_r, 2),
+            'avg_mfe_r': round(avg_mfe, 2),
+            'avg_mae_r': round(avg_mae, 2),
+            'floor_binding_pct': round(floor_binding_pct, 2),
+            'failed_breakout_trades': failed_breakout_count
         }
         
         print(f"  • Total Completed Trades:   {tot_trades}")
         print(f"  • Win / Loss Distribution:  {len(wins)} Wins / {len(losses)} Losses")
         print(f"  • Realized Win Rate:        {win_rate:.2f}%")
         print(f"  • Profit Factor:            {profit_factor:.2f}")
-        print(f"  • Average R-Multiple:       {avg_r:+.2f}R")
+        print(f"  • Average R-Multiple:       {avg_r:+.2f}R (Long: {long_avg_r:+.2f}R | Short: {short_avg_r:+.2f}R)")
         print(f"  • TP1 (1.0R) Hit Rate:      {tp1_rate:.2f}%")
+        print(f"  • Average Excursions:       MFE: {avg_mfe:+.2f}R | MAE: {avg_mae:.2f}R")
+        print(f"  • Stop Floor Binding:       {floor_binding_count}/{tot_trades} ({floor_binding_pct:.1f}%)")
+        if failed_breakout_count > 0:
+            print(f"  • Failed Breakout Exits:    {failed_breakout_count} trades")
         print(f"  • Total Gross P&L:          ${tot_gross_pnl:>+12,.2f}")
         print(f"  • Total Frictions (Fees):   ${tot_commissions:>12,.2f}")
-        print(f"  • Net Realized P&L:         ${tot_net_pnl:>+12,.2f}")
+        print(f"  • Net Realized P&L:         ${tot_net_pnl:>+12,.2f} (Long: ${long_net_pnl:>+,.2f} | Short: ${short_net_pnl:>+,.2f})")
         print(f"  • Portfolio Net Return:     {portfolio_net_return:>+6.2f}%")
         print(f"  • Portfolio Max Drawdown:   {portfolio_max_dd:>6.2f}%")
         print("-" * 70)

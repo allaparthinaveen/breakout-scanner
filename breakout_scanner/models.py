@@ -67,6 +67,14 @@ class Setup:
     composite_grade: str = ""
     evidence_status: list[str] = field(default_factory=list)
 
+    # Phase 1: Robust Intraday Rules & Policy Tags
+    friction_r: Optional[float] = None
+    underlying_validated: bool = False
+    options_eligible: bool = False
+    options_status: str = "UNDERLYING_UNVALIDATED"
+    failed_breakout_confirmed: bool = False
+    confirmation_status: str = "CONFIRMED"
+
     @property
     def breakout_score(self) -> int:
         return self.bias_score
@@ -86,6 +94,9 @@ class Setup:
         if self.current_price is None or self.entry is None or self.entry <= 0:
             return False
         if self.is_tp1_reached:
+            return False
+        # Age check: setups older than 3 bars cannot show as fresh entries
+        if self.bars_since_breakout is not None and self.bars_since_breakout > 3:
             return False
         if self.direction == 1:
             favorable_dist = (self.current_price - self.entry) / self.entry * 100.0

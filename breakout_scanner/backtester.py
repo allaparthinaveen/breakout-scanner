@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from .models import State
 from .engine import compute_indicators
 
@@ -65,6 +65,43 @@ class Backtester:
         
         start_index = c_base['base_lookback'] + c_base['tight_lookback']
         
+        def _close_active_trade(trade: Dict, exit_fill: float, exit_reason: str, exit_time: Any, current_capital: float) -> float:
+            rem_shares = trade['shares_remaining']
+            if trade['direction'] == 1:
+                pnl_rem = (exit_fill - trade['entry_price']) * rem_shares
+            else:
+                pnl_rem = (trade['entry_price'] - exit_fill) * rem_shares
+                
+            comm_exit = rem_shares * exit_fill * commission_pct
+            trade['commissions'] += comm_exit
+            current_capital += (pnl_rem - comm_exit)
+            
+            trade['exit_time'] = exit_time
+            trade['exit_price'] = exit_fill
+            trade['exit_reason'] = exit_reason
+            trade['gross_pnl'] = trade['tp1_pnl'] + pnl_rem
+            trade['net_pnl'] = trade['gross_pnl'] - trade['commissions']
+            trade['realized_r'] = trade['net_pnl'] / trade['risk_cash'] if trade['risk_cash'] > 0 else 0.0
+            trade['capital_after'] = current_capital
+            
+            # Excursion metrics (MFE / MAE in R)
+            risk_per_share = abs(trade['entry_price'] - trade['original_stop'])
+            if risk_per_share > 0:
+                if trade['direction'] == 1:
+                    mfe_r = (trade['peak_price'] - trade['entry_price']) / risk_per_share
+                    mae_r = (trade['entry_price'] - trade['trough_price']) / risk_per_share
+                else:
+                    mfe_r = (trade['entry_price'] - trade['peak_price']) / risk_per_share
+                    mae_r = (trade['trough_price'] - trade['entry_price']) / risk_per_share
+            else:
+                mfe_r = 0.0
+                mae_r = 0.0
+            trade['mfe_r'] = round(float(max(0.0, mfe_r)), 2)
+            trade['mae_r'] = round(float(max(0.0, mae_r)), 2)
+            
+            trades.append(trade)
+            return current_capital
+
         for i in range(start_index, len(df)):
             row = df.iloc[i]
             cur_open = float(row['Open'])
@@ -80,22 +117,36 @@ class Backtester:
                 p_dir = pending_signal['direction']
                 p_stop = pending_signal['stop']
                 
-                # Check capital health
-                if capital <= 0:
+                # Next-Bar Open Confirmation Check
+                confirm_ok = True
+                if c_break.get('use_open_confirmation', False):
+                    max_adverse_gap = c_break.get('max_open_gap_pct', 0.50)
+                    sig_close = pending_signal['signal_close']
+                    p_res = pending_signal.get('resistance')
+                    p_sup = pending_signal.get('support')
+                    if p_dir == 1:
+                        gap_down_pct = ((sig_close - cur_open) / sig_close * 100.0) if sig_close else 0.0
+                        holds_pivot = (cur_open >= p_res * 0.999) if p_res else True
+                        if gap_down_pct > max_adverse_gap or not holds_pivot:
+                            confirm_ok = False
+                    elif p_dir == -1:
+                        gap_up_pct = ((cur_open - sig_close) / sig_close * 100.0) if sig_close else 0.0
+                        holds_pivot = (cur_open <= p_sup * 1.001) if p_sup else True
+                        if gap_up_pct > max_adverse_gap or not holds_pivot:
+                            confirm_ok = False
+
+                if capital <= 0 or not confirm_ok:
                     pending_signal = None
                 elif p_dir == 1:  # Long / BUY
                     entry_fill = cur_open * (1.0 + slippage_pct)
                     risk_per_share = entry_fill - p_stop
                     
-                    # If market opens below or at the stop, breakout failed on open -> invalidate
                     if cur_open <= p_stop or risk_per_share <= 0:
                         pending_signal = None
                     else:
-                        # Dynamic position sizing: exact 1.0% dollar risk
                         risk_cash = capital * account_risk_fraction
                         shares = risk_cash / risk_per_share
                         
-                        # Max portfolio exposure constraint
                         max_notional = capital * max_exposure_pct
                         if shares * entry_fill > max_notional:
                             shares = max_notional / entry_fill
@@ -122,7 +173,7 @@ class Backtester:
                             'tp2': tp2,
                             'shares': shares,
                             'shares_tp1': shares_tp1,
-                            'shares_remaining': shares - shares_tp1,
+                            'shares_remaining': shares,
                             'risk_cash': risk_cash,
                             'tp1_hit': False,
                             'tp1_exit_time': None,
@@ -137,6 +188,18 @@ class Backtester:
                             'realized_r': 0.0,
                             'held_bars': 0,
                             'capital_after': capital,
+                            'resistance': pending_signal.get('resistance'),
+                            'support': pending_signal.get('support'),
+                            'stop_floor_binding': pending_signal.get('stop_floor_binding', False),
+                            'friction_r': pending_signal.get('friction_r', 0.0),
+                            'peak_price': entry_fill,
+                            'trough_price': entry_fill,
+                            'fwd_ret_1b': None,
+                            'fwd_ret_2b': None,
+                            'fwd_ret_4b': None,
+                            'fwd_ret_8b': None,
+                            'mfe_r': 0.0,
+                            'mae_r': 0.0,
                         }
                         pending_signal = None
                         
@@ -176,7 +239,7 @@ class Backtester:
                             'tp2': tp2,
                             'shares': shares,
                             'shares_tp1': shares_tp1,
-                            'shares_remaining': shares - shares_tp1,
+                            'shares_remaining': shares,
                             'risk_cash': risk_cash,
                             'tp1_hit': False,
                             'tp1_exit_time': None,
@@ -191,6 +254,18 @@ class Backtester:
                             'realized_r': 0.0,
                             'held_bars': 0,
                             'capital_after': capital,
+                            'resistance': pending_signal.get('resistance'),
+                            'support': pending_signal.get('support'),
+                            'stop_floor_binding': pending_signal.get('stop_floor_binding', False),
+                            'friction_r': pending_signal.get('friction_r', 0.0),
+                            'peak_price': entry_fill,
+                            'trough_price': entry_fill,
+                            'fwd_ret_1b': None,
+                            'fwd_ret_2b': None,
+                            'fwd_ret_4b': None,
+                            'fwd_ret_8b': None,
+                            'mfe_r': 0.0,
+                            'mae_r': 0.0,
                         }
                         pending_signal = None
 
@@ -202,8 +277,25 @@ class Backtester:
                 bars_held = i - active_trade['entry_bar']
                 active_trade['held_bars'] = bars_held
                 
+                # Excursion tracking (MFE / MAE)
+                if t_dir == 1:
+                    active_trade['peak_price'] = max(active_trade['peak_price'], cur_high)
+                    active_trade['trough_price'] = min(active_trade['trough_price'], cur_low)
+                else:
+                    active_trade['peak_price'] = min(active_trade['peak_price'], cur_low)
+                    active_trade['trough_price'] = max(active_trade['trough_price'], cur_high)
+                    
+                # Forward return tracking (+1, +2, +4, +8 bars)
+                if bars_held == 1 and active_trade['fwd_ret_1b'] is None:
+                    active_trade['fwd_ret_1b'] = round(float((cur_close - active_trade['entry_price']) / active_trade['entry_price'] * 100.0 * t_dir), 2)
+                elif bars_held == 2 and active_trade['fwd_ret_2b'] is None:
+                    active_trade['fwd_ret_2b'] = round(float((cur_close - active_trade['entry_price']) / active_trade['entry_price'] * 100.0 * t_dir), 2)
+                elif bars_held == 4 and active_trade['fwd_ret_4b'] is None:
+                    active_trade['fwd_ret_4b'] = round(float((cur_close - active_trade['entry_price']) / active_trade['entry_price'] * 100.0 * t_dir), 2)
+                elif bars_held == 8 and active_trade['fwd_ret_8b'] is None:
+                    active_trade['fwd_ret_8b'] = round(float((cur_close - active_trade['entry_price']) / active_trade['entry_price'] * 100.0 * t_dir), 2)
+                
                 # Time-Exit Calendar/Timeframe Synchronization:
-                # Measure elapsed days via timestamps (or timeframe-scaled bars for 1h/15m)
                 try:
                     cur_dt = pd.to_datetime(bar_time)
                     entry_dt = pd.to_datetime(active_trade['entry_time'])
@@ -223,20 +315,8 @@ class Backtester:
                     # 1. Open gap-through-stop check (subsequent bars only)
                     if i > active_trade['entry_bar'] and cur_open <= active_trade['stop']:
                         exit_fill = cur_open * (1.0 - slippage_pct)
-                        rem_shares = active_trade['shares_remaining']
-                        pnl_rem = (exit_fill - active_trade['entry_price']) * rem_shares
-                        comm_exit = rem_shares * exit_fill * commission_pct
-                        active_trade['commissions'] += comm_exit
-                        capital += (pnl_rem - comm_exit)
-                        
-                        active_trade['exit_time'] = bar_time
-                        active_trade['exit_price'] = exit_fill
-                        active_trade['exit_reason'] = 'GAP_STOP' if not active_trade['tp1_hit'] else 'BREAKEVEN_STOP'
-                        active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                        active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                        active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                        active_trade['capital_after'] = capital
-                        trades.append(active_trade)
+                        reason = 'GAP_STOP' if not active_trade['tp1_hit'] else 'BREAKEVEN_STOP'
+                        capital = _close_active_trade(active_trade, exit_fill, reason, bar_time, capital)
                         active_trade = None
                         state = State.IDLE
                     
@@ -245,100 +325,72 @@ class Backtester:
                         # Conservative fill order: assume Stop Loss hit first if both hit in the same candle
                         if cur_low <= active_trade['stop']:
                             exit_fill = min(cur_open, active_trade['stop']) * (1.0 - slippage_pct)
-                            rem_shares = active_trade['shares_remaining']
-                            pnl_rem = (exit_fill - active_trade['entry_price']) * rem_shares
-                            comm_exit = rem_shares * exit_fill * commission_pct
-                            active_trade['commissions'] += comm_exit
-                            capital += (pnl_rem - comm_exit)
-                            
-                            active_trade['exit_time'] = bar_time
-                            active_trade['exit_price'] = exit_fill
-                            active_trade['exit_reason'] = 'BREAKEVEN_STOP' if active_trade['tp1_hit'] else 'STOP_LOSS'
-                            active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                            active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                            active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                            active_trade['capital_after'] = capital
-                            trades.append(active_trade)
+                            reason = 'BREAKEVEN_STOP' if active_trade['tp1_hit'] else 'STOP_LOSS'
+                            capital = _close_active_trade(active_trade, exit_fill, reason, bar_time, capital)
                             active_trade = None
                             state = State.IDLE
                         else:
-                            # Check TP1 scale out (50%)
-                            if not active_trade['tp1_hit'] and cur_high >= active_trade['tp1']:
-                                active_trade['tp1_hit'] = True
-                                tp1_fill = max(cur_open, active_trade['tp1']) * (1.0 - slippage_pct)
-                                sh_tp1 = active_trade['shares_tp1']
-                                comm_tp1 = sh_tp1 * tp1_fill * commission_pct
-                                pnl_tp1 = (tp1_fill - active_trade['entry_price']) * sh_tp1
-                                capital += (pnl_tp1 - comm_tp1)
-                                
-                                active_trade['commissions'] += comm_tp1
-                                active_trade['tp1_exit_time'] = bar_time
-                                active_trade['tp1_exit_price'] = tp1_fill
-                                active_trade['tp1_pnl'] = pnl_tp1
-                                
-                                # Trail Stop to Breakeven
-                                if c_mgmt.get('use_breakeven', True):
-                                    be_offset = c_mgmt.get('breakeven_offset_pct', 0.10) / 100.0
-                                    active_trade['stop'] = active_trade['entry_price'] * (1.0 + be_offset)
-                            
-                            # Check TP2 full exit on remaining shares
-                            if active_trade['tp1_hit'] and cur_high >= active_trade['tp2']:
-                                tp2_fill = max(cur_open, active_trade['tp2']) * (1.0 - slippage_pct)
-                                rem_shares = active_trade['shares_remaining']
-                                pnl_rem = (tp2_fill - active_trade['entry_price']) * rem_shares
-                                comm_tp2 = rem_shares * tp2_fill * commission_pct
-                                active_trade['commissions'] += comm_tp2
-                                capital += (pnl_rem - comm_tp2)
-                                
-                                active_trade['exit_time'] = bar_time
-                                active_trade['exit_price'] = tp2_fill
-                                active_trade['exit_reason'] = 'TP2_HIT'
-                                active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                                active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                                active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                                active_trade['capital_after'] = capital
-                                trades.append(active_trade)
-                                active_trade = None
-                                state = State.IDLE
-                                
-                            # Check Time Exit
-                            elif c_mgmt.get('use_time_exit', True) and held_days >= c_mgmt.get('max_hold_days', 10):
+                            # Check Failed Breakout Exit: price closes back inside base within N bars
+                            hit_failed = False
+                            if c_mgmt.get('use_failed_breakout_exit', False):
+                                max_failed_bars = c_mgmt.get('failed_breakout_max_bars', 3)
+                                if bars_held <= max_failed_bars and active_trade.get('resistance') and cur_close < active_trade['resistance']:
+                                    hit_failed = True
+
+                            if hit_failed:
                                 exit_fill = cur_close * (1.0 - slippage_pct)
-                                rem_shares = active_trade['shares_remaining']
-                                pnl_rem = (exit_fill - active_trade['entry_price']) * rem_shares
-                                comm_exit = rem_shares * exit_fill * commission_pct
-                                active_trade['commissions'] += comm_exit
-                                capital += (pnl_rem - comm_exit)
-                                
-                                active_trade['exit_time'] = bar_time
-                                active_trade['exit_price'] = exit_fill
-                                active_trade['exit_reason'] = 'TIME_EXIT'
-                                active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                                active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                                active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                                active_trade['capital_after'] = capital
-                                trades.append(active_trade)
+                                capital = _close_active_trade(active_trade, exit_fill, 'FAILED_BREAKOUT', bar_time, capital)
                                 active_trade = None
                                 state = State.IDLE
+                            else:
+                                # Check TP1 scale out (50%)
+                                if not active_trade['tp1_hit'] and cur_high >= active_trade['tp1']:
+                                    active_trade['tp1_hit'] = True
+                                    tp1_fill = max(cur_open, active_trade['tp1']) * (1.0 - slippage_pct)
+                                    sh_tp1 = active_trade['shares_tp1']
+                                    comm_tp1 = sh_tp1 * tp1_fill * commission_pct
+                                    pnl_tp1 = (tp1_fill - active_trade['entry_price']) * sh_tp1
+                                    capital += (pnl_tp1 - comm_tp1)
+                                    active_trade['shares_remaining'] -= sh_tp1
+                                    
+                                    active_trade['commissions'] += comm_tp1
+                                    active_trade['tp1_exit_time'] = bar_time
+                                    active_trade['tp1_exit_price'] = tp1_fill
+                                    active_trade['tp1_pnl'] = pnl_tp1
+                                    
+                                    # Trail Stop to Breakeven
+                                    if c_mgmt.get('use_breakeven', True):
+                                        be_offset = c_mgmt.get('breakeven_offset_pct', 0.10) / 100.0
+                                        active_trade['stop'] = active_trade['entry_price'] * (1.0 + be_offset)
+                                
+                                # Check TP2 full exit on remaining shares
+                                if active_trade is not None and active_trade['tp1_hit'] and cur_high >= active_trade['tp2']:
+                                    tp2_fill = max(cur_open, active_trade['tp2']) * (1.0 - slippage_pct)
+                                    capital = _close_active_trade(active_trade, tp2_fill, 'TP2_HIT', bar_time, capital)
+                                    active_trade = None
+                                    state = State.IDLE
+                                    
+                                # Check Time Exit if still active
+                                if active_trade is not None:
+                                    is_time_exit = False
+                                    if c_mgmt.get('use_time_exit', True):
+                                        if c_mgmt.get('max_hold_bars') is not None and bars_held >= c_mgmt.get('max_hold_bars'):
+                                            is_time_exit = True
+                                        elif held_days >= c_mgmt.get('max_hold_days', 10):
+                                            is_time_exit = True
+                                    
+                                    if is_time_exit:
+                                        exit_fill = cur_close * (1.0 - slippage_pct)
+                                        capital = _close_active_trade(active_trade, exit_fill, 'TIME_EXIT', bar_time, capital)
+                                        active_trade = None
+                                        state = State.IDLE
 
                 elif t_dir == -1:  # SHORT MANAGEMENT
                     # 1. Open gap-through-stop check (subsequent bars only)
                     if i > active_trade['entry_bar'] and cur_open >= active_trade['stop']:
                         exit_fill = cur_open * (1.0 + slippage_pct)
-                        rem_shares = active_trade['shares_remaining']
-                        pnl_rem = (active_trade['entry_price'] - exit_fill) * rem_shares
-                        comm_exit = rem_shares * exit_fill * commission_pct
-                        active_trade['commissions'] += comm_exit
-                        capital += (pnl_rem - comm_exit)
-                        
-                        active_trade['exit_time'] = bar_time
-                        active_trade['exit_price'] = exit_fill
-                        active_trade['exit_reason'] = 'GAP_STOP' if not active_trade['tp1_hit'] else 'BREAKEVEN_STOP'
-                        active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                        active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                        active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                        active_trade['capital_after'] = capital
-                        trades.append(active_trade)
+                        reason = 'GAP_STOP' if not active_trade['tp1_hit'] else 'BREAKEVEN_STOP'
+                        capital = _close_active_trade(active_trade, exit_fill, reason, bar_time, capital)
                         active_trade = None
                         state = State.IDLE
                     
@@ -346,80 +398,64 @@ class Backtester:
                     if active_trade is not None:
                         if cur_high >= active_trade['stop']:
                             exit_fill = max(cur_open, active_trade['stop']) * (1.0 + slippage_pct)
-                            rem_shares = active_trade['shares_remaining']
-                            pnl_rem = (active_trade['entry_price'] - exit_fill) * rem_shares
-                            comm_exit = rem_shares * exit_fill * commission_pct
-                            active_trade['commissions'] += comm_exit
-                            capital += (pnl_rem - comm_exit)
-                            
-                            active_trade['exit_time'] = bar_time
-                            active_trade['exit_price'] = exit_fill
-                            active_trade['exit_reason'] = 'BREAKEVEN_STOP' if active_trade['tp1_hit'] else 'STOP_LOSS'
-                            active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                            active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                            active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                            active_trade['capital_after'] = capital
-                            trades.append(active_trade)
+                            reason = 'BREAKEVEN_STOP' if active_trade['tp1_hit'] else 'STOP_LOSS'
+                            capital = _close_active_trade(active_trade, exit_fill, reason, bar_time, capital)
                             active_trade = None
                             state = State.IDLE
                         else:
-                            # Check TP1 scale out (50%)
-                            if not active_trade['tp1_hit'] and cur_low <= active_trade['tp1']:
-                                active_trade['tp1_hit'] = True
-                                tp1_fill = min(cur_open, active_trade['tp1']) * (1.0 + slippage_pct)
-                                sh_tp1 = active_trade['shares_tp1']
-                                comm_tp1 = sh_tp1 * tp1_fill * commission_pct
-                                pnl_tp1 = (active_trade['entry_price'] - tp1_fill) * sh_tp1
-                                capital += (pnl_tp1 - comm_tp1)
-                                
-                                active_trade['commissions'] += comm_tp1
-                                active_trade['tp1_exit_time'] = bar_time
-                                active_trade['tp1_exit_price'] = tp1_fill
-                                active_trade['tp1_pnl'] = pnl_tp1
-                                
-                                if c_mgmt.get('use_breakeven', True):
-                                    be_offset = c_mgmt.get('breakeven_offset_pct', 0.10) / 100.0
-                                    active_trade['stop'] = active_trade['entry_price'] * (1.0 - be_offset)
-                                    
-                            # Check TP2 full exit on remaining shares
-                            if active_trade['tp1_hit'] and cur_low <= active_trade['tp2']:
-                                tp2_fill = min(cur_open, active_trade['tp2']) * (1.0 + slippage_pct)
-                                rem_shares = active_trade['shares_remaining']
-                                pnl_rem = (active_trade['entry_price'] - tp2_fill) * rem_shares
-                                comm_tp2 = rem_shares * tp2_fill * commission_pct
-                                active_trade['commissions'] += comm_tp2
-                                capital += (pnl_rem - comm_tp2)
-                                
-                                active_trade['exit_time'] = bar_time
-                                active_trade['exit_price'] = tp2_fill
-                                active_trade['exit_reason'] = 'TP2_HIT'
-                                active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                                active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                                active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                                active_trade['capital_after'] = capital
-                                trades.append(active_trade)
-                                active_trade = None
-                                state = State.IDLE
-                                
-                            # Check Time Exit
-                            elif c_mgmt.get('use_time_exit', True) and held_days >= c_mgmt.get('max_hold_days', 10):
+                            # Check Failed Breakout Exit
+                            hit_failed = False
+                            if c_mgmt.get('use_failed_breakout_exit', False):
+                                max_failed_bars = c_mgmt.get('failed_breakout_max_bars', 3)
+                                if bars_held <= max_failed_bars and active_trade.get('support') and cur_close > active_trade['support']:
+                                    hit_failed = True
+
+                            if hit_failed:
                                 exit_fill = cur_close * (1.0 + slippage_pct)
-                                rem_shares = active_trade['shares_remaining']
-                                pnl_rem = (active_trade['entry_price'] - exit_fill) * rem_shares
-                                comm_exit = rem_shares * exit_fill * commission_pct
-                                active_trade['commissions'] += comm_exit
-                                capital += (pnl_rem - comm_exit)
-                                
-                                active_trade['exit_time'] = bar_time
-                                active_trade['exit_price'] = exit_fill
-                                active_trade['exit_reason'] = 'TIME_EXIT'
-                                active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-                                active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-                                active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-                                active_trade['capital_after'] = capital
-                                trades.append(active_trade)
+                                capital = _close_active_trade(active_trade, exit_fill, 'FAILED_BREAKOUT', bar_time, capital)
                                 active_trade = None
                                 state = State.IDLE
+                            else:
+                                # Check TP1 scale out (50%)
+                                if not active_trade['tp1_hit'] and cur_low <= active_trade['tp1']:
+                                    active_trade['tp1_hit'] = True
+                                    tp1_fill = min(cur_open, active_trade['tp1']) * (1.0 + slippage_pct)
+                                    sh_tp1 = active_trade['shares_tp1']
+                                    comm_tp1 = sh_tp1 * tp1_fill * commission_pct
+                                    pnl_tp1 = (active_trade['entry_price'] - tp1_fill) * sh_tp1
+                                    capital += (pnl_tp1 - comm_tp1)
+                                    active_trade['shares_remaining'] -= sh_tp1
+                                    
+                                    active_trade['commissions'] += comm_tp1
+                                    active_trade['tp1_exit_time'] = bar_time
+                                    active_trade['tp1_exit_price'] = tp1_fill
+                                    active_trade['tp1_pnl'] = pnl_tp1
+                                    
+                                    if c_mgmt.get('use_breakeven', True):
+                                        be_offset = c_mgmt.get('breakeven_offset_pct', 0.10) / 100.0
+                                        active_trade['stop'] = active_trade['entry_price'] * (1.0 - be_offset)
+                                        
+                                # Check TP2 full exit on remaining shares
+                                if active_trade is not None and active_trade['tp1_hit'] and cur_low <= active_trade['tp2']:
+                                    tp2_fill = min(cur_open, active_trade['tp2']) * (1.0 + slippage_pct)
+                                    capital = _close_active_trade(active_trade, tp2_fill, 'TP2_HIT', bar_time, capital)
+                                    active_trade = None
+                                    state = State.IDLE
+                                    
+                                # Check Time Exit if still active
+                                if active_trade is not None:
+                                    is_time_exit = False
+                                    if c_mgmt.get('use_time_exit', True):
+                                        if c_mgmt.get('max_hold_bars') is not None and bars_held >= c_mgmt.get('max_hold_bars'):
+                                            is_time_exit = True
+                                        elif held_days >= c_mgmt.get('max_hold_days', 10):
+                                            is_time_exit = True
+                                    
+                                    if is_time_exit:
+                                        exit_fill = cur_close * (1.0 + slippage_pct)
+                                        capital = _close_active_trade(active_trade, exit_fill, 'TIME_EXIT', bar_time, capital)
+                                        active_trade = None
+                                        state = State.IDLE
 
             # =========================================================================
             # STEP 3: VCP SCANNING ON BAR CLOSE (Only when not holding or pending)
@@ -443,7 +479,8 @@ class Backtester:
                         long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
                                        row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'])
                                        
-                        short_signal = (setup_bars >= c_base['min_setup_bars'] and bear_break and 
+                        short_signal = (c_break.get('allow_shorts', True) and
+                                        setup_bars >= c_base['min_setup_bars'] and bear_break and 
                                         row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
                                         
                         if long_signal:
@@ -454,13 +491,18 @@ class Backtester:
                             min_risk_stop = cur_close * (1.0 - c_risk['min_stop_pct'] / 100.0)
                             final_stop = min(raw_stop, min_risk_stop)
                             
+                            raw_stop_dist_pct = (cur_close - raw_stop) / cur_close * 100.0 if cur_close > 0 else 0.0
+                            is_floor_binding = raw_stop_dist_pct < c_risk.get('min_stop_pct', 0.75)
+                            
                             risk = abs(cur_close - final_stop)
                             setup_risk_pct = (risk / cur_close) * 100.0 if cur_close > 0 else 0.0
                             max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                             
-                            # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
-                            # Never clamp the stop into the noise.
-                            if setup_risk_pct <= max_allowed_stop:
+                            round_trip_cost_pct = 2.0 * (c_risk.get('slippage_pct', 0.05) + c_risk.get('commission_pct', 0.05))
+                            friction_r = (round_trip_cost_pct / setup_risk_pct) if setup_risk_pct > 0 else 999.0
+                            cost_ok = (friction_r <= c_risk.get('max_friction_r', 0.15)) if c_risk.get('use_cost_filter', False) else True
+                            
+                            if setup_risk_pct <= max_allowed_stop and cost_ok:
                                 pending_signal = {
                                     'direction': 1,
                                     'signal_bar': i,
@@ -469,6 +511,8 @@ class Backtester:
                                     'stop': final_stop,
                                     'resistance': setup_resistance,
                                     'support': setup_support,
+                                    'stop_floor_binding': is_floor_binding,
+                                    'friction_r': round(float(friction_r), 3)
                                 }
                             state = State.IDLE
                             
@@ -480,12 +524,18 @@ class Backtester:
                             min_risk_stop = cur_close * (1.0 + c_risk['min_stop_pct'] / 100.0)
                             final_stop = max(raw_stop, min_risk_stop)
                             
+                            raw_stop_dist_pct = (raw_stop - cur_close) / cur_close * 100.0 if cur_close > 0 else 0.0
+                            is_floor_binding = raw_stop_dist_pct < c_risk.get('min_stop_pct', 0.75)
+                            
                             risk = abs(cur_close - final_stop)
                             setup_risk_pct = (risk / cur_close) * 100.0 if cur_close > 0 else 0.0
                             max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                             
-                            # Risk Separation Rule: If structural risk > max_stop_pct, REJECT setup!
-                            if setup_risk_pct <= max_allowed_stop:
+                            round_trip_cost_pct = 2.0 * (c_risk.get('slippage_pct', 0.05) + c_risk.get('commission_pct', 0.05))
+                            friction_r = (round_trip_cost_pct / setup_risk_pct) if setup_risk_pct > 0 else 999.0
+                            cost_ok = (friction_r <= c_risk.get('max_friction_r', 0.15)) if c_risk.get('use_cost_filter', False) else True
+                            
+                            if setup_risk_pct <= max_allowed_stop and cost_ok:
                                 pending_signal = {
                                     'direction': -1,
                                     'signal_bar': i,
@@ -494,6 +544,8 @@ class Backtester:
                                     'stop': final_stop,
                                     'resistance': setup_resistance,
                                     'support': setup_support,
+                                    'stop_floor_binding': is_floor_binding,
+                                    'friction_r': round(float(friction_r), 3)
                                 }
                             state = State.IDLE
 
@@ -514,27 +566,8 @@ class Backtester:
         if active_trade is not None:
             last_close = float(df['Close'].iloc[-1])
             final_time = df.index[-1] if isinstance(df.index, pd.DatetimeIndex) else len(df) - 1
-            rem_shares = active_trade['shares_remaining']
-            
-            if active_trade['direction'] == 1:
-                exit_fill = last_close * (1.0 - slippage_pct)
-                pnl_rem = (exit_fill - active_trade['entry_price']) * rem_shares
-            else:
-                exit_fill = last_close * (1.0 + slippage_pct)
-                pnl_rem = (active_trade['entry_price'] - exit_fill) * rem_shares
-                
-            comm_exit = rem_shares * exit_fill * commission_pct
-            active_trade['commissions'] += comm_exit
-            capital += (pnl_rem - comm_exit)
-            
-            active_trade['exit_time'] = final_time
-            active_trade['exit_price'] = exit_fill
-            active_trade['exit_reason'] = 'END_OF_DATA'
-            active_trade['gross_pnl'] = active_trade['tp1_pnl'] + pnl_rem
-            active_trade['net_pnl'] = active_trade['gross_pnl'] - active_trade['commissions']
-            active_trade['realized_r'] = active_trade['net_pnl'] / active_trade['risk_cash'] if active_trade['risk_cash'] > 0 else 0.0
-            active_trade['capital_after'] = capital
-            trades.append(active_trade)
+            exit_fill = last_close * (1.0 - slippage_pct) if active_trade['direction'] == 1 else last_close * (1.0 + slippage_pct)
+            capital = _close_active_trade(active_trade, exit_fill, 'END_OF_DATA', final_time, capital)
             active_trade = None
 
         self.results.extend(trades)

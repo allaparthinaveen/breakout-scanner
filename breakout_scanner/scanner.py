@@ -253,6 +253,10 @@ class MultiSymbolScanner:
         c_score, c_grade = calculate_composite_score(setup)
         setup.composite_score = c_score
         setup.composite_grade = c_grade
+        # Phase 1: Options Policy Tag
+        setup.underlying_validated = False
+        setup.options_eligible = False
+        setup.options_status = "UNDERLYING_UNVALIDATED"
 
     def report(self, setups: List[Setup]):
         print("\n=======================================================")
@@ -345,6 +349,7 @@ class MultiSymbolScanner:
         stop = f"Stop: {s.stop:.5g}" if s.stop is not None else "Stop: N/A"
         targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
         risk_str = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
+        frict_str = f"[Cost: {s.friction_r:.2f}R]" if s.friction_r is not None else ""
         rvol_str = f"[Vol: {s.rvol:.1f}x]" if s.rvol is not None else ""
         
         pnl_str = ""
@@ -358,10 +363,13 @@ class MultiSymbolScanner:
         sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
         htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
         grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
+        options_badge = f"\033[90m[Opt: {s.options_status}]\033[0m"
         
         parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
         if risk_str:
             parts.append(risk_str)
+        if frict_str:
+            parts.append(frict_str)
         if pnl_str:
             parts.append(pnl_str)
         if rvol_str:
@@ -372,6 +380,7 @@ class MultiSymbolScanner:
             parts.append(htf)
         if grade_badge:
             parts.append(grade_badge)
+        parts.append(options_badge)
             
         if not is_fresh:
             pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
