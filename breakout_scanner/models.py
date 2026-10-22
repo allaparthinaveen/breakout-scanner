@@ -98,10 +98,23 @@ class Setup:
         # Age check: setups older than 3 bars cannot show as fresh entries
         if self.bars_since_breakout is not None and self.bars_since_breakout > 3:
             return False
+
+        # Base breach check: price must not have fallen back inside the base or breached stop
         if self.direction == 1:
+            base_level = self.breakout_level if self.breakout_level is not None else self.resistance
+            if base_level is not None and self.current_price < base_level:
+                return False
+            if self.stop is not None and self.current_price <= self.stop:
+                return False
             favorable_dist = (self.current_price - self.entry) / self.entry * 100.0
         elif self.direction == -1:
+            base_level = self.breakout_level if self.breakout_level is not None else self.support
+            if base_level is not None and self.current_price > base_level:
+                return False
+            if self.stop is not None and self.current_price >= self.stop:
+                return False
             favorable_dist = (self.entry - self.current_price) / self.entry * 100.0
         else:
-            favorable_dist = 0.0
+            return False
+
         return favorable_dist <= 1.0

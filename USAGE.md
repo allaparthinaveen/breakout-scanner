@@ -237,13 +237,22 @@ pie title 5-Pillar Quantitative Weighting (100 Points Total)
 
 ## 🖥️ 6. Quick Execution Commands
 
-### Run Scan with Immediate Telegram Delivery
+### Run Scans with Dedicated Setup Configs
 ```bash
-# Default watchlist (US & Crypto)
-python3 scan_now.py --watchlist config/watchlist.txt
+# 1. Intraday 1H Swing (1-2 Days Optimal Long Model - Empirically Validated)
+python3 scan_now.py --config config/intraday_1h.yaml --watchlist config/nasdaq_50_watchlist.txt
 
-# Custom watchlist (e.g. NSE India stocks)
-python3 scan_now.py --watchlist config/nse_watchlist.txt
+# 2. Options Trading (High-Conviction Directional Calls with Tight IV & Rising Slope)
+python3 scan_now.py --config config/options_trading.yaml --watchlist config/sp_50_watchlist.txt
+
+# 3. 1-2 Days Bi-Directional Swing (Both Long/Buy and Short/Sell)
+python3 scan_now.py --config config/swing_1_2d_bidirectional.yaml --watchlist config/top30_watchlist.txt
+
+# 4. Classic Daily Multi-Day Swing (Traditional Minervini VCP on Daily Candles)
+python3 scan_now.py --config config/daily_swing.yaml --watchlist config/top30_watchlist.txt
+
+# Ad-hoc scan without sending Telegram alert (terminal output only)
+python3 scan_now.py --config config/intraday_1h.yaml --watchlist config/nasdaq_50_watchlist.txt --no-tg
 ```
 
 ### Run Daily Pre-Market Briefing

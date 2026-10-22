@@ -186,7 +186,8 @@ class BreakoutEngine:
                     long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
                                    row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'])
                                    
-                    short_signal = (setup_bars >= c_base['min_setup_bars'] and bear_break and 
+                    short_signal = (c_break.get('allow_shorts', True) and
+                                    setup_bars >= c_base['min_setup_bars'] and bear_break and 
                                     row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
                                     
                     if long_signal:
@@ -342,11 +343,20 @@ class BreakoutEngine:
                 if hit_failed_breakout:
                     self.setup.state = State.FAILED
                     self.setup.failed_breakout_confirmed = True
+                    self.setup.failure_reason = "FAILED_BREAKOUT: Re-entered base within setup window"
                     state = State.IDLE
-                    self.setup = Setup(self.symbol)
+                    # If this happened on the latest bar, preserve the failed setup so caller/holder gets the exit alert!
+                    # Only reset setup if there are further historical bars to process.
+                    if i < len(df) - 1:
+                        self.setup = Setup(self.symbol)
+                    else:
+                        break
                 elif hit_stop or hit_time or hit_tp2:
                     state = State.IDLE
-                    self.setup = Setup(self.symbol)
+                    if i < len(df) - 1:
+                        self.setup = Setup(self.symbol)
+                    else:
+                        break
                     
         # Calculate trailing trend for display
         if not df.empty and not pd.isna(df['SMA'].iloc[-1]):
@@ -355,15 +365,15 @@ class BreakoutEngine:
             self.setup.trend = 0
         self.setup.current_price = df['Close'].iloc[-1]
         
-        # Calculate current unrealized PnL % if in trade
-        if self.setup.state in (State.BUY, State.SELL) and self.setup.entry and self.setup.current_price:
+        # Calculate current unrealized PnL % if in trade or failed
+        if self.setup.state in (State.BUY, State.SELL, State.FAILED) and self.setup.entry and self.setup.current_price:
             if self.setup.direction == 1:
                 self.setup.pnl_pct = (self.setup.current_price - self.setup.entry) / self.setup.entry * 100.0
             elif self.setup.direction == -1:
                 self.setup.pnl_pct = (self.setup.entry - self.setup.current_price) / self.setup.entry * 100.0
         
         # Calculate how many bars since the breakout
-        if self.setup.state in (State.BUY, State.SELL) and self.setup.breakout_index is not None:
+        if self.setup.state in (State.BUY, State.SELL, State.FAILED) and self.setup.breakout_index is not None:
             self.setup.bars_since_breakout = len(df) - 1 - self.setup.breakout_index
         else:
             self.setup.bars_since_breakout = 0

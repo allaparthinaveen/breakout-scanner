@@ -31,7 +31,7 @@ class MultiSymbolScanner:
                 if not df.empty:
                     engine = self.get_engine(symbol)
                     setup = engine.run(df)
-                    if setup.state in (State.CONTRACTION, State.BUY, State.SELL):
+                    if setup.state in (State.CONTRACTION, State.BUY, State.SELL, State.FAILED):
                         self.enrich_bias(setup, df, period, interval)
                         
                     out.append(setup)
@@ -335,7 +335,17 @@ class MultiSymbolScanner:
         else:
             for s in progress_setups:
                 print(self.format_active_setup(s, is_fresh=False))
-                
+
+        failed_setups = [s for s in setups if s.state == State.FAILED]
+        if failed_setups:
+            print("\n=======================================================")
+            print(" SECTION 2C: ⚠️ FAILED BREAKOUT EXITS (Exit Signal for Holders)")
+            print("=======================================================")
+            for s in failed_setups:
+                d_str = "BUY" if s.direction == 1 else "SELL"
+                pnl_str = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
+                print(f"  ❌ \033[91m{s.symbol:<8}\033[0m | Was {d_str} | PnL: {pnl_str} | Alert: {s.failure_reason or 'Fell back inside base'}")
+
         print("\n")
 
     def format_active_setup(self, s: Setup, is_fresh: bool) -> str:

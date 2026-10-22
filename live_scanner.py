@@ -63,6 +63,12 @@ def main():
         help="Comma-separated paths to watchlist files (e.g. config/watchlist.txt,config/crypto_watchlist.txt)",
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        default="config/default.yaml",
+        help="Path to strategy configuration YAML (e.g. config/intraday_1h.yaml, config/options_trading.yaml)",
+    )
+    parser.add_argument(
         "--test-alert",
         action="store_true",
         help="Send a test instant push alert to Telegram to verify formatting and connection",
@@ -75,7 +81,7 @@ def main():
     args = parser.parse_args()
 
     watchlists = [f.strip() for f in args.watchlists.split(",")] if args.watchlists else None
-    scanner = LiveScanner(watchlist_files=watchlists)
+    scanner = LiveScanner(cfg_path=args.config, watchlist_files=watchlists)
 
     if args.clear_cache:
         scanner.deduplicator.clear()

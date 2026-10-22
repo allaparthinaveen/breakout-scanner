@@ -44,44 +44,64 @@ graph TD
 
 ---
 
-## ⚙️ Configuration (`config/default.yaml`)
-All hyper-parameters are decoupled from the code and live in `default.yaml`. 
+## ⚙️ Modular Strategy Configurations
 
-* **Structure**: Pivot lengths and trend validation.
-* **Consolidation**: Maximum range percentages and time constraints.
-* **Breakout**: Minimum push strength and volume anomalies required to trigger.
-* **Risk**: Maximum daily drawdown, account exposure, and R:R ratios.
+The engine provides dedicated, fine-tuned configurations in `config/` designed for specific timeframes, asset types, and execution styles:
+
+| Configuration YAML | Trading Style / Strategy | Key Rules & Features |
+| :--- | :--- | :--- |
+| [`config/intraday_1h.yaml`](config/intraday_1h.yaml) | **1–2 Days Optimal Long Model** | • Long-only (`allow_shorts: false` cuts $-0.19\text{R}$ short drag)<br>• Friction gate ($\text{Max } 0.15\text{R}$ friction)<br>• Hourly volume median profile benchmarking<br>• Next-bar open confirmation<br>• Empirically validated: $+0.026\text{R}$ / trade, $1.08$ Profit Factor |
+| [`config/options_trading.yaml`](config/options_trading.yaml) | **Directional Options (Calls)** | • Low IV contraction base ($\le 10\%$ width)<br>• Rising SMA50 slope required<br>• High volume surge ($\ge 1.50\times$) for explosive delta<br>• Strict friction gate ($\le 0.10\text{R}$)<br>• Fast 3-day hold window to protect contract theta |
+| [`config/swing_1_2d_bidirectional.yaml`](config/swing_1_2d_bidirectional.yaml) | **1–2 Days Active Buy & Sell** | • Both Long and Short signals enabled<br>• Next-bar open confirmation guards against short squeezes<br>• Strict cost filter ($\le 0.12\text{R}$) |
+| [`config/daily_swing.yaml`](config/daily_swing.yaml) | **Daily Minervini Swing** | • Multi-day position & swing trades on `1d` candles<br>• Progressive contraction required ($T1 \to T2 \to T3$)<br>• 10-day holding horizon |
+| [`config/default.yaml`](config/default.yaml) | **Universal Baseline** | Default configuration with isolated Phase 1 toggles |
 
 ---
 
 ## 🚀 Execution Guide
 
-### 1. Installation
+### 1. Installation & Environment
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run the Local Dashboard
+### 2. Run Instant Scans (`scan_now.py`)
+Run real-time scans on any watchlist by pairing `--config` with `--watchlist`:
+
+```bash
+# 1. Intraday 1H Swing (1-2 Days Optimal Long Model)
+python3 scan_now.py --config config/intraday_1h.yaml --watchlist config/nasdaq_50_watchlist.txt
+
+# 2. Options Trading (Directional Calls with Tight IV & Rising Slope)
+python3 scan_now.py --config config/options_trading.yaml --watchlist config/sp_50_watchlist.txt
+
+# 3. 1-2 Days Bi-Directional Swing (Both Buy and Sell)
+python3 scan_now.py --config config/swing_1_2d_bidirectional.yaml --watchlist config/top30_watchlist.txt
+
+# 4. Classic Daily Multi-Day Swing (Traditional Minervini Daily VCP)
+python3 scan_now.py --config config/daily_swing.yaml --watchlist config/top30_watchlist.txt
+
+# Tip: To run a terminal scan without sending a Telegram alert, add --no-tg
+python3 scan_now.py --config config/intraday_1h.yaml --watchlist config/nasdaq_50_watchlist.txt --no-tg
+```
+
+### 3. Run the Local Interactive Dashboard
 ```bash
 python3 dashboard.py
 ```
-*Navigate to `http://127.0.0.1:5000` to view the UI.*
+*Navigate to `http://127.0.0.1:5000` to inspect interactive charts and trade setups.*
 
-### 3. Run a Backtest
+### 4. Run Backtests
 ```bash
-python3 run_backtest.py
-```
-*Results will automatically populate in the `/backtest` directory, generating equity curves, complete trade logs, and high-level `metrics.json`.*
+# Run multi-market backtest on 1H data
+python3 run_backtest.py --market us --watchlist config/top30_watchlist.txt --interval 1h --period 730d
 
-### 4. Command Line Scanner
-To run a one-off historical scan:
-```bash
-python3 -m breakout_scanner.cli scan --watchlist config/watchlist.txt --period 60d --interval 1h
+# Run Phase 2 single-variable experiment suite across all rules
+python3 run_phase2_experiments.py --market us --max-symbols 15
 ```
-
----
+*Results populate in the `backtest/` directory with detailed equity curves, metrics JSON, and trade logs.*
 
 ## 🛡️ Safeguards & Phase 10 (Live Execution)
 Before attaching live brokerage API keys (e.g., Alpaca, CCXT) for Phase 10, ensure that the `ProductionSafeguards` are correctly calibrated to your timezone and liquidity preferences. The engine is programmed to halt completely if daily loss limits are breached or data latency exceeds 120 seconds.
@@ -158,14 +178,14 @@ Breakouts are lost when entered late. The **Automated Session Scheduler** elimin
 * **Heartbeat & System Logging**: Continuous tracking logged to `logs/scanner.log`.
 
 ```bash
-# Start background daemon running at :01 past every hour
-python3 live_scanner.py --daemon
+# Start background daemon running at :01 past every hour with the 1H Optimal Long Model
+python3 live_scanner.py --config config/intraday_1h.yaml --watchlists config/nasdaq_50_watchlist.txt --daemon
 
 # Start background daemon with additional NSE/US session milestones
-python3 live_scanner.py --daemon --sessions
+python3 live_scanner.py --config config/intraday_1h.yaml --daemon --sessions
 
-# Run an immediate one-off candle scan
-python3 live_scanner.py --now
+# Run an immediate one-off candle scan with Options Trading configuration
+python3 live_scanner.py --config config/options_trading.yaml --watchlists config/sp_50_watchlist.txt --now
 
 # Send a test instant push alert to your phone
 python3 live_scanner.py --test-alert

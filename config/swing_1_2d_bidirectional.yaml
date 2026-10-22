@@ -1,0 +1,72 @@
+# ==============================================================================
+# 1-2 DAYS BI-DIRECTIONAL SWING CONFIG (BUY & SELL)
+# For active traders trading both long and short breakouts with strict
+# friction filtering and next-bar open confirmation.
+# ==============================================================================
+timeframe:
+  interval: 1h
+  period: 60d
+
+trend:
+  sma_length: 50
+  use_trend_filter: true
+  use_slope_filter: false
+  slope_lookback_bars: 5
+
+base:
+  base_lookback: 20
+  tight_lookback: 5
+  max_base_range_pct: 12.0
+  max_tight_range_pct: 6.0
+  require_tightening: false
+  min_setup_bars: 5
+  max_setup_bars: 30
+  tightening_threshold: 0.70
+
+volume:
+  use_volume_contraction: false
+  volume_length: 20
+  contraction_ratio: 0.90
+  use_breakout_volume: true
+  breakout_multiplier: 1.25
+  vdu_threshold: 0.75
+  rvol_threshold: 1.20
+  use_hourly_volume_profile: true     # Removes open/close volume bias
+  hourly_profile_days: 20
+
+breakout:
+  allow_shorts: true                  # Both Long (Buy) and Short (Sell) enabled
+  buffer_pct: 0.12
+  close_location: 0.55
+  require_momentum_candle: true
+  min_body_pct: 40.0
+  use_open_confirmation: true         # Vital: protects shorts against opening squeeze gap
+  max_open_gap_pct: 0.40
+
+risk:
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 0.75
+  max_stop_pct: 4.50
+  use_structure_stop: true
+  structure_buffer_pct: 0.25
+  account_size: 100000.0
+  risk_per_trade_pct: 1.0
+  slippage_pct: 0.05
+  commission_pct: 0.05
+  use_cost_filter: true               # Critical: blocks trades where friction > 12% of risk
+  max_friction_r: 0.12
+
+target:
+  target_lookback: 50
+  tp1_r: 1.0
+  tp2_r: 2.0
+
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.10
+  max_hold_bars: 14                   # ~2 full 7-hour trading sessions
+  max_hold_days: 2.0
+  use_time_exit: true
+  use_failed_breakout_exit: false
+  failed_breakout_max_bars: 3

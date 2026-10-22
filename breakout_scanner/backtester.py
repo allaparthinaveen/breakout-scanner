@@ -570,6 +570,22 @@ class Backtester:
             capital = _close_active_trade(active_trade, exit_fill, 'END_OF_DATA', final_time, capital)
             active_trade = None
 
+        # =========================================================================
+        # STEP 6: UNBIASED FORWARD RETURNS (All trades evaluated regardless of exit)
+        # =========================================================================
+        for trade in trades:
+            e_bar = trade.get('entry_bar')
+            e_price = trade.get('entry_price')
+            t_dir = trade.get('direction', 1)
+            if e_bar is not None and e_price is not None and e_price > 0:
+                for n_bars in (1, 2, 4, 8):
+                    fwd_idx = e_bar + n_bars
+                    if fwd_idx < len(df):
+                        fwd_close = float(df.iloc[fwd_idx]['Close'])
+                        trade[f'fwd_ret_{n_bars}b'] = round(float((fwd_close - e_price) / e_price * 100.0 * t_dir), 2)
+                    else:
+                        trade[f'fwd_ret_{n_bars}b'] = None
+
         self.results.extend(trades)
         return self._compute_metrics(trades, initial_capital, capital, self.equity_curve)
 

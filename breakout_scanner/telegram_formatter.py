@@ -161,6 +161,21 @@ def format_scan_report_html(setups: List[Setup]) -> str:
 
     lines.append("")
 
+    # 2.5 SECTION 2C: FAILED BREAKOUT EXITS
+    failed_setups = [s for s in setups if s.state == State.FAILED]
+    if failed_setups:
+        lines.append("⚠️ <b>SECTION 2C: FAILED BREAKOUT EXITS (Cut Position)</b>")
+        lines.append("────────────────────")
+        for s in failed_setups:
+            dir_str = "BUY" if s.direction == 1 else "SELL"
+            pnl_val = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
+            lines.append(
+                f"❌ <b>{s.symbol}</b>  🔴 <b>EXIT SIGNAL [{dir_str}]</b>\n"
+                f"• <b>Reason:</b> <code>{s.failure_reason or 'Price fell back inside base'}</code>\n"
+                f"• <b>Last Price:</b> <code>{format_price(s.current_price)}</code> | <b>PnL:</b> <code>{pnl_val}</code>\n"
+            )
+        lines.append("")
+
     # 3. SECTION 1: VCP BASES
     lines.append("◉ <b>SECTION 1: VCP BASES (Preparing Signal)</b>")
     lines.append("────────────────────")

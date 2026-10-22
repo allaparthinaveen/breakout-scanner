@@ -64,11 +64,38 @@ def scan_now():
         default="config/watchlist.txt",
         help="Path to watchlist file (defaults to config/watchlist.txt)",
     )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/default.yaml",
+        help="Path to strategy config yaml (e.g. config/intraday_1h.yaml, config/options_trading.yaml)",
+    )
+    parser.add_argument(
+        "--interval",
+        type=str,
+        default=None,
+        help="Candle timeframe interval: 1h, 1d, 15m (overrides config setting)",
+    )
+    parser.add_argument(
+        "--period",
+        type=str,
+        default=None,
+        help="Lookback period: 60d, 730d, 2y (overrides config setting)",
+    )
+    parser.add_argument(
+        "--no-tg",
+        action="store_true",
+        help="Suppress Telegram notification (CLI terminal report only)",
+    )
     args = parser.parse_args()
 
-    print("Loading config...")
-    cfg = load_config('config/default.yaml')
+    print(f"Loading config from {args.config}...")
+    cfg = load_config(args.config)
     provider = YFinanceProvider()
+    
+    # Resolve interval and period from CLI args, config, or sensible defaults
+    interval = args.interval or cfg.get('timeframe', {}).get('interval', '1h')
+    period = args.period or cfg.get('timeframe', {}).get('period', '60d')
     
     filename = args.watchlist
     symbols = []
@@ -83,20 +110,31 @@ def scan_now():
         print(f"File {filename} not found.")
         return
 
-    print(f"Scanning {len(symbols)} symbols from {filename}...")
+    print("=" * 65)
+    print(f"  BREAKOUT SCANNER: {os.path.basename(args.config).upper()}")
+    print("=" * 65)
+    print(f"  • Strategy Config: {args.config}")
+    print(f"  • Watchlist:       {filename} ({len(symbols)} symbols)")
+    print(f"  • Timeframe:       {interval.upper()} (Period: {period})")
+    print(f"  • Long-Only:       {'Yes' if not cfg.get('breakout', {}).get('allow_shorts', True) else 'No (Bi-directional)'}")
+    print(f"  • Cost Filter:     {'Enabled (Max ' + str(cfg.get('risk', {}).get('max_friction_r', 0.15)) + 'R)' if cfg.get('risk', {}).get('use_cost_filter') else 'Disabled'}")
+    print("=" * 65)
     
     from breakout_scanner.scanner import MultiSymbolScanner
     scanner = MultiSymbolScanner(provider, cfg)
     
     # Run scanner and grab results
-    setups = scanner.scan(symbols, period='60d', interval='1h')
+    setups = scanner.scan(symbols, period=period, interval=interval)
     
     # Print the CLI colored report
     scanner.report(setups)
     
-    # Build HTML string and send via Telegram
-    report_html = build_report_string(setups)
-    send_telegram_message(report_html)
+    # Build HTML string and send via Telegram if enabled
+    if not args.no_tg:
+        report_html = build_report_string(setups)
+        send_telegram_message(report_html)
+    else:
+        print("\n🔕 Telegram notification skipped (--no-tg specified).")
             
     print("Scan complete.")
 
