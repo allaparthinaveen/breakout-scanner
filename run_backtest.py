@@ -8,6 +8,7 @@ import numpy as np
 from breakout_scanner.config import load_config
 from breakout_scanner.backtester import Backtester
 from breakout_scanner.providers.yfinance_provider import YFinanceProvider
+from breakout_scanner.portfolio import simulate_shared_portfolio
 
 def load_watchlist(path: str) -> List[str]:
     """Load symbols from a watchlist file, ignoring comments and whitespace."""
@@ -150,14 +151,16 @@ def run_backtest_cli():
         long_avg_r = float(np.mean([t['realized_r'] for t in long_trades])) if long_trades else 0.0
         short_avg_r = float(np.mean([t['realized_r'] for t in short_trades])) if short_trades else 0.0
         
-        # Portfolio drawdown across chronological sequence of all trades
-        cum_pnl = np.cumsum([t['net_pnl'] for t in all_trades])
+        # Authentic Shared-Capital Portfolio Simulation ($100k wallet, concurrent positions <= 10)
         initial_cap = float(c_risk.get('account_size', 100000.0))
-        portfolio_curve = initial_cap + cum_pnl
-        running_peak = np.maximum.accumulate(portfolio_curve)
-        drawdowns = (portfolio_curve - running_peak) / running_peak * 100.0
-        portfolio_max_dd = float(abs(np.min(drawdowns))) if len(drawdowns) > 0 else 0.0
-        portfolio_net_return = (tot_net_pnl / initial_cap) * 100.0
+        risk_pct = float(c_risk.get('risk_per_trade_pct', 1.0))
+        shared_sim = simulate_shared_portfolio(
+            all_trades,
+            initial_capital=initial_cap,
+            risk_per_trade_pct=risk_pct,
+            max_concurrent_positions=10,
+            compound=True
+        )
         
         # Excursion & Diagnostics Metrics
         avg_mfe = float(np.mean([t['mfe_r'] for t in all_trades if 'mfe_r' in t])) if tot_trades > 0 else 0.0
@@ -181,8 +184,10 @@ def run_backtest_cli():
             'gross_pnl': round(tot_gross_pnl, 2),
             'total_commissions': round(tot_commissions, 2),
             'net_pnl': round(tot_net_pnl, 2),
-            'portfolio_net_return_pct': round(portfolio_net_return, 2),
-            'max_drawdown_pct': round(portfolio_max_dd, 2),
+            'shared_portfolio_net_return_pct': shared_sim['net_return_pct'],
+            'shared_portfolio_max_dd_pct': shared_sim['max_drawdown_pct'],
+            'shared_trades_executed': shared_sim['trades_executed'],
+            'shared_max_concurrent': shared_sim['max_concurrent_reached'],
             'long_trades': len(long_trades),
             'long_net_pnl': round(long_net_pnl, 2),
             'long_avg_r': round(long_avg_r, 2),
@@ -199,7 +204,7 @@ def run_backtest_cli():
         print(f"  • Win / Loss Distribution:  {len(wins)} Wins / {len(losses)} Losses")
         print(f"  • Realized Win Rate:        {win_rate:.2f}%")
         print(f"  • Profit Factor:            {profit_factor:.2f}")
-        print(f"  • Average R-Multiple:       {avg_r:+.2f}R (Long: {long_avg_r:+.2f}R | Short: {short_avg_r:+.2f}R)")
+        print(f"  • Statistical Average R:    {avg_r:+.2f}R (Long: {long_avg_r:+.2f}R | Short: {short_avg_r:+.2f}R)")
         print(f"  • TP1 (1.0R) Hit Rate:      {tp1_rate:.2f}%")
         print(f"  • Average Excursions:       MFE: {avg_mfe:+.2f}R | MAE: {avg_mae:.2f}R")
         print(f"  • Stop Floor Binding:       {floor_binding_count}/{tot_trades} ({floor_binding_pct:.1f}%)")
@@ -207,9 +212,13 @@ def run_backtest_cli():
             print(f"  • Failed Breakout Exits:    {failed_breakout_count} trades")
         print(f"  • Total Gross P&L:          ${tot_gross_pnl:>+12,.2f}")
         print(f"  • Total Frictions (Fees):   ${tot_commissions:>12,.2f}")
-        print(f"  • Net Realized P&L:         ${tot_net_pnl:>+12,.2f} (Long: ${long_net_pnl:>+,.2f} | Short: ${short_net_pnl:>+,.2f})")
-        print(f"  • Portfolio Net Return:     {portfolio_net_return:>+6.2f}%")
-        print(f"  • Portfolio Max Drawdown:   {portfolio_max_dd:>6.2f}%")
+        print(f"  • Realized Net P&L:         ${tot_net_pnl:>+12,.2f} (Long: ${long_net_pnl:>+,.2f} | Short: ${short_net_pnl:>+,.2f})")
+        print("-" * 70)
+        print("  📊 SHARED-CAPITAL PORTFOLIO SIMULATION ($100k Account, Max 10 Concurrent):")
+        print(f"  • Shared Portfolio Return:  {shared_sim['net_return_pct']:>+6.2f}% (${shared_sim['initial_capital']:,.0f} -> ${shared_sim['final_capital']:,.0f})")
+        print(f"  • Shared Max Drawdown:      {shared_sim['max_drawdown_pct']:>6.2f}% (Peak concurrent held: {shared_sim['max_concurrent_reached']})")
+        print(f"  • Trades Executed:          {shared_sim['trades_executed']} of {shared_sim['total_trades_considered']} (Rejected for capacity: {shared_sim['trades_rejected_capacity']})")
+        print("-" * 70)
         print("-" * 70)
         print(f"  📁 Trade Log Saved:         {trades_csv_path}")
         

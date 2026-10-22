@@ -220,30 +220,49 @@ class MultiSymbolScanner:
                     score += 1
             else:
                 # US Stocks: Wall Street Analyst Ratings & Earnings Risk
+                ticker = yf.Ticker(setup.symbol)
+                
+                # 1. Earnings Risk Check (Decoupled so ticker.info failure does not suppress earnings warning)
                 try:
-                    ticker = yf.Ticker(setup.symbol)
+                    cal = getattr(ticker, 'calendar', None)
+                    dates = None
+                    if isinstance(cal, dict):
+                        dates = cal.get('Earnings Date') or cal.get('Earnings date')
+                    elif isinstance(cal, pd.DataFrame):
+                        if 'Earnings Date' in cal.columns:
+                            dates = cal['Earnings Date'].tolist()
+                        elif 'Earnings Date' in cal.index:
+                            dates = cal.loc['Earnings Date'].tolist()
+                    elif hasattr(cal, 'get'):
+                        dates = cal.get('Earnings Date')
+
+                    if dates is not None:
+                        if isinstance(dates, (list, pd.Series, np.ndarray)) and len(dates) > 0:
+                            earning_date = dates[0]
+                        else:
+                            earning_date = dates
+                            
+                        if hasattr(earning_date, 'date'):
+                            earning_date = earning_date.date()
+                        elif isinstance(earning_date, str):
+                            try:
+                                earning_date = datetime.datetime.strptime(earning_date[:10], '%Y-%m-%d').date()
+                            except Exception:
+                                pass
+                                
+                        if isinstance(earning_date, datetime.date):
+                            days_until = (earning_date - datetime.date.today()).days
+                            if 0 <= days_until <= 3:
+                                setup.earnings_warning = True
+                except Exception:
+                    pass
+
+                # 2. Wall Street Analyst Ratings Check
+                try:
                     info = ticker.info
                     rec = info.get('recommendationKey', '')
                     if rec in ['buy', 'strong_buy', 'outperform']:
                         score += 1
-                        
-                    cal = ticker.calendar
-                    if isinstance(cal, dict) and 'Earnings Date' in cal:
-                        dates = cal['Earnings Date']
-                        if dates and isinstance(dates, list) and len(dates) > 0:
-                            earning_date = dates[0]
-                            days_until = (earning_date - datetime.date.today()).days
-                            if 0 <= days_until <= 3:
-                                setup.earnings_warning = True
-                    elif hasattr(cal, 'get'):
-                        earnings_val = cal.get('Earnings Date')
-                        if earnings_val is not None and len(earnings_val) > 0:
-                            earning_date = earnings_val[0] if isinstance(earnings_val, (list, pd.Series)) else earnings_val
-                            if hasattr(earning_date, 'date'):
-                                earning_date = earning_date.date()
-                            days_until = (earning_date - datetime.date.today()).days
-                            if 0 <= days_until <= 3:
-                                setup.earnings_warning = True
                 except Exception:
                     pass
         except Exception:

@@ -126,7 +126,7 @@ def define_experiment_variants(base_cfg: Dict[str, Any]) -> Dict[str, Dict[str, 
     v7['breakout']['allow_shorts'] = False
     variants["7_Long_Only"] = v7
     
-    # Variant 8: All Positive Rules Combined (1H Optimized Model)
+    # Variant 8: All Rules Combined (Kitchen Sink - All Flags Enabled)
     v8 = copy.deepcopy(base_cfg)
     v8['management']['max_hold_bars'] = 14
     v8['management']['max_hold_days'] = 2.0

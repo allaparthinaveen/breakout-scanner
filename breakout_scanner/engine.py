@@ -235,6 +235,7 @@ class BreakoutEngine:
                             self.setup.entry_day = row['Day']
                             self.setup.tp1_hit = False
                             self.setup.tp2_hit = False
+                            self.setup.confirmation_status = "PENDING_OPEN" if c_break.get('use_open_confirmation', False) else "CONFIRMED"
                             if row['AvgVolume'] > 0:
                                 self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
                         
@@ -283,6 +284,7 @@ class BreakoutEngine:
                         self.setup.entry_day = row['Day']
                         self.setup.tp1_hit = False
                         self.setup.tp2_hit = False
+                        self.setup.confirmation_status = "PENDING_OPEN" if c_break.get('use_open_confirmation', False) else "CONFIRMED"
                         if row['AvgVolume'] > 0:
                             self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
 
@@ -294,6 +296,39 @@ class BreakoutEngine:
                     delta = row['Day'] - self.setup.entry_day
                     days_diff = delta.days if hasattr(delta, 'days') else int(delta)
                     self.setup.held_days = max(1, days_diff)
+                
+                bars_in_trade = i - (self.setup.breakout_index or i)
+                
+                # Check Next-Bar Open Confirmation
+                hit_failed_confirmation = False
+                if c_break.get('use_open_confirmation', False) and bars_in_trade == 1:
+                    max_adverse_gap = c_break.get('max_open_gap_pct', 0.50)
+                    sig_close = self.setup.entry
+                    confirm_ok = True
+                    if active_dir == 1:
+                        gap_down_pct = ((sig_close - row['Open']) / sig_close * 100.0) if sig_close else 0.0
+                        holds_pivot = (row['Open'] >= self.setup.resistance * 0.999) if self.setup.resistance else True
+                        if gap_down_pct > max_adverse_gap or not holds_pivot:
+                            confirm_ok = False
+                    elif active_dir == -1:
+                        gap_up_pct = ((row['Open'] - sig_close) / sig_close * 100.0) if sig_close else 0.0
+                        holds_pivot = (row['Open'] <= self.setup.support * 1.001) if self.setup.support else True
+                        if gap_up_pct > max_adverse_gap or not holds_pivot:
+                            confirm_ok = False
+                    if not confirm_ok:
+                        hit_failed_confirmation = True
+                    else:
+                        self.setup.confirmation_status = "CONFIRMED"
+
+                if hit_failed_confirmation:
+                    self.setup.state = State.FAILED
+                    self.setup.failed_breakout_confirmed = True
+                    self.setup.failure_reason = "OPEN_CONFIRMATION_FAILED: Next-bar open gapped adversely or breached pivot"
+                    state = State.IDLE
+                    if i < len(df) - 1:
+                        self.setup = Setup(self.symbol)
+                    else:
+                        break
                 
                 # Check Retest Hold (Pullback to broken pivot that successfully holds)
                 if i > (self.setup.breakout_index or 0):
@@ -329,10 +364,12 @@ class BreakoutEngine:
                 
                 # Check Exits
                 hit_stop = (row['Low'] <= self.setup.stop) if active_dir == 1 else (row['High'] >= self.setup.stop)
-                hit_time = c_mgmt['use_time_exit'] and self.setup.held_days >= c_mgmt['max_hold_days']
+                hit_time = c_mgmt.get('use_time_exit', True) and (
+                    self.setup.held_days >= c_mgmt.get('max_hold_days', 999) or
+                    (c_mgmt.get('max_hold_bars') is not None and bars_in_trade >= c_mgmt['max_hold_bars'])
+                )
                 
                 # Failed Breakout Exit Check
-                bars_in_trade = i - (self.setup.breakout_index or i)
                 hit_failed_breakout = False
                 if c_mgmt.get('use_failed_breakout_exit', False) and bars_in_trade <= c_mgmt.get('failed_breakout_max_bars', 3):
                     if active_dir == 1 and self.setup.resistance and row['Close'] < self.setup.resistance:
@@ -353,9 +390,8 @@ class BreakoutEngine:
                         break
                 elif hit_stop or hit_time or hit_tp2:
                     state = State.IDLE
-                    if i < len(df) - 1:
-                        self.setup = Setup(self.symbol)
-                    else:
+                    self.setup = Setup(self.symbol)
+                    if i >= len(df) - 1:
                         break
                     
         # Calculate trailing trend for display
