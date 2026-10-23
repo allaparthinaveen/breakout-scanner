@@ -22,6 +22,7 @@ base:
   min_setup_bars: 5
   max_setup_bars: 30
   tightening_threshold: 0.70
+  min_box_density_pct: 75.0           # Consolidation Quality Gate: min 75% of closes inside base range
 
 volume:
   use_volume_contraction: false

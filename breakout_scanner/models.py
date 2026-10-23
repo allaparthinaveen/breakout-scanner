@@ -61,6 +61,8 @@ class Setup:
     rvol: Optional[float] = None
     decay_ratio: Optional[float] = None
     tightening_confirmed: bool = False
+    cons_density_pct: Optional[float] = None
+    cons_density_confirmed: bool = False
     rs_slope: Optional[float] = None
     rs_trend: str = ""
     composite_score: int = 0

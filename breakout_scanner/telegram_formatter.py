@@ -1,5 +1,6 @@
 from typing import List, Optional
 from datetime import datetime
+import numpy as np
 from .models import Setup, State
 
 
@@ -86,14 +87,19 @@ def format_scan_report_html(setups: List[Setup]) -> str:
     fresh_setups = [s for s in active_setups if s.is_fresh_entry]
     progress_setups = [s for s in active_setups if not s.is_fresh_entry]
 
-    fresh_setups.sort(
-        key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')),
-        reverse=True
-    )
-    progress_setups.sort(
-        key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')),
-        reverse=True
-    )
+    def safe_sort_active(s: Setup):
+        score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
+        if (s.entry is not None and s.current_price is not None and 
+            np.isfinite(s.entry) and np.isfinite(s.current_price) and s.entry > 0):
+            prox = -abs(s.entry - s.current_price) / s.entry
+            if not np.isfinite(prox):
+                prox = -999.0
+        else:
+            prox = -999.0
+        return (score, prox)
+
+    fresh_setups.sort(key=safe_sort_active, reverse=True)
+    progress_setups.sort(key=safe_sort_active, reverse=True)
 
     # 1. SECTION 2A: FRESH ACTIONABLE ENTRIES
     lines.append("🟢 <b>SECTION 2A: FRESH ENTRIES (Playable Now)</b>")
@@ -180,7 +186,7 @@ def format_scan_report_html(setups: List[Setup]) -> str:
     lines.append("◉ <b>SECTION 1: VCP BASES (Preparing Signal)</b>")
     lines.append("────────────────────")
     base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-    base_setups.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
+    base_setups.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
 
     if not base_setups:
         lines.append("<i>(None currently forming bases)</i>")

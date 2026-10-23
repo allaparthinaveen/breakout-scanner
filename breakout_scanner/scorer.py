@@ -18,13 +18,22 @@ Audit Fix 3 (P1) Integrity Rule:
 - Flags unconfirmed pillars on setup.evidence_status ('Unconfirmed HTF', 'Unconfirmed Sector', 'Unconfirmed Volume').
 """
 
+import numpy as np
 from typing import Tuple, List
 from .models import Setup, State
+
+def is_finite_num(val) -> bool:
+    if val is None:
+        return False
+    try:
+        return bool(np.isfinite(val))
+    except Exception:
+        return False
 
 def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     """
     Computes a composite score (0-100) and grade ('A+', 'A', 'B', 'C')
-    for a given Setup without phantom fallback points.
+    for a given Setup without phantom fallback points or NaN poisoning.
     Flags unconfirmed evidence pillars on setup.evidence_status.
     """
     unconfirmed: List[str] = []
@@ -34,7 +43,7 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     # ----------------------------------------------------
     p1 = 0
     # Base Width tightness (Max 10 pts)
-    if setup.base_width_pct is not None:
+    if is_finite_num(setup.base_width_pct):
         if setup.base_width_pct <= 4.0:
             p1 += 10
         elif setup.base_width_pct <= 6.5:
@@ -45,37 +54,39 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p1 += 3
         else:
             p1 += 1
-    # Missing base_width_pct yields 0 points
+    # Missing/NaN base_width_pct yields 0 points
 
     # Coil decay & tightness confirmation (Max 10 pts)
-    if setup.tightening_confirmed and setup.decay_ratio is not None and setup.decay_ratio <= 0.40:
-        p1 += 10
-    elif setup.tightening_confirmed or (setup.decay_ratio is not None and setup.decay_ratio <= 0.70):
-        p1 += 8
-    elif setup.decay_ratio is not None and setup.decay_ratio <= 0.85:
-        p1 += 5
-    elif setup.decay_ratio is not None:
-        p1 += 2
-    # Missing decay_ratio yields 0 points
+    if is_finite_num(setup.decay_ratio):
+        if setup.tightening_confirmed and setup.decay_ratio <= 0.40:
+            p1 += 10
+        elif setup.tightening_confirmed or setup.decay_ratio <= 0.70:
+            p1 += 8
+        elif setup.decay_ratio <= 0.85:
+            p1 += 5
+        else:
+            p1 += 2
+    # Missing/NaN decay_ratio yields 0 points
 
     # ----------------------------------------------------
     # Pillar 2: Volume Footprint (Max 20 pts)
     # ----------------------------------------------------
     p2 = 0
     if setup.state == State.CONTRACTION:
-        if setup.vdu_confirmed and setup.vdu_ratio is not None and setup.vdu_ratio <= 0.60:
-            p2 = 20
-        elif setup.vdu_confirmed or (setup.vdu_ratio is not None and setup.vdu_ratio <= 0.75):
-            p2 = 16
-        elif setup.vdu_ratio is not None and setup.vdu_ratio <= 0.90:
-            p2 = 11
-        elif setup.vdu_ratio is not None:
-            p2 = 5
+        if is_finite_num(setup.vdu_ratio):
+            if setup.vdu_confirmed and setup.vdu_ratio <= 0.60:
+                p2 = 20
+            elif setup.vdu_confirmed or setup.vdu_ratio <= 0.75:
+                p2 = 16
+            elif setup.vdu_ratio <= 0.90:
+                p2 = 11
+            else:
+                p2 = 5
         else:
             p2 = 0
             unconfirmed.append("Unconfirmed Volume")
     else:  # Active Breakout / Retest
-        if setup.rvol is not None:
+        if is_finite_num(setup.rvol):
             if setup.rvol >= 2.0:
                 p2 = 20
             elif setup.rvol >= 1.5:
@@ -94,12 +105,12 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     # Pillar 3: Multi-Timeframe Trend Template (Max 20 pts)
     # ----------------------------------------------------
     p3 = 0
-    target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.trend >= 0 else -1)
+    target_dir = setup.direction if setup.direction in (1, -1) else (1 if (is_finite_num(setup.trend) and setup.trend >= 0) else -1)
     
     # Daily (1D) Macro alignment (Max 12 pts)
     if setup.htf_confirmed:
         p3 += 12
-    elif setup.htf_trend is not None and setup.htf_trend != 0:
+    elif is_finite_num(setup.htf_trend) and setup.htf_trend != 0:
         if (target_dir == 1 and setup.htf_trend == 1) or (target_dir == -1 and setup.htf_trend == -1):
             p3 += 8
         else:
@@ -109,7 +120,7 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
         unconfirmed.append("Unconfirmed HTF")
 
     # Hourly (1H) Trend alignment (Max 8 pts)
-    if setup.trend is not None and setup.trend != 0:
+    if is_finite_num(setup.trend) and setup.trend != 0:
         if (target_dir == 1 and setup.trend == 1) or (target_dir == -1 and setup.trend == -1):
             p3 += 8
         else:
@@ -122,7 +133,7 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     # ----------------------------------------------------
     p4 = 0
     # Sector RS Delta (Max 10 pts)
-    if setup.sector_rs_pct is not None:
+    if is_finite_num(setup.sector_rs_pct):
         if target_dir == 1:  # Long
             if setup.sector_rs_pct >= 3.0:
                 p4 += 10
@@ -170,7 +181,7 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     # ----------------------------------------------------
     p5 = 0
     # Risk Tightness (Max 12 pts)
-    if setup.risk_pct is not None:
+    if is_finite_num(setup.risk_pct):
         if setup.risk_pct <= 1.2:
             p5 += 12
         elif setup.risk_pct <= 2.0:
@@ -181,7 +192,7 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p5 += 2
         else:
             p5 += 0
-    elif setup.base_width_pct is not None:
+    elif is_finite_num(setup.base_width_pct):
         if setup.base_width_pct <= 4.5:
             p5 += 12
         elif setup.base_width_pct <= 7.0:
@@ -199,19 +210,20 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
     if setup.state in (State.BUY, State.SELL):
         if setup.retest_confirmed:
             p5 += 8
-        elif setup.breakout_level is not None or setup.entry is not None:
+        elif is_finite_num(setup.breakout_level) or is_finite_num(setup.entry):
             p5 += 6
         else:
             p5 += 0
     else:
-        if setup.resistance is not None and setup.support is not None:
+        if is_finite_num(setup.resistance) and is_finite_num(setup.support):
             p5 += 8
-        elif setup.resistance is not None or setup.support is not None:
+        elif is_finite_num(setup.resistance) or is_finite_num(setup.support):
             p5 += 4
         else:
             p5 += 0
 
-    total_score = min(100, max(0, p1 + p2 + p3 + p4 + p5))
+    raw_sum = p1 + p2 + p3 + p4 + p5
+    total_score = int(min(100, max(0, raw_sum))) if is_finite_num(raw_sum) else 0
 
     if total_score >= 90:
         grade = "A+"

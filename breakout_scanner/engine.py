@@ -2,6 +2,14 @@ import pandas as pd
 import numpy as np
 from .models import Setup, State
 
+def is_finite_num(val) -> bool:
+    if val is None:
+        return False
+    try:
+        return bool(np.isfinite(val))
+    except Exception:
+        return False
+
 def get_sma(series, window):
     return series.rolling(window=window).mean()
 
@@ -53,12 +61,12 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df['BaseHigh'] = df['High'].rolling(c_base['base_lookback']).max()
     df['BaseLow'] = df['Low'].rolling(c_base['base_lookback']).min()
     df['BaseMid'] = (df['BaseHigh'] + df['BaseLow']) / 2
-    df['BaseRangePct'] = np.where(df['BaseMid'] > 0, (df['BaseHigh'] - df['BaseLow']) / df['BaseMid'] * 100, 999.0)
+    df['BaseRangePct'] = np.where((df['BaseMid'] > 0) & np.isfinite(df['BaseMid']), (df['BaseHigh'] - df['BaseLow']) / np.maximum(df['BaseMid'], 1e-12) * 100, 999.0)
     
     df['TightHigh'] = df['High'].rolling(c_base['tight_lookback']).max()
     df['TightLow'] = df['Low'].rolling(c_base['tight_lookback']).min()
     df['TightMid'] = (df['TightHigh'] + df['TightLow']) / 2
-    df['TightRangePct'] = np.where(df['TightMid'] > 0, (df['TightHigh'] - df['TightLow']) / df['TightMid'] * 100, 999.0)
+    df['TightRangePct'] = np.where((df['TightMid'] > 0) & np.isfinite(df['TightMid']), (df['TightHigh'] - df['TightLow']) / np.maximum(df['TightMid'], 1e-12) * 100, 999.0)
     
     # Previous Structure (shift by 1)
     df['PrevBaseHigh'] = df['High'].shift(1).rolling(c_base['base_lookback']).max()
@@ -69,7 +77,7 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     df['EarlierHigh'] = df['High'].shift(c_base['tight_lookback']).rolling(earlier_lookback).max()
     df['EarlierLow'] = df['Low'].shift(c_base['tight_lookback']).rolling(earlier_lookback).min()
     df['EarlierMid'] = (df['EarlierHigh'] + df['EarlierLow']) / 2
-    df['EarlierRangePct'] = np.where(df['EarlierMid'] > 0, (df['EarlierHigh'] - df['EarlierLow']) / df['EarlierMid'] * 100, 999.0)
+    df['EarlierRangePct'] = np.where((df['EarlierMid'] > 0) & np.isfinite(df['EarlierMid']), (df['EarlierHigh'] - df['EarlierLow']) / np.maximum(df['EarlierMid'], 1e-12) * 100, 999.0)
     df['RangeTightening'] = df['TightRangePct'] < df['EarlierRangePct']
     df['TighteningOK'] = df['RangeTightening'] if c_base.get('require_tightening', False) else True
     
@@ -159,19 +167,22 @@ class BreakoutEngine:
                     self.setup.cons_index = i
                     self.setup.resistance = row['PrevBaseHigh']
                     self.setup.support = row['PrevBaseLow']
-                    if self.setup.resistance and self.setup.support and self.setup.support > 0:
+                    if is_finite_num(self.setup.resistance) and is_finite_num(self.setup.support) and self.setup.support > 0:
                         mid = (self.setup.resistance + self.setup.support) / 2.0
-                        self.setup.base_width_pct = (self.setup.resistance - self.setup.support) / mid * 100.0
-                    base_vol = row['BaseAvgVol'] if ('BaseAvgVol' in row and row['BaseAvgVol'] > 0) else row['AvgVolume']
-                    if base_vol > 0:
+                        if mid > 0:
+                            self.setup.base_width_pct = (self.setup.resistance - self.setup.support) / mid * 100.0
+                    base_vol = row['BaseAvgVol'] if ('BaseAvgVol' in row and is_finite_num(row['BaseAvgVol']) and row['BaseAvgVol'] > 0) else row.get('AvgVolume', 0.0)
+                    if is_finite_num(base_vol) and base_vol > 0 and 'TightAvgVol' in row and is_finite_num(row['TightAvgVol']):
                         vdu = float(row['TightAvgVol'] / base_vol)
-                        self.setup.vdu_ratio = round(vdu, 2)
-                        self.setup.vdu_confirmed = vdu <= c_vol.get('vdu_threshold', 0.75)
-                    earlier_range = row['EarlierRangePct'] if ('EarlierRangePct' in row and 0 < row['EarlierRangePct'] < 500) else row['BaseRangePct']
-                    if 0 < earlier_range < 500 and 0 < row['TightRangePct'] < 500:
+                        if is_finite_num(vdu):
+                            self.setup.vdu_ratio = round(vdu, 2)
+                            self.setup.vdu_confirmed = vdu <= c_vol.get('vdu_threshold', 0.75)
+                    earlier_range = row['EarlierRangePct'] if ('EarlierRangePct' in row and is_finite_num(row['EarlierRangePct']) and 0 < row['EarlierRangePct'] < 500) else row.get('BaseRangePct', 0.0)
+                    if is_finite_num(earlier_range) and 'TightRangePct' in row and is_finite_num(row['TightRangePct']) and 0 < earlier_range < 500 and 0 < row['TightRangePct'] < 500:
                         decay = float(row['TightRangePct'] / earlier_range)
-                        self.setup.decay_ratio = round(decay, 2)
-                        self.setup.tightening_confirmed = decay <= c_base.get('tightening_threshold', 0.70)
+                        if is_finite_num(decay):
+                            self.setup.decay_ratio = round(decay, 2)
+                            self.setup.tightening_confirmed = decay <= c_base.get('tightening_threshold', 0.70)
             
             elif state == State.CONTRACTION:
                 setup_bars = i - setup_start + 1
@@ -180,15 +191,41 @@ class BreakoutEngine:
                     state = State.IDLE
                     self.setup = Setup(self.symbol)
                 else:
+                    # Consolidation Quality Gate:
+                    # Ensure at least 75% of candle closes in contraction phase reside strictly within base range
+                    min_density = c_base.get('min_box_density_pct', 75.0)
+                    res = self.setup.resistance
+                    sup = self.setup.support
+                    buf = c_break.get('buffer_pct', 0.10) / 100.0
+                    
+                    if i > setup_start and is_finite_num(res) and is_finite_num(sup) and res > sup:
+                        prior_closes = df['Close'].iloc[setup_start:i]
+                        inside_mask = (prior_closes >= sup * (1.0 - buf)) & (prior_closes <= res * (1.0 + buf))
+                        cons_density = float(inside_mask.sum() / len(prior_closes) * 100.0) if len(prior_closes) > 0 else 100.0
+                        self.setup.cons_density_pct = round(cons_density, 1)
+                        self.setup.cons_density_confirmed = cons_density >= min_density
+                    else:
+                        cons_density = 100.0
+                        self.setup.cons_density_pct = 100.0
+                        self.setup.cons_density_confirmed = True
+                    
+                    # If enough bars have formed and density fails the quality gate, reset to IDLE (erratic chop)
+                    if setup_bars >= c_base['min_setup_bars'] and cons_density < min_density:
+                        state = State.IDLE
+                        self.setup = Setup(self.symbol)
+                        continue
+
                     bull_break = row['Close'] >= self.setup.resistance * (1.0 + c_break['buffer_pct']/100.0)
                     bear_break = row['Close'] <= self.setup.support * (1.0 - c_break['buffer_pct']/100.0)
                     
                     long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
-                                   row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'])
+                                   row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'] and
+                                   self.setup.cons_density_confirmed)
                                    
                     short_signal = (c_break.get('allow_shorts', True) and
                                     setup_bars >= c_base['min_setup_bars'] and bear_break and 
-                                    row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
+                                    row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'] and
+                                    self.setup.cons_density_confirmed)
                                     
                     if long_signal:
                         structure_stop = self.setup.support * (1.0 - c_risk['structure_buffer_pct']/100.0)
@@ -201,34 +238,34 @@ class BreakoutEngine:
                         
                         # Calculate structural risk percentage
                         risk = abs(row['Close'] - final_stop)
-                        risk_pct = (risk / row['Close']) * 100.0 if row['Close'] else 0.0
+                        risk_pct = (risk / row['Close'] * 100.0) if (is_finite_num(row['Close']) and row['Close'] > 0) else 0.0
                         max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                         
                         # Cost / Friction Gate: round-trip cost relative to stop distance
                         round_trip_cost_pct = 2.0 * (c_risk.get('slippage_pct', 0.05) + c_risk.get('commission_pct', 0.05))
-                        friction_r = (round_trip_cost_pct / risk_pct) if risk_pct > 0 else 999.0
+                        friction_r = (round_trip_cost_pct / risk_pct) if (is_finite_num(risk_pct) and risk_pct > 0) else 999.0
                         cost_ok = (friction_r <= c_risk.get('max_friction_r', 0.15)) if c_risk.get('use_cost_filter', False) else True
                         
                         # Risk Separation Rule: If structural risk > max_stop_pct or friction too high, REJECT setup!
-                        if risk_pct > max_allowed_stop or not cost_ok:
+                        if risk_pct > max_allowed_stop or not cost_ok or not is_finite_num(risk_pct):
                             state = State.IDLE
                             self.setup = Setup(self.symbol)
                         else:
                             state = State.BUY
                             self.setup.state = State.BUY
                             self.setup.direction = 1
-                            self.setup.entry = row['Close']
-                            self.setup.stop = final_stop
-                            self.setup.original_stop = final_stop
-                            self.setup.risk_pct = risk_pct
-                            self.setup.friction_r = round(float(friction_r), 3)
-                            self.setup.tp1 = self.setup.entry + risk * c_tgt['tp1_r']
-                            self.setup.tp2 = self.setup.entry + risk * c_tgt['tp2_r']
+                            self.setup.entry = float(row['Close'])
+                            self.setup.stop = float(final_stop)
+                            self.setup.original_stop = float(final_stop)
+                            self.setup.risk_pct = round(float(risk_pct), 2)
+                            self.setup.friction_r = round(float(friction_r), 3) if is_finite_num(friction_r) else 999.0
+                            self.setup.tp1 = float(self.setup.entry + risk * c_tgt['tp1_r'])
+                            self.setup.tp2 = float(self.setup.entry + risk * c_tgt['tp2_r'])
                             self.setup.target = self.setup.tp2
-                            self.setup.breakout_level = self.setup.resistance
+                            self.setup.breakout_level = float(self.setup.resistance) if self.setup.resistance else self.setup.entry
                             
                             structure_target = row['StructTgtHigh']
-                            self.setup.tp3 = structure_target if structure_target > self.setup.tp2 else self.setup.entry + risk * 3.0
+                            self.setup.tp3 = float(structure_target) if (is_finite_num(structure_target) and structure_target > self.setup.tp2) else float(self.setup.entry + risk * 3.0)
                             
                             self.setup.breakout_index = i
                             self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
@@ -236,8 +273,10 @@ class BreakoutEngine:
                             self.setup.tp1_hit = False
                             self.setup.tp2_hit = False
                             self.setup.confirmation_status = "PENDING_OPEN" if c_break.get('use_open_confirmation', False) else "CONFIRMED"
-                            if row['AvgVolume'] > 0:
-                                self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
+                            if is_finite_num(row['AvgVolume']) and row['AvgVolume'] > 0 and is_finite_num(row['Volume']):
+                                rvol_val = float(row['Volume'] / row['AvgVolume'])
+                                if is_finite_num(rvol_val):
+                                    self.setup.rvol = round(rvol_val, 2)
                         
                     elif short_signal:
                         structure_stop = self.setup.resistance * (1.0 + c_risk['structure_buffer_pct']/100.0)
@@ -250,43 +289,45 @@ class BreakoutEngine:
                         
                         # Calculate structural risk percentage
                         risk = abs(row['Close'] - final_stop)
-                        risk_pct = (risk / row['Close']) * 100.0 if row['Close'] else 0.0
+                        risk_pct = (risk / row['Close'] * 100.0) if (is_finite_num(row['Close']) and row['Close'] > 0) else 0.0
                         max_allowed_stop = c_risk.get('max_stop_pct', 5.0)
                         
                         # Cost / Friction Gate: round-trip cost relative to stop distance
                         round_trip_cost_pct = 2.0 * (c_risk.get('slippage_pct', 0.05) + c_risk.get('commission_pct', 0.05))
-                        friction_r = (round_trip_cost_pct / risk_pct) if risk_pct > 0 else 999.0
+                        friction_r = (round_trip_cost_pct / risk_pct) if (is_finite_num(risk_pct) and risk_pct > 0) else 999.0
                         cost_ok = (friction_r <= c_risk.get('max_friction_r', 0.15)) if c_risk.get('use_cost_filter', False) else True
                         
                         # Risk Separation Rule: If structural risk > max_stop_pct or friction too high, REJECT setup!
-                        if risk_pct > max_allowed_stop or not cost_ok:
+                        if risk_pct > max_allowed_stop or not cost_ok or not is_finite_num(risk_pct):
                             state = State.IDLE
                             self.setup = Setup(self.symbol)
                         else:
                             state = State.SELL
                             self.setup.state = State.SELL
                             self.setup.direction = -1
-                            self.setup.entry = row['Close']
-                            self.setup.stop = final_stop
-                            self.setup.original_stop = final_stop
-                            self.setup.risk_pct = risk_pct
-                            self.setup.friction_r = round(float(friction_r), 3)
-                            self.setup.tp1 = self.setup.entry - risk * c_tgt['tp1_r']
-                            self.setup.tp2 = self.setup.entry - risk * c_tgt['tp2_r']
+                            self.setup.entry = float(row['Close'])
+                            self.setup.stop = float(final_stop)
+                            self.setup.original_stop = float(final_stop)
+                            self.setup.risk_pct = round(float(risk_pct), 2)
+                            self.setup.friction_r = round(float(friction_r), 3) if is_finite_num(friction_r) else 999.0
+                            self.setup.tp1 = float(self.setup.entry - risk * c_tgt['tp1_r'])
+                            self.setup.tp2 = float(self.setup.entry - risk * c_tgt['tp2_r'])
                             self.setup.target = self.setup.tp2
-                            self.setup.breakout_level = self.setup.support
+                            self.setup.breakout_level = float(self.setup.support) if self.setup.support else self.setup.entry
                             
                             structure_target = row['StructTgtLow']
-                            self.setup.tp3 = structure_target if structure_target < self.setup.tp2 else self.setup.entry - risk * 3.0
+                            self.setup.tp3 = float(structure_target) if (is_finite_num(structure_target) and structure_target < self.setup.tp2) else float(self.setup.entry - risk * 3.0)
                         
-                        self.setup.breakout_index = i
-                        self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
-                        self.setup.entry_day = row['Day']
-                        self.setup.tp1_hit = False
-                        self.setup.tp2_hit = False
-                        self.setup.confirmation_status = "PENDING_OPEN" if c_break.get('use_open_confirmation', False) else "CONFIRMED"
-                        if row['AvgVolume'] > 0:
-                            self.setup.rvol = round(float(row['Volume'] / row['AvgVolume']), 2)
+                            self.setup.breakout_index = i
+                            self.setup.breakout_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
+                            self.setup.entry_day = row['Day']
+                            self.setup.tp1_hit = False
+                            self.setup.tp2_hit = False
+                            self.setup.confirmation_status = "PENDING_OPEN" if c_break.get('use_open_confirmation', False) else "CONFIRMED"
+                            if is_finite_num(row['AvgVolume']) and row['AvgVolume'] > 0 and is_finite_num(row['Volume']):
+                                rvol_val = float(row['Volume'] / row['AvgVolume'])
+                                if is_finite_num(rvol_val):
+                                    self.setup.rvol = round(rvol_val, 2)
 
             elif state in (State.BUY, State.SELL):
                 active_dir = self.setup.direction
@@ -395,18 +436,18 @@ class BreakoutEngine:
                         break
                     
         # Calculate trailing trend for display
-        if not df.empty and not pd.isna(df['SMA'].iloc[-1]):
+        if not df.empty and is_finite_num(df['SMA'].iloc[-1]) and is_finite_num(df['Close'].iloc[-1]):
             self.setup.trend = 1 if df['Close'].iloc[-1] > df['SMA'].iloc[-1] else -1
         else:
             self.setup.trend = 0
-        self.setup.current_price = df['Close'].iloc[-1]
+        self.setup.current_price = float(df['Close'].iloc[-1]) if (not df.empty and is_finite_num(df['Close'].iloc[-1])) else None
         
         # Calculate current unrealized PnL % if in trade or failed
-        if self.setup.state in (State.BUY, State.SELL, State.FAILED) and self.setup.entry and self.setup.current_price:
+        if self.setup.state in (State.BUY, State.SELL, State.FAILED) and is_finite_num(self.setup.entry) and is_finite_num(self.setup.current_price) and self.setup.entry > 0:
             if self.setup.direction == 1:
-                self.setup.pnl_pct = (self.setup.current_price - self.setup.entry) / self.setup.entry * 100.0
+                self.setup.pnl_pct = round(float((self.setup.current_price - self.setup.entry) / self.setup.entry * 100.0), 2)
             elif self.setup.direction == -1:
-                self.setup.pnl_pct = (self.setup.entry - self.setup.current_price) / self.setup.entry * 100.0
+                self.setup.pnl_pct = round(float((self.setup.entry - self.setup.current_price) / self.setup.entry * 100.0), 2)
         
         # Calculate how many bars since the breakout
         if self.setup.state in (State.BUY, State.SELL, State.FAILED) and self.setup.breakout_index is not None:
@@ -416,18 +457,22 @@ class BreakoutEngine:
 
         # Update trailing VDU / RVOL / Coil Decay for current state display
         if self.setup.state == State.CONTRACTION and not df.empty:
-            base_vol = df['BaseAvgVol'].iloc[-1] if df['BaseAvgVol'].iloc[-1] > 0 else df['AvgVolume'].iloc[-1]
-            if base_vol > 0:
-                current_vdu = float(df['TightAvgVol'].iloc[-1] / base_vol)
-                self.setup.vdu_ratio = round(current_vdu, 2)
-                self.setup.vdu_confirmed = current_vdu <= c_vol.get('vdu_threshold', 0.75)
-            earlier_range = df['EarlierRangePct'].iloc[-1] if (0 < df['EarlierRangePct'].iloc[-1] < 500) else df['BaseRangePct'].iloc[-1]
-            if 0 < earlier_range < 500 and 0 < df['TightRangePct'].iloc[-1] < 500:
+            b_vol = df['BaseAvgVol'].iloc[-1] if ('BaseAvgVol' in df and is_finite_num(df['BaseAvgVol'].iloc[-1]) and df['BaseAvgVol'].iloc[-1] > 0) else df.get('AvgVolume', pd.Series()).iloc[-1]
+            if is_finite_num(b_vol) and b_vol > 0 and 'TightAvgVol' in df and is_finite_num(df['TightAvgVol'].iloc[-1]):
+                current_vdu = float(df['TightAvgVol'].iloc[-1] / b_vol)
+                if is_finite_num(current_vdu):
+                    self.setup.vdu_ratio = round(current_vdu, 2)
+                    self.setup.vdu_confirmed = current_vdu <= c_vol.get('vdu_threshold', 0.75)
+            earlier_range = df['EarlierRangePct'].iloc[-1] if ('EarlierRangePct' in df and is_finite_num(df['EarlierRangePct'].iloc[-1]) and 0 < df['EarlierRangePct'].iloc[-1] < 500) else df.get('BaseRangePct', pd.Series()).iloc[-1]
+            if is_finite_num(earlier_range) and 'TightRangePct' in df and is_finite_num(df['TightRangePct'].iloc[-1]) and 0 < earlier_range < 500 and 0 < df['TightRangePct'].iloc[-1] < 500:
                 current_decay = float(df['TightRangePct'].iloc[-1] / earlier_range)
-                self.setup.decay_ratio = round(current_decay, 2)
-                self.setup.tightening_confirmed = current_decay <= c_base.get('tightening_threshold', 0.70)
+                if is_finite_num(current_decay):
+                    self.setup.decay_ratio = round(current_decay, 2)
+                    self.setup.tightening_confirmed = current_decay <= c_base.get('tightening_threshold', 0.70)
         elif self.setup.state in (State.BUY, State.SELL) and not df.empty:
-            if self.setup.rvol is None and df['AvgVolume'].iloc[-1] > 0:
-                self.setup.rvol = round(float(df['Volume'].iloc[-1] / df['AvgVolume'].iloc[-1]), 2)
+            if self.setup.rvol is None and 'AvgVolume' in df and is_finite_num(df['AvgVolume'].iloc[-1]) and df['AvgVolume'].iloc[-1] > 0 and 'Volume' in df and is_finite_num(df['Volume'].iloc[-1]):
+                vol_ratio = float(df['Volume'].iloc[-1] / df['AvgVolume'].iloc[-1])
+                if is_finite_num(vol_ratio):
+                    self.setup.rvol = round(vol_ratio, 2)
             
         return self.setup
