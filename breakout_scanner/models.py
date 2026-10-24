@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 
 class State(str, Enum):
     IDLE = 'IDLE'
@@ -76,6 +76,25 @@ class Setup:
     options_status: str = "UNDERLYING_UNVALIDATED"
     failed_breakout_confirmed: bool = False
     confirmation_status: str = "CONFIRMED"
+
+    # Phase 2: Signal Quality & Noise Reduction
+    candle_close_loc: Optional[float] = None
+    candle_close_confirmed: bool = False
+    vdu_slope: Optional[float] = None
+    vdu_slope_confirmed: bool = False
+    distance_to_trigger_pct: Optional[float] = None
+    trigger_tightness_confirmed: bool = False
+    failed_breakouts_in_base: int = 0
+
+    # Phase 3: Confluence & Context Layer
+    htf_4h_trend: int = 0
+    htf_4h_confirmed: bool = False
+    days_to_earnings: Optional[int] = None
+    market_regime: str = "NORMAL"
+    market_regime_favorable: bool = True
+
+    # Phase 4: Risk & Portfolio Guard
+    position_allocation: Optional[Any] = None
 
     @property
     def breakout_score(self) -> int:

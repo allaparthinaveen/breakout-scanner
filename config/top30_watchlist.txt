@@ -9,6 +9,7 @@ CRM
 NOW
 ADBE
 ANET
+SPCX
 
 # Financials
 HOOD

@@ -87,6 +87,11 @@ def scan_now():
         action="store_true",
         help="Suppress Telegram notification (CLI terminal report only)",
     )
+    parser.add_argument(
+        "--slate",
+        action="store_true",
+        help="Display Phase 4 Institutional Actionable Trade Slate with exact sizing & risk budgeting",
+    )
     args = parser.parse_args()
 
     print(f"Loading config from {args.config}...")
@@ -128,6 +133,23 @@ def scan_now():
     
     # Print the CLI colored report
     scanner.report(setups)
+
+    # Phase 4: Actionable Trade Slate (if --slate is requested and not already printed by scanner.report)
+    if args.slate and not cfg.get('portfolio_guard', {}).get('enabled', False):
+        try:
+            from breakout_scanner.portfolio_guard import generate_actionable_slate, format_trade_slate_cli
+            slate = generate_actionable_slate(setups, config=cfg)
+            print(format_trade_slate_cli(slate))
+        except Exception as e:
+            print(f"Trade Slate error: {e}")
+
+    # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
+    try:
+        from breakout_scanner.telemetry import log_scan_metrics
+        market_label = 'crypto' if 'crypto' in filename.lower() else ('nse' if 'nifty' in filename.lower() or 'nse' in filename.lower() else 'us')
+        log_scan_metrics(setups, market=market_label, timeframe=interval, config_name=os.path.basename(args.config))
+    except Exception:
+        pass
     
     # Build HTML string and send via Telegram if enabled
     if not args.no_tg:

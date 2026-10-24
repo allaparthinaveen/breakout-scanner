@@ -269,7 +269,17 @@ class MultiSymbolScanner:
             pass
             
         setup.bias_score = score
-        c_score, c_grade = calculate_composite_score(setup)
+
+        # Phase 3: Confluence & Context Layer
+        try:
+            from .confluence import enrich_confluence_and_context
+            enrich_confluence_and_context(setup, df, proxy_df=proxy_df, cfg=self.cfg)
+        except Exception:
+            pass
+
+        quality_cfg = self.cfg.get('signal_quality', {}) if self.cfg else None
+        context_cfg = self.cfg.get('confluence_context', {}) if self.cfg else None
+        c_score, c_grade = calculate_composite_score(setup, quality_cfg=quality_cfg, context_cfg=context_cfg)
         setup.composite_score = c_score
         setup.composite_grade = c_grade
         # Phase 1: Options Policy Tag
@@ -295,7 +305,17 @@ class MultiSymbolScanner:
                 vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
                 trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
                 sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
-                htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
+                
+                # Multi-TF HTF Badging
+                if s.htf_confirmed and getattr(s, 'htf_4h_confirmed', False):
+                    htf = "\033[93m⭐⭐ Multi-TF (1D+4H)\033[0m"
+                elif s.htf_confirmed:
+                    htf = "\033[93m⭐ 1D Confirmed\033[0m"
+                elif getattr(s, 'htf_4h_confirmed', False):
+                    htf = "\033[93m⭐ 4H Confirmed\033[0m"
+                else:
+                    htf = ""
+
                 grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
                 
                 target_dir = s.direction if s.direction in (1, -1) else (1 if s.trend >= 0 else -1)
@@ -375,6 +395,15 @@ class MultiSymbolScanner:
                 d_str = "BUY" if s.direction == 1 else "SELL"
                 pnl_str = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
                 print(f"  ❌ \033[91m{s.symbol:<8}\033[0m | Was {d_str} | PnL: {pnl_str} | Alert: {s.failure_reason or 'Fell back inside base'}")
+
+        # Phase 4: Portfolio Guard Actionable Trade Slate
+        if self.cfg and self.cfg.get('portfolio_guard', {}).get('enabled', False):
+            try:
+                from .portfolio_guard import generate_actionable_slate, format_trade_slate_cli
+                slate = generate_actionable_slate(setups, config=self.cfg)
+                print(format_trade_slate_cli(slate))
+            except Exception:
+                pass
 
         print("\n")
 

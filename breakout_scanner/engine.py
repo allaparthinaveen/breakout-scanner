@@ -143,6 +143,12 @@ class BreakoutEngine:
         self.setup = Setup(self.symbol)
         if raw is None or raw.empty or len(raw) < 10:
             return self.setup
+
+        # Golden Rule guard: return IDLE gracefully if required OHLCV columns are missing
+        _required_cols = {"Open", "High", "Low", "Close", "Volume"}
+        if not _required_cols.issubset(set(raw.columns)):
+            return self.setup
+
         df = compute_indicators(raw, self.cfg)
         c_trend = self.cfg['trend']
         c_base = self.cfg['base']
@@ -474,5 +480,12 @@ class BreakoutEngine:
                 vol_ratio = float(df['Volume'].iloc[-1] / df['AvgVolume'].iloc[-1])
                 if is_finite_num(vol_ratio):
                     self.setup.rvol = round(vol_ratio, 2)
-            
+
+        # Phase 2: Enrich Signal Quality Metrics (Non-invasive pure enrichment)
+        try:
+            from .signal_quality import enrich_signal_quality
+            enrich_signal_quality(self.setup, df, self.cfg)
+        except Exception:
+            pass
+
         return self.setup

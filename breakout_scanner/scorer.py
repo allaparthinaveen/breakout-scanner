@@ -19,7 +19,7 @@ Audit Fix 3 (P1) Integrity Rule:
 """
 
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple, List, Optional, Dict, Any
 from .models import Setup, State
 
 def is_finite_num(val) -> bool:
@@ -30,11 +30,16 @@ def is_finite_num(val) -> bool:
     except Exception:
         return False
 
-def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
+def calculate_composite_score(
+    setup: Setup,
+    quality_cfg: Optional[Dict[str, Any]] = None,
+    context_cfg: Optional[Dict[str, Any]] = None
+) -> Tuple[int, str]:
     """
     Computes a composite score (0-100) and grade ('A+', 'A', 'B', 'C')
     for a given Setup without phantom fallback points or NaN poisoning.
-    Flags unconfirmed evidence pillars on setup.evidence_status.
+    Supports optional Phase 2 (Signal Quality) and Phase 3 (Confluence/Context)
+    additive modifiers behind feature-flagged config weights (default weight = 0.0).
     """
     unconfirmed: List[str] = []
 
@@ -223,7 +228,63 @@ def calculate_composite_score(setup: Setup) -> Tuple[int, str]:
             p5 += 0
 
     raw_sum = p1 + p2 + p3 + p4 + p5
-    total_score = int(min(100, max(0, raw_sum))) if is_finite_num(raw_sum) else 0
+
+    # ----------------------------------------------------
+    # Phase 2: Additive Signal Quality Modifiers (Behind Config Weights)
+    # ----------------------------------------------------
+    quality_adj = 0.0
+    if quality_cfg and quality_cfg.get("enabled", False):
+        w_close = float(quality_cfg.get("close_location_weight", 0.0))
+        w_vdu = float(quality_cfg.get("vdu_slope_weight", 0.0))
+        w_tight = float(quality_cfg.get("trigger_tightness_weight", 0.0))
+        w_failed = float(quality_cfg.get("failed_breakout_penalty_weight", 0.0))
+
+        # 1. Breakout Candle Close Location (Wick Guard)
+        if setup.state in (State.BUY, State.SELL):
+            if getattr(setup, "candle_close_confirmed", False):
+                quality_adj += w_close * 5.0
+            elif getattr(setup, "candle_close_loc", None) is not None and setup.candle_close_loc < 0.40:
+                quality_adj -= w_close * 5.0
+
+        # 2. Intra-Base Volume Dry-Up Slope
+        if setup.state == State.CONTRACTION and getattr(setup, "vdu_slope_confirmed", False):
+            quality_adj += w_vdu * 5.0
+
+        # 3. Continuous Distance-to-Trigger & Tightness
+        if setup.state == State.CONTRACTION and getattr(setup, "trigger_tightness_confirmed", False):
+            quality_adj += w_tight * 5.0
+
+        # 4. Base Piercing / Failed Breakout Memory Penalty
+        failed_count = getattr(setup, "failed_breakouts_in_base", 0)
+        if failed_count > 0:
+            quality_adj -= w_failed * min(2, failed_count) * 5.0
+
+    # ----------------------------------------------------
+    # Phase 3: Confluence & Context Modifiers (Behind Config Weights)
+    # ----------------------------------------------------
+    context_adj = 0.0
+    if context_cfg and context_cfg.get("enabled", False):
+        w_4h = float(context_cfg.get("htf_4h_weight", 0.0))
+        w_regime = float(context_cfg.get("market_regime_weight", 0.0))
+        w_earnings = float(context_cfg.get("earnings_risk_weight", 0.0))
+
+        # 1. 4H Structure Alignment Bonus
+        if getattr(setup, "htf_4h_confirmed", False):
+            context_adj += w_4h * 5.0
+
+        # 2. Market Regime Volatility Dampener
+        regime = getattr(setup, "market_regime", "NORMAL")
+        if regime == "HIGH_VOL_SELLOFF":
+            context_adj -= w_regime * 8.0
+        elif regime == "BEAR_TREND":
+            context_adj -= w_regime * 4.0
+
+        # 3. Earnings Risk Warning Penalty
+        if getattr(setup, "earnings_warning", False):
+            context_adj -= w_earnings * 5.0
+
+    final_sum = raw_sum + quality_adj + context_adj
+    total_score = int(min(100, max(0, round(final_sum)))) if is_finite_num(final_sum) else 0
 
     if total_score >= 90:
         grade = "A+"
