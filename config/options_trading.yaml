@@ -1,7 +1,17 @@
 # ==============================================================================
-# OPTIONS TRADING CONFIG (DIRECTIONAL CALL MOMENTUM)
-# Tailored for options traders where swift directional expansion is critical
-# to avoid theta decay and overcome option bid-ask spreads.
+# OPTIONS SCREENING CONFIG (UNDERLYING MOMENTUM FILTER ONLY)
+# ==============================================================================
+# IMPORTANT INSTITUTIONAL NOTICE:
+# This scanner filters UNDERLYING STOCKS with high directional momentum,
+# tight consolidation bases, and favorable volatility compression.
+# IT DOES NOT GENERATE EXECUTABLE OPTIONS ORDERS OR MODEL OPTION GREEKS.
+#
+# Before executing options based on this scanner's underlying signals:
+# 1. Delta: Select liquid call contracts with Delta between 0.40 and 0.60 (ATM/Slight OTM).
+# 2. Expiry: Choose 14 to 30 DTE (days to expiration) to avoid terminal theta decay.
+# 3. Bid-Ask Spread: Reject contracts where bid-ask spread > 10% of the option premium.
+# 4. Implied Volatility: Check IV percentile (< 50% preferred); avoid buying inflated IV before earnings.
+# 5. Risk Budget: Option risk is 100% of the premium paid, NOT the underlying stock stop distance.
 # ==============================================================================
 timeframe:
   interval: 1h

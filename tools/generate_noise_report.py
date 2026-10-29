@@ -206,31 +206,35 @@ class NoiseReportGenerator:
         lines.append("\n---\n")
 
         lines.append("## 2. Noise Attribution by Quant Score Tier")
-        lines.append("| Score Tier | Setups | Win Rate (TP1) | Avg Expectancy (R) | Avg MFE (R) |")
-        lines.append("| :--- | :---: | :---: | :---: | :---: |")
+        lines.append("| Score Tier | Setups | Win Rate (TP1) | Avg Expectancy (R) | Avg MFE (R) | Sample Confidence |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
         for bucket, metrics in report_data["by_score_bucket"].items():
-            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R | {metrics['avg_mfe']:.2f}R |")
+            conf = "✅ Adequate (N >= 30)" if metrics['count'] >= 30 else ("⚠️ [N < 30: Insufficient Sample]" if metrics['count'] > 0 else "—")
+            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R | {metrics['avg_mfe']:.2f}R | {conf} |")
         lines.append("\n---\n")
 
         lines.append("## 3. Noise Attribution by Box Quality (Base Width)")
-        lines.append("| Base Width Quality | Setups | Win Rate (TP1) | Avg Expectancy (R) | Avg MFE (R) |")
-        lines.append("| :--- | :---: | :---: | :---: | :---: |")
+        lines.append("| Base Width Quality | Setups | Win Rate (TP1) | Avg Expectancy (R) | Avg MFE (R) | Sample Confidence |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
         for bucket, metrics in report_data["by_base_width"].items():
-            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R | {metrics['avg_mfe']:.2f}R |")
+            conf = "✅ Adequate (N >= 30)" if metrics['count'] >= 30 else ("⚠️ [N < 30: Insufficient Sample]" if metrics['count'] > 0 else "—")
+            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R | {metrics['avg_mfe']:.2f}R | {conf} |")
         lines.append("\n---\n")
 
         lines.append("## 4. Volume Surge (RVOL) Impact on Breakout Hold")
-        lines.append("| RVOL Expansion Tier | Setups | Win Rate (TP1) | Avg Expectancy (R) |")
-        lines.append("| :--- | :---: | :---: | :---: |")
+        lines.append("| RVOL Expansion Tier | Setups | Win Rate (TP1) | Avg Expectancy (R) | Sample Confidence |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: |")
         for bucket, metrics in report_data["by_rvol"].items():
-            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R |")
+            conf = "✅ Adequate (N >= 30)" if metrics['count'] >= 30 else ("⚠️ [N < 30: Insufficient Sample]" if metrics['count'] > 0 else "—")
+            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R | {conf} |")
         lines.append("\n---\n")
 
         lines.append("## 5. Higher Timeframe (1D) Macro Alignment")
-        lines.append("| HTF Macro Status | Setups | Win Rate (TP1) | Avg Expectancy (R) |")
-        lines.append("| :--- | :---: | :---: | :---: |")
+        lines.append("| HTF Macro Status | Setups | Win Rate (TP1) | Avg Expectancy (R) | Sample Confidence |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: |")
         for bucket, metrics in report_data["by_htf_badge"].items():
-            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R |")
+            conf = "✅ Adequate (N >= 30)" if metrics['count'] >= 30 else ("⚠️ [N < 30: Insufficient Sample]" if metrics['count'] > 0 else "—")
+            lines.append(f"| **{bucket}** | {metrics['count']} | {metrics['t1_hit_rate']}% | {metrics['avg_r']:+.2f}R | {conf} |")
         lines.append("\n---\n")
 
         lines.append("## 6. Top Rejection Reasons Histogram")
@@ -250,6 +254,7 @@ class NoiseReportGenerator:
         lines.append(f"1. **Box Width Disparity**: Ultra-tight bases (<= 4%) demonstrate a **{tight_win}% win rate** vs. only **{loose_win}%** for loose boxes (> 7%). Loose bases are the single largest source of false-breakout noise.")
         lines.append(f"2. **Quant Score Reliability**: High-scoring setups (Grade A/A+) achieve higher expectancy than Grade C candidates ({grade_a_win}% vs {grade_c_win}%).")
         lines.append("3. **Recommendation for Phase 2**: Prioritize close-location scoring and failed-breakout penalties to further widen the edge between tight and loose setups without adding hard kill-gates.")
+        lines.append("4. **Statistical Significance Notice**: Tiers with sample size $N < 30$ carry high sampling variance and are labeled with ⚠️. Replicate findings across multiple market regimes and higher sample sizes before hard-filtering.")
 
         return "\n".join(lines)
 

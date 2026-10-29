@@ -123,6 +123,11 @@ def scan_now():
     print(f"  • Timeframe:       {interval.upper()} (Period: {period})")
     print(f"  • Long-Only:       {'Yes' if not cfg.get('breakout', {}).get('allow_shorts', True) else 'No (Bi-directional)'}")
     print(f"  • Cost Filter:     {'Enabled (Max ' + str(cfg.get('risk', {}).get('max_friction_r', 0.15)) + 'R)' if cfg.get('risk', {}).get('use_cost_filter') else 'Disabled'}")
+    if 'option' in args.config.lower():
+        print("  ⚠️  OPTIONS SCREENING NOTICE:")
+        print("  • Signals represent UNDERLYING stock momentum candidates only.")
+        print("  • Manual option chain required: Delta 0.40–0.60 | 14–30 DTE | Spread < 10% | IV < 50%.")
+        print("  • NEVER use underlying stop distance directly as option contract stop.")
     print("=" * 65)
     
     from breakout_scanner.scanner import MultiSymbolScanner

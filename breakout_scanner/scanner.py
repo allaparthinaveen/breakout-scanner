@@ -288,6 +288,52 @@ class MultiSymbolScanner:
         setup.options_status = "UNDERLYING_UNVALIDATED"
 
     def report(self, setups: List[Setup]):
+        active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
+        fresh_setups = [s for s in active_setups if s.is_fresh_entry]
+        progress_setups = [s for s in active_setups if not s.is_fresh_entry]
+
+        def safe_sort_active(s: Setup):
+            score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
+            if (s.entry is not None and s.current_price is not None and 
+                np.isfinite(s.entry) and np.isfinite(s.current_price) and s.entry > 0):
+                prox = -abs(s.entry - s.current_price) / s.entry
+                if not np.isfinite(prox):
+                    prox = -999.0
+            else:
+                prox = -999.0
+            return (score, prox)
+
+        fresh_setups.sort(key=safe_sort_active, reverse=True)
+        progress_setups.sort(key=safe_sort_active, reverse=True)
+
+        print("\n=======================================================")
+        print(" SECTION 2A: 🟢 FRESH ACTIONABLE ENTRIES (Playable Now)")
+        print("=======================================================")
+        if not fresh_setups:
+            print("  (None)")
+        else:
+            for s in fresh_setups:
+                print(self.format_active_setup(s, is_fresh=True))
+
+        print("\n=======================================================")
+        print(" SECTION 2B: 🔒 TRADES IN PROGRESS (Holders Only — Do Not Chase)")
+        print("=======================================================")
+        if not progress_setups:
+            print("  (None)")
+        else:
+            for s in progress_setups:
+                print(self.format_active_setup(s, is_fresh=False))
+
+        failed_setups = [s for s in setups if s.state == State.FAILED]
+        if failed_setups:
+            print("\n=======================================================")
+            print(" SECTION 2C: ⚠️ FAILED BREAKOUT EXITS (Exit Signal for Holders)")
+            print("=======================================================")
+            for s in failed_setups:
+                d_str = "BUY" if s.direction == 1 else "SELL"
+                pnl_str = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
+                print(f"  ❌ \033[91m{s.symbol:<8}\033[0m | Was {d_str} | PnL: {pnl_str} | Alert: {s.failure_reason or 'Fell back inside base'}")
+
         print("\n=======================================================")
         print(" SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)")
         print("=======================================================")
@@ -349,52 +395,6 @@ class MultiSymbolScanner:
                     parts.append(grade_badge)
                 parts.append(bias_str)
                 print(" | ".join(parts))
-
-        active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
-        fresh_setups = [s for s in active_setups if s.is_fresh_entry]
-        progress_setups = [s for s in active_setups if not s.is_fresh_entry]
-
-        def safe_sort_active(s: Setup):
-            score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
-            if (s.entry is not None and s.current_price is not None and 
-                np.isfinite(s.entry) and np.isfinite(s.current_price) and s.entry > 0):
-                prox = -abs(s.entry - s.current_price) / s.entry
-                if not np.isfinite(prox):
-                    prox = -999.0
-            else:
-                prox = -999.0
-            return (score, prox)
-
-        fresh_setups.sort(key=safe_sort_active, reverse=True)
-        progress_setups.sort(key=safe_sort_active, reverse=True)
-
-        print("\n=======================================================")
-        print(" SECTION 2A: 🟢 FRESH ACTIONABLE ENTRIES (Playable Now)")
-        print("=======================================================")
-        if not fresh_setups:
-            print("  (None)")
-        else:
-            for s in fresh_setups:
-                print(self.format_active_setup(s, is_fresh=True))
-
-        print("\n=======================================================")
-        print(" SECTION 2B: 🔒 TRADES IN PROGRESS (Holders Only — Do Not Chase)")
-        print("=======================================================")
-        if not progress_setups:
-            print("  (None)")
-        else:
-            for s in progress_setups:
-                print(self.format_active_setup(s, is_fresh=False))
-
-        failed_setups = [s for s in setups if s.state == State.FAILED]
-        if failed_setups:
-            print("\n=======================================================")
-            print(" SECTION 2C: ⚠️ FAILED BREAKOUT EXITS (Exit Signal for Holders)")
-            print("=======================================================")
-            for s in failed_setups:
-                d_str = "BUY" if s.direction == 1 else "SELL"
-                pnl_str = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
-                print(f"  ❌ \033[91m{s.symbol:<8}\033[0m | Was {d_str} | PnL: {pnl_str} | Alert: {s.failure_reason or 'Fell back inside base'}")
 
         # Phase 4: Portfolio Guard Actionable Trade Slate
         if self.cfg and self.cfg.get('portfolio_guard', {}).get('enabled', False):

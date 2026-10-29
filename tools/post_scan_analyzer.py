@@ -103,25 +103,33 @@ class PostScanAnalyzer:
                 mfe_r = max(mfe_r, float(favorable))
                 mae_r = max(mae_r, float(adverse))
 
+                # Pessimistic Stop-First: Check stop loss before evaluating target if both touched on the same bar
+                if low <= stop and not stopped_out:
+                    stopped_out = True
+                    stop_bar = idx
+                    # If stopped out on this bar and TP1 was not hit on an earlier bar, stop terminates trade
+                    if not t1_hit:
+                        break
+
                 if tp1 is not None and high >= tp1 and not t1_hit:
                     t1_hit = True
                     t1_bar = idx
 
                 if tp2 is not None and high >= tp2 and not t2_hit:
                     t2_hit = True
-
-                if low <= stop and not stopped_out:
-                    stopped_out = True
-                    stop_bar = idx
-                    # If stopped out before or on the bar without TP1 hit first, stop exits trade
-                    if not t1_hit:
-                        break
             else:
                 # Short calculations
                 favorable = (entry - low) / risk
                 adverse = (high - entry) / risk
                 mfe_r = max(mfe_r, float(favorable))
                 mae_r = max(mae_r, float(adverse))
+
+                # Pessimistic Stop-First: Check stop loss before target on the same bar
+                if high >= stop and not stopped_out:
+                    stopped_out = True
+                    stop_bar = idx
+                    if not t1_hit:
+                        break
 
                 if tp1 is not None and low <= tp1 and not t1_hit:
                     t1_hit = True
@@ -130,19 +138,13 @@ class PostScanAnalyzer:
                 if tp2 is not None and low <= tp2 and not t2_hit:
                     t2_hit = True
 
-                if high >= stop and not stopped_out:
-                    stopped_out = True
-                    stop_bar = idx
-                    if not t1_hit:
-                        break
-
-        # Determine definitive outcome
-        if t1_hit and (not stopped_out or (stop_bar is not None and t1_bar is not None and t1_bar <= stop_bar)):
-            outcome = "TP1_REACHED"
-            realized_r = 1.0
-        elif stopped_out:
+        # Determine definitive outcome (Pessimistic: stop takes precedence if on same bar)
+        if stopped_out and (t1_bar is None or stop_bar <= t1_bar):
             outcome = "STOPPED_OUT"
             realized_r = -1.0
+        elif t1_hit:
+            outcome = "TP1_REACHED"
+            realized_r = 1.0
         else:
             final_close = bars_to_check["Close"].iloc[-1]
             end_pnl_r = ((final_close - entry) / risk) if direction == 1 else ((entry - final_close) / risk)
@@ -209,11 +211,25 @@ class PostScanAnalyzer:
                 engine = BreakoutEngine(cfg, sym)
                 setup = engine.run(hist_slice)
 
-                # Track setups that are in active coiling base or breakout
-                if setup.state in (State.CONTRACTION, State.BUY, State.SELL):
-                    entry_val = setup.entry or setup.resistance or setup.current_price
-                    stop_val = setup.stop or (entry_val * 0.98 if entry_val else None)
-                    tp1_val = setup.tp1 or (entry_val + abs(entry_val - stop_val) if entry_val and stop_val else None)
+                # Evaluate only actual triggered breakouts (BUY / SELL) to measure genuine trade expectancy
+                if setup.state in (State.BUY, State.SELL):
+                    # Enrich confluence context (HTF 1D alignment, regime, sector alpha)
+                    try:
+                        from breakout_scanner.confluence import enrich_confluence_and_context
+                        enrich_confluence_and_context(setup, hist_slice, cfg=cfg)
+                    except Exception:
+                        pass
+
+                    from breakout_scanner.scorer import calculate_composite_score
+                    quality_cfg = cfg.get('signal_quality', {}) if cfg else None
+                    context_cfg = cfg.get('confluence_context', {}) if cfg else None
+                    c_score, c_grade = calculate_composite_score(setup, quality_cfg=quality_cfg, context_cfg=context_cfg)
+                    setup.composite_score = c_score
+                    setup.composite_grade = c_grade
+
+                    entry_val = setup.entry or setup.current_price
+                    stop_val = setup.stop or (entry_val * 0.98 if (entry_val and setup.direction == 1) else (entry_val * 1.02 if entry_val else None))
+                    tp1_val = setup.tp1 or (entry_val + abs(entry_val - stop_val) if (entry_val and stop_val and setup.direction == 1) else (entry_val - abs(entry_val - stop_val) if (entry_val and stop_val) else None))
 
                     cand_dict = {
                         "symbol": sym,
@@ -258,17 +274,42 @@ class PostScanAnalyzer:
 
 def run_historical_post_scan(
     cache_dir: str = "backtest/cache",
-    max_symbols: int = 10,
+    symbols: Optional[List[str]] = None,
+    max_symbols: int = 15,
     forward_bars: int = 10,
-    stride_bars: int = 25,
+    stride_bars: int = 10,
     max_bars_per_symbol: int = 1000
 ) -> List[Dict[str, Any]]:
     """Helper to run post-scan analyzer across cached pickle files."""
     analyzer = PostScanAnalyzer(forward_bars=forward_bars)
     symbols_data = {}
 
-    pkl_files = [f for f in sorted(os.listdir(cache_dir)) if f.endswith(".pkl") and not f.startswith("^")][:max_symbols]
-    for pkl in pkl_files:
+    if not os.path.isdir(cache_dir):
+        print(f"Cache directory {cache_dir} not found.")
+        return []
+
+    available = [f for f in sorted(os.listdir(cache_dir)) if f.endswith(".pkl") and not f.startswith("^")]
+
+    if symbols is None:
+        # Prefer liquid US tickers if present in cache
+        preferred = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "COST", "CRM", "CSCO", "JPM", "NFLX", "AMD", "QCOM", "INTC", "CAT", "DIS"]
+        chosen_files = []
+        for pref in preferred:
+            matches = [f for f in available if f.startswith(f"{pref}_")]
+            if matches:
+                chosen_files.append(matches[0])
+            if len(chosen_files) >= max_symbols:
+                break
+        if not chosen_files:
+            chosen_files = available[:max_symbols]
+    else:
+        chosen_files = []
+        for s in symbols:
+            matches = [f for f in available if f.startswith(f"{s}_")]
+            if matches:
+                chosen_files.append(matches[0])
+
+    for pkl in chosen_files:
         sym = pkl.split("_")[0]
         path = os.path.join(cache_dir, pkl)
         try:
@@ -278,5 +319,23 @@ def run_historical_post_scan(
         except Exception:
             pass
 
-    print(f"Loaded {len(symbols_data)} symbols from {cache_dir}. Analyzing forward outcomes...")
+    print(f"Loaded {len(symbols_data)} symbols ({', '.join(symbols_data.keys())}) from {cache_dir}. Analyzing forward outcomes...")
     return analyzer.analyze_historical_dataset(symbols_data, stride_bars=stride_bars)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run forward outcome tracking on historical breakouts")
+    parser.add_argument("--cache-dir", type=str, default="backtest/cache")
+    parser.add_argument("--max-symbols", type=int, default=15)
+    parser.add_argument("--stride", type=int, default=5)
+    parser.add_argument("--output", type=str, default=DEFAULT_OUTCOMES_FILE)
+    args = parser.parse_args()
+
+    if os.path.exists(args.output):
+        try:
+            os.remove(args.output)
+        except Exception:
+            pass
+
+    outcomes = run_historical_post_scan(cache_dir=args.cache_dir, max_symbols=args.max_symbols, stride_bars=args.stride)
+    print(f"Successfully evaluated and saved {len(outcomes)} breakout outcomes to {args.output}")

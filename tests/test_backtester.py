@@ -421,3 +421,185 @@ def test_hourly_timeframe_hold_days_synchronization():
     assert trade['held_days'] >= 2.0
 
 
+def test_same_bar_collision_pessimistic_stop_long():
+    """Verify that when both TP1 and Stop are touched on the same candle, stop takes precedence (pessimistic fill)."""
+    cfg = load_config()
+    cfg['volume']['use_breakout_volume'] = False
+    cfg['trend']['use_trend_filter'] = False
+    cfg['base']['require_tightening'] = False
+    cfg['risk']['slippage_pct'] = 0.0
+    cfg['risk']['commission_pct'] = 0.0
+
+    df = create_base_df(60, 100.0)
+
+    # Breakout at bar 50
+    df.loc[df.index[50], 'Open'] = 101.0
+    df.loc[df.index[50], 'High'] = 105.0
+    df.loc[df.index[50], 'Low'] = 100.5
+    df.loc[df.index[50], 'Close'] = 104.8
+
+    # Bar 51: Entry at 105.0. Stop is ~102.0. Risk ~3.0. TP1 is 108.0
+    df.loc[df.index[51], 'Open'] = 105.0
+    df.loc[df.index[51], 'High'] = 105.5
+    df.loc[df.index[51], 'Low'] = 104.5
+    df.loc[df.index[51], 'Close'] = 105.0
+
+    # Bar 52: Touches TP1 (High = 110.0) AND Breaches Stop (Low = 99.0)!
+    df.loc[df.index[52], 'Open'] = 105.0
+    df.loc[df.index[52], 'High'] = 110.0  # touches TP1
+    df.loc[df.index[52], 'Low'] = 99.0   # touches Stop Loss
+    df.loc[df.index[52], 'Close'] = 102.0
+
+    tester = Backtester(cfg)
+    tester.run('TEST_COLLISION_LONG', df)
+
+    assert len(tester.results) >= 1
+    trade = tester.results[0]
+    # Pessimistic execution MUST mark STOP_LOSS, not TP1
+    assert trade['exit_reason'] == 'STOP_LOSS'
+    assert trade['tp1_hit'] is False
+    assert trade['net_pnl'] < 0
+    assert trade['realized_r'] <= -1.0
+
+
+def test_same_bar_collision_pessimistic_stop_short():
+    """Verify that for a short trade, if both TP1 and Stop are touched on the same candle, stop takes precedence."""
+    cfg = load_config()
+    cfg['volume']['use_breakout_volume'] = False
+    cfg['trend']['use_trend_filter'] = False
+    cfg['base']['require_tightening'] = False
+    cfg['breakout']['allow_shorts'] = True
+    cfg['risk']['slippage_pct'] = 0.0
+    cfg['risk']['commission_pct'] = 0.0
+
+    df = create_base_df(60, 100.0)
+
+    # Bearish breakdown at bar 50
+    df.loc[df.index[50], 'Open'] = 99.0
+    df.loc[df.index[50], 'High'] = 99.5
+    df.loc[df.index[50], 'Low'] = 95.0
+    df.loc[df.index[50], 'Close'] = 95.2
+
+    # Bar 51: Short entry at 95.0. Stop ~98.0. Risk ~3.0. TP1 ~92.0
+    df.loc[df.index[51], 'Open'] = 95.0
+    df.loc[df.index[51], 'High'] = 95.5
+    df.loc[df.index[51], 'Low'] = 94.5
+    df.loc[df.index[51], 'Close'] = 95.0
+
+    # Bar 52: Touches short TP1 (Low = 90.0) AND Breaches Short Stop (High = 100.0)!
+    df.loc[df.index[52], 'Open'] = 95.0
+    df.loc[df.index[52], 'High'] = 100.0  # touches Short Stop Loss
+    df.loc[df.index[52], 'Low'] = 90.0   # touches Short TP1
+    df.loc[df.index[52], 'Close'] = 98.0
+
+    tester = Backtester(cfg)
+    tester.run('TEST_COLLISION_SHORT', df)
+
+    assert len(tester.results) >= 1
+    trade = tester.results[0]
+    assert trade['exit_reason'] == 'STOP_LOSS'
+    assert trade['tp1_hit'] is False
+    assert trade['net_pnl'] < 0
+
+
+def test_short_gap_through_stop_execution():
+    """Verify short trade open gap-up through stop exits at Open, not theoretical stop."""
+    cfg = load_config()
+    cfg['volume']['use_breakout_volume'] = False
+    cfg['trend']['use_trend_filter'] = False
+    cfg['base']['require_tightening'] = False
+    cfg['breakout']['allow_shorts'] = True
+    cfg['risk']['slippage_pct'] = 0.0
+    cfg['risk']['commission_pct'] = 0.0
+
+    df = create_base_df(60, 100.0)
+
+    # Bearish breakdown at bar 50
+    df.loc[df.index[50], 'Open'] = 99.0
+    df.loc[df.index[50], 'High'] = 99.5
+    df.loc[df.index[50], 'Low'] = 95.0
+    df.loc[df.index[50], 'Close'] = 95.2
+
+    # Bar 51: Short entry at 95.0. Stop ~98.0
+    df.loc[df.index[51], 'Open'] = 95.0
+    df.loc[df.index[51], 'High'] = 95.5
+    df.loc[df.index[51], 'Low'] = 94.5
+    df.loc[df.index[51], 'Close'] = 95.0
+
+    # Bar 52: Gaps up well above stop (opens at 102.0)
+    df.loc[df.index[52], 'Open'] = 102.0  # Gap above stop
+    df.loc[df.index[52], 'High'] = 103.0
+    df.loc[df.index[52], 'Low'] = 101.5
+    df.loc[df.index[52], 'Close'] = 102.5
+
+    tester = Backtester(cfg)
+    tester.run('TEST_GAP_SHORT', df)
+
+    assert len(tester.results) >= 1
+    trade = tester.results[0]
+    assert trade['exit_reason'] == 'GAP_STOP'
+    assert trade['exit_price'] == pytest.approx(102.0, rel=1e-3)
+    assert trade['net_pnl'] < 0
+
+
+def test_time_exit_weekend_gap_resilience():
+    """Verify that hourly trades held over a weekend do not prematurely exit on Monday morning."""
+    cfg = load_config()
+    cfg['volume']['use_breakout_volume'] = False
+    cfg['trend']['use_trend_filter'] = False
+    cfg['base']['require_tightening'] = False
+    cfg['risk']['slippage_pct'] = 0.0
+    cfg['risk']['commission_pct'] = 0.0
+    cfg['management']['use_time_exit'] = True
+    cfg['management']['max_hold_days'] = 2.0  # 2 trading days
+
+    # Construct timestamps: 50 base bars on Thursday-Friday
+    base_dates = [pd.Timestamp('2024-01-05 09:00') - pd.Timedelta(hours=50-i) for i in range(50)]
+    dates = base_dates + [
+        pd.Timestamp('2024-01-05 14:00'),  # Bar 50: Breakout
+        pd.Timestamp('2024-01-05 15:00'),  # Bar 51: Entry
+        pd.Timestamp('2024-01-08 09:30'),  # Bar 52: Monday morning
+        pd.Timestamp('2024-01-08 10:30'),  # Bar 53: Monday morning
+        pd.Timestamp('2024-01-08 11:30'),  # Bar 54: Monday morning
+    ]
+
+    n = len(dates)
+    closes = np.full(n, 100.0)
+    df = pd.DataFrame({
+        'Open': closes - 0.1,
+        'High': closes + 0.5,
+        'Low': closes - 0.5,
+        'Close': closes,
+        'Volume': np.full(n, 100000.0)
+    }, index=pd.DatetimeIndex(dates))
+
+    # Breakout at bar 50
+    df.loc[df.index[50], 'Open'] = 101.0
+    df.loc[df.index[50], 'High'] = 106.0
+    df.loc[df.index[50], 'Low'] = 100.5
+    df.loc[df.index[50], 'Close'] = 105.0
+
+    # Bar 51: Entry at 105.0
+    df.loc[df.index[51], 'Open'] = 105.0
+    df.loc[df.index[51], 'High'] = 105.5
+    df.loc[df.index[51], 'Low'] = 104.5
+    df.loc[df.index[51], 'Close'] = 105.0
+
+    # Bars 52-54: Hover safely
+    for b in range(52, n):
+        df.loc[df.index[b], 'Open'] = 105.0
+        df.loc[df.index[b], 'High'] = 105.5
+        df.loc[df.index[b], 'Low'] = 104.5
+        df.loc[df.index[b], 'Close'] = 105.0
+
+    tester = Backtester(cfg)
+    tester.run('TEST_WEEKEND', df)
+
+    assert len(tester.results) >= 1
+    trade = tester.results[0]
+    # Trade MUST NOT be closed on Monday morning due to calendar weekend hours!
+    assert trade['exit_reason'] == 'END_OF_DATA'
+    assert trade['held_days'] < 2.0
+
+
+

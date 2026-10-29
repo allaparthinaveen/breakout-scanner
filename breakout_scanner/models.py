@@ -139,3 +139,29 @@ class Setup:
             return False
 
         return favorable_dist <= 1.0
+
+    @property
+    def trade_status_label(self) -> str:
+        """
+        Unambiguous institutional trade classification:
+        - WATCH: Consolidating inside VCP base (preparation phase)
+        - CONFIRMED: Fresh breakout within entry tolerance, playable now
+        - LATE_CHASE: Extended past entry tolerance
+        - TP1_REACHED: Take-profit 1 hit, holders only
+        - FAILED_EXIT: Breached stop or fell back into base
+        - BLOCKED_BY_RISK: High friction, wide risk, or imminent earnings
+        """
+        if self.state == State.FAILED:
+            return "FAILED_EXIT"
+        if self.earnings_warning:
+            return "BLOCKED_BY_RISK"
+        if self.state == State.CONTRACTION:
+            return "WATCH"
+        if self.state in (State.BUY, State.SELL):
+            if self.is_fresh_entry:
+                return "CONFIRMED"
+            elif self.is_tp1_reached:
+                return "TP1_REACHED"
+            else:
+                return "LATE_CHASE"
+        return "IDLE"

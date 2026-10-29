@@ -85,6 +85,38 @@ def test_post_scan_analyzer_stopped_out():
     assert res["mae_r"] >= 1.2  # Low reached 94, (100-94)/5 = 1.2R
 
 
+def test_post_scan_analyzer_same_bar_collision_pessimistic_stop():
+    """Verify that when both TP1 and Stop are touched on the same candle, stop takes precedence."""
+    analyzer = PostScanAnalyzer(forward_bars=5)
+
+    candidate = {
+        "symbol": "TEST_COLLISION",
+        "timestamp": "2026-10-24T10:00:00Z",
+        "direction": 1,
+        "entry": 100.0,
+        "stop": 95.0,
+        "tp1": 105.0,
+        "tp2": 110.0,
+        "risk": 5.0,
+        "composite_score": 80,
+        "composite_grade": "A"
+    }
+
+    # Bar 1 touches High = 106.0 (TP1) AND Low = 94.0 (Stop)!
+    future_candles = pd.DataFrame([
+        {"Open": 100.0, "High": 106.0, "Low": 94.0, "Close": 98.0, "Volume": 5000},
+        {"Open": 98.0, "High": 107.0, "Low": 97.0, "Close": 106.0, "Volume": 2000},
+    ])
+
+    res = analyzer.evaluate_candidate_forward(candidate, future_candles)
+
+    # Pessimistic execution MUST mark STOPPED_OUT, not TP1_REACHED
+    assert res["outcome"] == "STOPPED_OUT"
+    assert res["t1_hit"] is False
+    assert res["stopped_out"] is True
+    assert res["realized_r"] == -1.0
+
+
 def test_noise_report_generator_aggregation(tmp_path):
     """Test report compilation across score tiers, box quality, and RVOL levels."""
     outcomes = [

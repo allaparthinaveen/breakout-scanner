@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-10-24T05:05:08.395147+00:00",
-  "total_candidates_analyzed": 216,
+  "generated_at": "2026-10-28T15:56:14.437950+00:00",
+  "total_candidates_analyzed": 429,
   "overall_metrics": {
-    "t1_hit_rate_pct": 12.5,
-    "stopped_out_rate_pct": 79.63,
-    "average_realized_r": -0.665,
-    "average_mfe_r": 2.31,
-    "average_mae_r": 2.28
+    "t1_hit_rate_pct": 56.18,
+    "stopped_out_rate_pct": 46.85,
+    "average_realized_r": 0.2,
+    "average_mfe_r": 8.67,
+    "average_mae_r": 1.85
   },
   "by_score_bucket": {
     "Grade A+ [90-100]": {
@@ -28,52 +28,52 @@
       "avg_mfe": 0.0
     },
     "Grade C  [<70]": {
-      "count": 216,
-      "t1_hit_rate": 12.5,
-      "avg_r": -0.67,
-      "avg_mfe": 2.31
+      "count": 429,
+      "t1_hit_rate": 56.2,
+      "avg_r": 0.2,
+      "avg_mfe": 8.67
     }
   },
   "by_base_width": {
     "Ultra-Tight (<= 4.0%)": {
-      "count": 37,
-      "t1_hit_rate": 21.6,
-      "avg_r": -0.32,
-      "avg_mfe": 0.84
+      "count": 125,
+      "t1_hit_rate": 54.4,
+      "avg_r": 0.14,
+      "avg_mfe": 7.58
     },
     "Medium Box (4.1% - 7.0%)": {
-      "count": 71,
-      "t1_hit_rate": 14.1,
-      "avg_r": -0.61,
-      "avg_mfe": 1.6
+      "count": 174,
+      "t1_hit_rate": 62.1,
+      "avg_r": 0.32,
+      "avg_mfe": 9.82
     },
     "Loose Box (> 7.0%)": {
-      "count": 108,
-      "t1_hit_rate": 8.3,
-      "avg_r": -0.82,
-      "avg_mfe": 3.28
+      "count": 130,
+      "t1_hit_rate": 50.0,
+      "avg_r": 0.1,
+      "avg_mfe": 8.18
     }
   },
   "by_rvol": {
     "Explosive (>= 2.0x)": {
-      "count": 17,
-      "t1_hit_rate": 58.8,
-      "avg_r": 0.19
+      "count": 245,
+      "t1_hit_rate": 60.0,
+      "avg_r": 0.29
     },
     "Solid (1.5x - 2.0x)": {
-      "count": 8,
-      "t1_hit_rate": 12.5,
-      "avg_r": -0.4
+      "count": 95,
+      "t1_hit_rate": 42.1,
+      "avg_r": -0.09
     },
     "Moderate (1.2x - 1.5x)": {
-      "count": 2,
-      "t1_hit_rate": 50.0,
-      "avg_r": 0.0
+      "count": 89,
+      "t1_hit_rate": 60.7,
+      "avg_r": 0.25
     },
     "Low (< 1.2x or Unconfirmed)": {
-      "count": 189,
-      "t1_hit_rate": 7.9,
-      "avg_r": -0.76
+      "count": 0,
+      "t1_hit_rate": 0.0,
+      "avg_r": 0.0
     }
   },
   "by_htf_badge": {
@@ -83,10 +83,17 @@
       "avg_r": 0.0
     },
     "Neutral / Unconfirmed": {
-      "count": 216,
-      "t1_hit_rate": 12.5,
-      "avg_r": -0.67
+      "count": 429,
+      "t1_hit_rate": 56.2,
+      "avg_r": 0.2
     }
   },
-  "top_reject_reasons": {}
+  "top_reject_reasons": {
+    "NO_VOLUME_DRYUP": 1137,
+    "COUNTER_OR_NO_HTF_ALIGNMENT": 870,
+    "SUBOPTIMAL_GRADE_C": 529,
+    "IDLE_NO_STRUCTURE": 239,
+    "UNCOILED_DECAY_GT_0_70": 214,
+    "LOOSE_RANGE_GT_10PCT": 145
+  }
 }
