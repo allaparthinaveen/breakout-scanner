@@ -432,7 +432,6 @@ class MultiSymbolScanner:
         sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
         htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
         grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
-        options_badge = f"\033[90m[Opt: {s.options_status}]\033[0m"
         
         parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
         if risk_str:
@@ -449,7 +448,6 @@ class MultiSymbolScanner:
             parts.append(htf)
         if grade_badge:
             parts.append(grade_badge)
-        parts.append(options_badge)
             
         if not is_fresh:
             pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
