@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-10-28T15:56:14.437950+00:00",
+  "total_candidates_analyzed": 429,
+  "overall_metrics": {
+    "t1_hit_rate_pct": 56.18,
+    "stopped_out_rate_pct": 46.85,
+    "average_realized_r": 0.2,
+    "average_mfe_r": 8.67,
+    "average_mae_r": 1.85
+  },
+  "by_score_bucket": {
+    "Grade A+ [90-100]": {
+      "count": 0,
+      "t1_hit_rate": 0.0,
+      "avg_r": 0.0,
+      "avg_mfe": 0.0
+    },
+    "Grade A  [80-89]": {
+      "count": 0,
+      "t1_hit_rate": 0.0,
+      "avg_r": 0.0,
+      "avg_mfe": 0.0
+    },
+    "Grade B  [70-79]": {
+      "count": 0,
+      "t1_hit_rate": 0.0,
+      "avg_r": 0.0,
+      "avg_mfe": 0.0
+    },
+    "Grade C  [<70]": {
+      "count": 429,
+      "t1_hit_rate": 56.2,
+      "avg_r": 0.2,
+      "avg_mfe": 8.67
+    }
+  },
+  "by_base_width": {
+    "Ultra-Tight (<= 4.0%)": {
+      "count": 125,
+      "t1_hit_rate": 54.4,
+      "avg_r": 0.14,
+      "avg_mfe": 7.58
+    },
+    "Medium Box (4.1% - 7.0%)": {
+      "count": 174,
+      "t1_hit_rate": 62.1,
+      "avg_r": 0.32,
+      "avg_mfe": 9.82
+    },
+    "Loose Box (> 7.0%)": {
+      "count": 130,
+      "t1_hit_rate": 50.0,
+      "avg_r": 0.1,
+      "avg_mfe": 8.18
+    }
+  },
+  "by_rvol": {
+    "Explosive (>= 2.0x)": {
+      "count": 245,
+      "t1_hit_rate": 60.0,
+      "avg_r": 0.29
+    },
+    "Solid (1.5x - 2.0x)": {
+      "count": 95,
+      "t1_hit_rate": 42.1,
+      "avg_r": -0.09
+    },
+    "Moderate (1.2x - 1.5x)": {
+      "count": 89,
+      "t1_hit_rate": 60.7,
+      "avg_r": 0.25
+    },
+    "Low (< 1.2x or Unconfirmed)": {
+      "count": 0,
+      "t1_hit_rate": 0.0,
+      "avg_r": 0.0
+    }
+  },
+  "by_htf_badge": {
+    "\u2b50 1D Confirmed": {
+      "count": 0,
+      "t1_hit_rate": 0.0,
+      "avg_r": 0.0
+    },
+    "Neutral / Unconfirmed": {
+      "count": 429,
+      "t1_hit_rate": 56.2,
+      "avg_r": 0.2
+    }
+  },
+  "top_reject_reasons": {
+    "NO_VOLUME_DRYUP": 1137,
+    "COUNTER_OR_NO_HTF_ALIGNMENT": 870,
+    "SUBOPTIMAL_GRADE_C": 529,
+    "IDLE_NO_STRUCTURE": 239,
+    "UNCOILED_DECAY_GT_0_70": 214,
+    "LOOSE_RANGE_GT_10PCT": 145
+  }
+}

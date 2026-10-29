@@ -1,0 +1,75 @@
+## Information Technology
+HCLTECH.NS
+INFY.NS
+TCS.NS
+TECHM.NS
+WIPRO.NS
+
+## Financial Services
+AXISBANK.NS
+BAJAJFINSV.NS
+BAJFINANCE.NS
+HDFCBANK.NS
+HDFCLIFE.NS
+ICICIBANK.NS
+JIOFIN.NS
+KOTAKBANK.NS
+SBILIFE.NS
+SBIN.NS
+SHRIRAMFIN.NS
+
+## Energy / Oil & Gas
+ONGC.NS
+RELIANCE.NS
+
+## Consumer Staples / FMCG
+HINDUNILVR.NS
+ITC.NS
+NESTLEIND.NS
+TATACONSUM.NS
+
+## Automobiles
+BAJAJ-AUTO.NS
+EICHERMOT.NS
+M&M.NS
+MARUTI.NS
+TMPV.NS
+
+## Healthcare / Pharmaceuticals
+APOLLOHOSP.NS
+CIPLA.NS
+DRREDDY.NS
+MAXHEALTH.NS
+SUNPHARMA.NS
+
+## Industrials / Capital Goods / Defence
+BEL.NS
+LT.NS
+
+## Metals / Mining
+COALINDIA.NS
+HINDALCO.NS
+JSWSTEEL.NS
+TATASTEEL.NS
+
+## Telecom / Communication Services
+BHARTIARTL.NS
+
+## Consumer Discretionary / Retail / Travel
+ASIANPAINT.NS
+ETERNAL.NS
+INDIGO.NS
+TITAN.NS
+TRENT.NS
+
+## Utilities / Power
+NTPC.NS
+POWERGRID.NS
+
+## Cement / Building Materials
+GRASIM.NS
+ULTRACEMCO.NS
+
+## Ports / Logistics
+ADANIENT.NS
+ADANIPORTS.NS

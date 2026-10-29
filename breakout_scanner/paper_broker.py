@@ -51,17 +51,20 @@ class PaperBroker:
         # In a real broker (Phase 10), this would be an API call to Alpaca/Binance
         direction_str = "LONG" if setup.direction == 1 else "SHORT"
         
+        target_price = setup.target or setup.tp2 or (setup.entry * 1.05 if setup.direction == 1 else setup.entry * 0.95)
         position = Position(
             symbol=setup.symbol,
             direction=setup.direction,
             entry_price=current_price,
             shares=shares,
             stop_loss=setup.stop,
-            take_profit=setup.target
+            take_profit=target_price
         )
         
         self.positions[setup.symbol] = position
-        logger.info(f"🟢 [PAPER EXECUTION] {direction_str} {setup.symbol} | Entry: {current_price:.2f} | Shares: {shares:.2f} | SL: {setup.stop:.2f} | TP: {setup.target:.2f}")
+        sl_str = f"{setup.stop:.2f}" if setup.stop is not None else "N/A"
+        tp_str = f"{target_price:.2f}" if target_price is not None else "N/A"
+        logger.info(f"🟢 [PAPER EXECUTION] {direction_str} {setup.symbol} | Entry: {current_price:.2f} | Shares: {shares:.2f} | SL: {sl_str} | TP: {tp_str}")
 
     def on_tick(self, symbol: str, current_price: float):
         """
@@ -79,17 +82,17 @@ class PaperBroker:
         reason = ""
         
         if pos.direction == 1: # LONG
-            if current_price <= pos.stop_loss:
+            if pos.stop_loss is not None and current_price <= pos.stop_loss:
                 exit_price = pos.stop_loss
                 reason = "STOP LOSS"
-            elif current_price >= pos.take_profit:
+            elif pos.take_profit is not None and current_price >= pos.take_profit:
                 exit_price = pos.take_profit
                 reason = "TAKE PROFIT"
         else: # SHORT
-            if current_price >= pos.stop_loss:
+            if pos.stop_loss is not None and current_price >= pos.stop_loss:
                 exit_price = pos.stop_loss
                 reason = "STOP LOSS"
-            elif current_price <= pos.take_profit:
+            elif pos.take_profit is not None and current_price <= pos.take_profit:
                 exit_price = pos.take_profit
                 reason = "TAKE PROFIT"
                 

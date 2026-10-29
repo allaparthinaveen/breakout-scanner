@@ -1,6 +1,8 @@
 trend:
   sma_length: 50
   use_trend_filter: true
+  use_slope_filter: false             # Flag: require upward/downward sloping SMA50
+  slope_lookback_bars: 5              # Lookback bars for SMA50 slope comparison
 base:
   base_lookback: 20
   tight_lookback: 5
@@ -9,24 +11,38 @@ base:
   require_tightening: false
   min_setup_bars: 5
   max_setup_bars: 30
+  tightening_threshold: 0.70
+  min_box_density_pct: 75.0           # Consolidation Quality Gate: min 75% of closes inside base range
 volume:
   use_volume_contraction: false
   volume_length: 20
   contraction_ratio: 0.90
   use_breakout_volume: true
   breakout_multiplier: 1.20
+  vdu_threshold: 0.75
+  rvol_threshold: 1.20
+  use_hourly_volume_profile: false    # Flag: compare against same-hour historical median (removes open/close bias)
+  hourly_profile_days: 20             # Prior sessions lookback for same-hour volume benchmark
 breakout:
   buffer_pct: 0.10
   close_location: 0.55
   require_momentum_candle: true
   min_body_pct: 40.0
+  use_open_confirmation: false        # Flag: require next-bar open to hold above breakout level
+  max_open_gap_pct: 0.50              # Maximum adverse gap percentage tolerated on open
 risk:
   atr_length: 14
   atr_multiplier: 1.50
-  min_stop_pct: 0.75
-  max_stop_pct: 3.00
+  min_stop_pct: 0.75                  # Noise floor: minimum stop distance to prevent spread churn
+  max_stop_pct: 5.00                  # Risk gate: setups with structural risk > 5.00% are rejected (never clamped)
   use_structure_stop: true
-  structure_buffer_pct: 0.25
+  structure_buffer_pct: 0.25          # Buffer beyond base support/resistance
+  account_size: 100000.0              # Base account capital
+  risk_per_trade_pct: 1.0             # Dynamic position sizing: exact 1.0% capital risk per trade
+  slippage_pct: 0.05
+  commission_pct: 0.05
+  use_cost_filter: false              # Flag: reject setups where friction eats too much of the risk
+  max_friction_r: 0.15                # Maximum friction allowed (round-trip fees / stop distance in R, e.g. 0.15 = 15% of 1R)
 target:
   target_lookback: 50
   tp1_r: 1.0
@@ -36,3 +52,29 @@ management:
   breakeven_offset_pct: 0.10
   max_hold_days: 10
   use_time_exit: true
+  use_failed_breakout_exit: false     # Flag: quickly exit if price closes back inside base
+  failed_breakout_max_bars: 3         # Maximum bars after entry to check for failed breakout
+
+signal_quality:
+  enabled: false                      # Phase 2 Feature Flag (Golden Rule default: false)
+  close_location_weight: 0.0          # Weight for breakout candle upper 25-30% close bonus (default: 0.0)
+  vdu_slope_weight: 0.0               # Weight for intra-base volume dry-up slope (default: 0.0)
+  trigger_tightness_weight: 0.0       # Weight for continuous distance-to-trigger tightness (default: 0.0)
+  failed_breakout_penalty_weight: 0.0 # Weight for soft penalty on base piercing attempts (default: 0.0)
+
+confluence_context:
+  enabled: false                      # Phase 3 Feature Flag (Golden Rule default: false)
+  htf_4h_weight: 0.0                  # Weight for 4H multi-TF structure alignment (default: 0.0)
+  market_regime_weight: 0.0           # Weight for high-volatility selloff dampener (default: 0.0)
+  earnings_risk_weight: 0.0           # Weight for earnings proximity penalty (default: 0.0)
+
+portfolio_guard:
+  enabled: false                      # Phase 4 Feature Flag (Golden Rule default: false)
+  account_equity: 100000.0            # Total portfolio capital equity in base currency
+  risk_per_trade_pct: 1.0             # Risk allocated per trade (e.g. 1.0% = $1,000 on $100k)
+  max_daily_risk_pct: 2.0             # Maximum risk across all trades allocated today (e.g. 2.0% = $2,000)
+  max_active_trades: 4                # Maximum concurrent active positions
+  max_sector_allocation_pct: 25.0     # Maximum portfolio capital committed to any single sector (e.g. 25%)
+  max_position_size_pct: 20.0         # Maximum capital allocated to any single trade (e.g. 20% = $20,000)
+  max_trades_per_sector: 1            # Correlation stacking defense: max alerts per industry basket
+  allow_fractional: false             # Set true for fractional crypto asset sizing

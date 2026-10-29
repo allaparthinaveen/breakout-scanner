@@ -19,5 +19,5 @@ def add_momentum_indicators(df, sma_len=50, vol_len=20):
     # Average Volume
     df['AvgVol'] = df['Volume'].rolling(vol_len).mean()
     # Relative Volume
-    df['RelVol'] = df['Volume'] / df['AvgVol']
+    df['RelVol'] = np.where(df['AvgVol'] > 0, df['Volume'] / df['AvgVol'], 0.0)
     return df

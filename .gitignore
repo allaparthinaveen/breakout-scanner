@@ -3,4 +3,7 @@ __pycache__/
 .pytest_cache/
 .env
 data/
+logs/
 .env
+*/backtest/*
+*backtest*

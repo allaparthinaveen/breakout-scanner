@@ -88,7 +88,7 @@ class WalkForwardValidator:
             # Collect trades and adjust capital
             if tester.results:
                 out_of_sample_trades.extend(tester.results)
-                capital = tester.results[-1]['capital']
+                capital = tester.results[-1]['capital_after']
                 
             out_of_sample_results.append({
                 'window_id': w['window_id'],
@@ -98,7 +98,7 @@ class WalkForwardValidator:
             
         # Compute global OOS metrics
         global_tester = Backtester(self.base_cfg)
-        global_metrics = global_tester._compute_metrics(out_of_sample_trades, capital)
+        global_metrics = global_tester._compute_metrics(out_of_sample_trades, initial_capital, capital, [])
         
         return {
             'windows': out_of_sample_results,

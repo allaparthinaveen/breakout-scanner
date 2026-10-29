@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Breakout Ready Scanner – Simple Trading Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap');
+  :root {
+    --navy:#0D1B2A;--blue:#1A3C5E;--mid:#2A6496;--sky:#4A90D9;
+    --light:#D6E8FA;--pale:#F0F7FF;--white:#FFFFFF;--text:#1C2B3A;
+    --muted:#5A7898;--green:#2ECC71;--red:#E74C3C;--amber:#F39C12;
+  }
+  * { box-sizing:border-box;margin:0;padding:0; }
+  body { font-family:'Inter',sans-serif;color:var(--text);background:#f8fafc;font-size:13px;line-height:1.7; }
+  .page { width:794px;min-height:1123px;background:var(--white);margin:20px auto;position:relative;overflow:hidden;page-break-after:always;box-shadow:0 4px 30px rgba(0,0,0,.12); }
+  .footer { position:absolute;bottom:0;left:0;right:0;background:var(--navy);color:rgba(255,255,255,.55);font-size:10px;letter-spacing:.4px;padding:8px 36px;display:flex;justify-content:space-between;align-items:center; }
+  .hbar { background:var(--navy);color:var(--white);padding:12px 36px;font-size:10px;letter-spacing:.6px;font-weight:600;text-transform:uppercase;display:flex;justify-content:space-between; }
+  .hbar .dot { color:var(--sky); }
+  .content { padding:36px 48px 70px; }
+  .stag { display:inline-flex;align-items:center;gap:8px;background:var(--light);color:var(--blue);font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:8px; }
+  h2 { font-size:20px;font-weight:700;color:var(--navy);margin-bottom:10px; }
+  h3 { font-size:14px;font-weight:700;color:var(--blue);margin-bottom:6px; }
+  h4 { font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px; }
+  p { margin-bottom:10px; }
+  ul,ol { margin:8px 0 10px 20px; }
+  li { margin-bottom:5px; }
+  .div { height:3px;background:linear-gradient(90deg,var(--sky) 0%,var(--light) 100%);border-radius:2px;margin:16px 0; }
+  .box { border-left:4px solid var(--sky);background:var(--pale);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0; }
+  .box.g { border-color:var(--green);background:#f0fff6; }
+  .box.a { border-color:var(--amber);background:#fffbf0; }
+  .box.n { border-color:var(--navy);background:var(--light); }
+  .badge { display:inline-block;padding:2px 9px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase; }
+  .rdy { background:#FFF3CD;color:#856404; }
+  .brk { background:#D4EDDA;color:#155724; }
+  .bkd { background:#F8D7DA;color:#721C24; }
+  table { width:100%;border-collapse:collapse;margin:12px 0;font-size:12px; }
+  th { background:var(--navy);color:var(--white);padding:8px 12px;text-align:left;font-size:10px;letter-spacing:.5px;font-weight:600; }
+  td { padding:8px 12px;border-bottom:1px solid #e8f0f8;vertical-align:top; }
+  tr:nth-child(even) td { background:var(--pale); }
+  .srow { display:flex;gap:14px;margin-bottom:10px;align-items:flex-start; }
+  .snum { flex-shrink:0;width:32px;height:32px;background:linear-gradient(135deg,var(--sky),var(--blue));color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px; }
+  .sbody h4 { margin-bottom:2px; }
+  .sbody p { margin-bottom:0;font-size:12px; }
+  .rule { display:flex;gap:10px;align-items:flex-start;padding:8px 12px;margin-bottom:6px;background:var(--pale);border-radius:8px;border:1px solid #cce3f9; }
+  .ri { font-size:16px;flex-shrink:0;margin-top:1px; }
+  .dgm { border:2px solid var(--light);border-radius:10px;padding:16px;margin:12px 0;background:var(--pale);text-align:center;font-size:11px; }
+  .dgm h4 { margin-bottom:10px;color:var(--blue);font-size:12px; }
+  .drow { display:flex;justify-content:center;align-items:center;gap:6px;margin:6px 0;flex-wrap:wrap; }
+  .dbox { border:2px solid var(--mid);background:var(--white);padding:6px 12px;border-radius:6px;font-weight:700;font-size:11px;color:var(--navy);min-width:80px; }
+  .dbox.g { border-color:var(--green);color:#1a7a44;background:#f0fff6; }
+  .dbox.a { border-color:var(--amber);color:#7d5800;background:#fffbf0; }
+  .dbox.n { border-color:var(--navy);background:var(--navy);color:white; }
+  .arr { font-size:18px;color:var(--sky);font-weight:700; }
+  .cgrid { display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0; }
+  .ccard { border-radius:10px;padding:14px;border:2px solid transparent; }
+  .ccard.w { background:#fffbf0;border-color:var(--amber); }
+  .ccard.ac { background:#f0fff6;border-color:var(--green); }
+  .ccard h4 { margin-bottom:6px; }
+  .qgrid { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0; }
+  .qcard { background:var(--pale);border:1px solid #c5dff5;border-radius:8px;padding:12px 14px; }
+  .qcard h4 { color:var(--blue);margin-bottom:6px;font-size:11px; }
+  .qcard p { font-size:11px;margin:0; }
+  .ex { background:var(--navy);color:var(--white);border-radius:10px;padding:14px 18px;margin:10px 0;font-size:12px; }
+  /* Cover */
+  .cvbg { background:linear-gradient(150deg,var(--navy) 0%,var(--blue) 60%,#1a5276 100%);min-height:1123px;display:flex;flex-direction:column;position:relative;overflow:hidden; }
+  .c1 { position:absolute;top:-80px;right:-80px;width:380px;height:380px;border-radius:50%;background:rgba(74,144,217,.12);box-shadow:0 0 0 60px rgba(74,144,217,.07),0 0 0 120px rgba(74,144,217,.04); }
+  .c2 { position:absolute;bottom:-60px;left:-60px;width:280px;height:280px;border-radius:50%;background:rgba(0,180,216,.10);box-shadow:0 0 0 50px rgba(0,180,216,.05); }
+  .cin { position:relative;z-index:2;padding:70px 60px;flex:1;display:flex;flex-direction:column;justify-content:space-between; }
+  .clogo { display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.7);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase; }
+  .ldot { width:8px;height:8px;border-radius:50%;background:var(--sky);display:inline-block; }
+  .ctag { background:rgba(74,144,217,.25);border:1px solid rgba(74,144,217,.4);border-radius:6px;color:var(--sky);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:5px 14px;display:inline-block;margin-bottom:18px; }
+  .ctitle { font-family:'Merriweather',serif;font-size:42px;font-weight:700;color:var(--white);line-height:1.2;margin-bottom:16px; }
+  .csub { font-size:15px;color:rgba(255,255,255,.75);line-height:1.6;max-width:550px;margin-bottom:30px; }
+  .cprom { background:linear-gradient(90deg,rgba(74,144,217,.3),rgba(74,144,217,.1));border-left:4px solid var(--sky);padding:14px 20px;border-radius:0 8px 8px 0;color:rgba(255,255,255,.9);font-size:13px;font-style:italic;max-width:500px;margin-bottom:40px; }
+  .chips { display:flex;gap:10px;flex-wrap:wrap; }
+  .chip { background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);padding:5px 14px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.5px; }
+  .cbot { display:flex;justify-content:space-between;align-items:flex-end;padding-top:30px;border-top:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);font-size:10px; }
+  .cscan { width:80px;height:80px;border:2px solid rgba(74,144,217,.5);border-radius:12px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:30px; }
+  @media print { body{background:white;} .page{box-shadow:none;margin:0;} }
+</style>
+</head>
+<body>
+
+<!-- PAGE 1 COVER -->
+<div class="page">
+<div class="cvbg">
+  <div class="c1"></div><div class="c2"></div>
+  <div class="cin">
+    <div class="clogo"><span class="ldot"></span> Breakout Ready Scanner</div>
+    <div>
+      <div class="ctag">Beginner's Guide</div>
+      <div class="ctitle">Breakout Ready<br>Scanner</div>
+      <p class="csub">Simple Trading Guide — How to find and take high-probability breakout trades, even if you are completely new to the stock market.</p>
+      <div class="cprom">Follow this guide step-by-step and you will know exactly what to do, when to do it, and how much money to risk.</div>
+      <div class="chips">
+        <span class="chip">What is a breakout?</span>
+        <span class="chip">READY vs BREAKOUT</span>
+        <span class="chip">Entry, Stop Loss &amp; Targets</span>
+        <span class="chip">Risk Rules</span>
+        <span class="chip">Step-by-Step Guide</span>
+      </div>
+    </div>
+    <div class="cbot">
+      <div>
+        <div style="font-size:11px;color:rgba(255,255,255,.7);margin-bottom:4px;">Institutional-grade detection. Beginner-friendly language.</div>
+        <div>Version 1.0 &nbsp;·&nbsp; Phases 0-5 Complete &nbsp;·&nbsp; 105 Tests Verified</div>
+      </div>
+      <div class="cscan">📡</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PAGE 2 WHAT IS IT + PURPOSE -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Chapter 1</div>
+  <h2>What is this Scanner?</h2>
+  <div class="div"></div>
+  <p>Think of the stock market like a huge supermarket with hundreds of items. Every day, some items quietly sit on the shelf. But once in a while, one item suddenly becomes very popular — its price jumps up fast. <strong>The Breakout Ready Scanner finds those items before they jump.</strong></p>
+  <div class="box n"><strong>Simple Definition:</strong> It is like a smart radar that scans many stocks every hour and tells you which ones are quietly coiling like a spring — ready to make a strong, fast move.</div>
+  <p>It does this automatically by checking five things for each stock:</p>
+  <ul>
+    <li>Is the price <strong>squeezing into a tight box?</strong> (like a rubber band being stretched)</li>
+    <li>Is the <strong>trading volume drying up?</strong> (fewer people buying or selling = calm before the storm)</li>
+    <li>Is the <strong>overall market trend going up?</strong></li>
+    <li>Is this stock <strong>stronger than similar stocks</strong> in its group?</li>
+    <li>Is the <strong>risk reasonable?</strong> (how far down the price would fall if you are wrong)</li>
+  </ul>
+  <p>It then gives each stock a <strong>score from 0 to 100</strong>. Higher score = better setup. Grade A+ (90–100) = exceptional opportunity.</p>
+
+  <div style="height:16px;"></div>
+  <div class="stag">Chapter 2</div>
+  <h2>Why Does This Scanner Exist?</h2>
+  <div class="div"></div>
+  <div class="cgrid">
+    <div class="ccard w">
+      <h4>The Problem (Without the Scanner)</h4>
+      <p style="font-size:12px;">Most new traders buy a stock too early — before it is really ready. Then they sit in a losing trade for weeks, get frustrated, and sell at a loss. Or they buy too late — after the price has already jumped — and end up buying at the top.</p>
+    </div>
+    <div class="ccard ac">
+      <h4>The Solution (With the Scanner)</h4>
+      <p style="font-size:12px;">The scanner watches every stock for you all day. It tells you when a stock has finished its resting period and is about to move. You don't guess. You wait for the signal. This saves time, emotion, and most importantly — money.</p>
+    </div>
+  </div>
+  <div class="box g"><strong>The One-Line Benefit:</strong> It helps you wait for the right moment so your chances of a winning trade go up and confusion goes down.</div>
+  <p style="font-style:italic;color:var(--muted);font-size:12px;">Imagine you are baking a cake. You don't open the oven every 5 minutes to check. You wait until the timer goes off. The scanner is your timer. It tells you when the cake (trade) is ready.</p>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 2</span></div>
+</div>
+
+<!-- PAGE 3 GLOSSARY -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Chapter 3</div>
+  <h2>Important Words — Explained Simply</h2>
+  <div class="div"></div>
+  <p>Before using the scanner, learn these words. Each one is explained like you are hearing it for the very first time.</p>
+  <table>
+    <thead><tr><th>Word</th><th>What it Means in Plain English</th><th>Everyday Analogy</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Breakout</strong></td><td>When a stock's price finally escapes from a tight range and moves up strongly.</td><td>Like a ball held underwater. When released, it shoots upward fast.</td></tr>
+      <tr><td><span class="badge rdy">READY</span></td><td>The stock is coiling tightly. It could break out soon. Watch it — do NOT buy yet.</td><td>Like a runner crouching at the starting line. Not running yet — but ready to sprint.</td></tr>
+      <tr><td><span class="badge brk">BREAKOUT</span> / <span class="badge bkd">BREAKDOWN</span></td><td>BREAKOUT = price moved up past the key level. Consider buying. BREAKDOWN = price fell sharply. Stay out or exit.</td><td>BREAKOUT = runner crossed the finish line. BREAKDOWN = runner tripped and fell.</td></tr>
+      <tr><td><strong>Entry</strong></td><td>The exact price where you buy the stock.</td><td>The price you pay at the shop counter.</td></tr>
+      <tr><td><strong>Stop Loss (SL)</strong></td><td>A safety price below your entry. If the stock falls here, you exit immediately to limit your loss.</td><td>Like a safety net under a trapeze artist. It catches them before they hit the ground.</td></tr>
+      <tr><td><strong>Target T1</strong></td><td>The first price where you take some profit. Usually 1x the risk above your entry.</td><td>Your first stop on a road trip. You don't drive the whole way without a break.</td></tr>
+      <tr><td><strong>Target T2</strong></td><td>The second, larger profit goal. Usually 2x the risk above your entry.</td><td>The final destination of your road trip.</td></tr>
+      <tr><td><strong>Score (0–100)</strong></td><td>How strong the setup is. Scores above 80 are good. A+ (90+) is the best quality.</td><td>Like exam marks. 90+ = excellent. Below 70 = skip it.</td></tr>
+      <tr><td><strong>Risk (R)</strong></td><td>The distance between Entry and Stop Loss. This is the maximum you can lose on one trade.</td><td>Like your insurance deductible — the most you'll pay if things go wrong.</td></tr>
+      <tr><td><strong>Volume</strong></td><td>How many shares of a stock were traded in a given period. High volume = many people interested.</td><td>Like the crowd size at a concert. A big crowd means the performer is popular.</td></tr>
+    </tbody>
+  </table>
+  <div class="box a" style="margin-top:14px;"><strong>Remember:</strong> Never take a trade without knowing your Entry, Stop Loss, and Target first. The scanner gives you all three. Always use them.</div>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 3</span></div>
+</div>
+
+<!-- PAGE 4 STEP BY STEP -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Chapter 4</div>
+  <h2>How to Use the Scanner – Step by Step</h2>
+  <div class="div"></div>
+  <div class="srow"><div class="snum">1</div><div class="sbody"><h4>Run the Scanner</h4><p>Open your computer and run the scanner command. It will automatically download the latest stock data and check every stock on your watchlist. This takes about 15–60 seconds.</p></div></div>
+  <div class="srow"><div class="snum">2</div><div class="sbody"><h4>Read the Output – Look at the Sections</h4><p>The scanner shows results in two main sections. <strong>Section 1</strong> shows stocks that are <span class="badge rdy">READY</span> — they are coiling, not yet moving. <strong>Section 2</strong> shows stocks that have triggered a <span class="badge brk">BREAKOUT</span> — they are moving right now.</p></div></div>
+  <div class="srow"><div class="snum">3</div><div class="sbody"><h4>Check the Score and Grade</h4><p>Look at the score (0–100) and grade (A+, A, B, C). <strong>Only consider trades with Grade A or A+</strong> (score 80 or above). Lower grades mean the setup is not clean enough — skip them.</p></div></div>
+  <div class="srow"><div class="snum">4</div><div class="sbody"><h4>Note the Entry, Stop Loss, and Targets</h4><p>The scanner shows: Entry price, Stop Loss (SL), Target 1 (T1), and Target 2 (T2). Write these down or save them. These are your exact trade plan numbers before you do anything.</p></div></div>
+  <div class="srow"><div class="snum">5</div><div class="sbody"><h4>Check for Earnings Warning</h4><p>If you see a warning like <strong>Earnings in 2 days</strong>, the company is about to announce financial results. This can cause very unpredictable moves. For beginners: skip that stock entirely and wait.</p></div></div>
+  <div class="srow"><div class="snum">6</div><div class="sbody"><h4>Decide: Trade or Wait?</h4><p>For <span class="badge rdy">READY</span> stocks — wait for them to become a BREAKOUT before entering. For <span class="badge brk">BREAKOUT</span> stocks — decide if you want to enter at the Entry price shown. Never rush. If you miss one trade, another will come.</p></div></div>
+  <div class="srow"><div class="snum">7</div><div class="sbody"><h4>Calculate How Many Shares to Buy</h4><p>Use this simple formula: <strong>Risk Money divided by Stop Distance = Number of Shares</strong>. Example: If you want to risk Rs.2,000 and the stop loss is Rs.20 below entry, buy 100 shares (2,000 divided by 20 = 100). This way you only lose Rs.2,000 maximum if wrong.</p></div></div>
+  <div class="srow"><div class="snum">8</div><div class="sbody"><h4>Place Your Trade — Set Stop Loss Immediately</h4><p>As soon as you buy, set your Stop Loss order. The moment you own the shares, the Stop Loss must be active. Set alerts for T1 and T2. Once done, let the trade work — don't watch every minute.</p></div></div>
+  <div class="box n" style="margin-top:8px;"><strong>Key habit:</strong> Treat every scanner alert like a shortlist, not a buy order. The scanner finds candidates. <em>You</em> make the final decision after reading the full signal.</div>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 4</span></div>
+</div>
+
+<!-- PAGE 5 TWO SITUATIONS + DIAGRAM 1 -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Chapter 5</div>
+  <h2>Two Real Situations — What to Do</h2>
+  <div class="div"></div>
+  <div class="cgrid">
+    <div class="ccard w">
+      <h4>Situation A — <span class="badge rdy">READY</span> Signal</h4>
+      <p style="font-size:12px;"><strong>What it means:</strong> The stock has been quietly squeezing for several days. It is coiling like a spring. It has not broken out yet — it is just waiting at the door.</p>
+      <p style="font-size:12px;"><strong>What you do:</strong> Add it to your watchlist. Set a price alert at the Entry level. Do NOT buy yet. Wait for the price to actually cross the Entry level with strong volume.</p>
+      <p style="font-size:12px;"><strong>Analogy:</strong> Like watching a kettle. It is getting hot — but do not grab it until it whistles.</p>
+    </div>
+    <div class="ccard ac">
+      <h4>Situation B — <span class="badge brk">BREAKOUT</span> Signal</h4>
+      <p style="font-size:12px;"><strong>What it means:</strong> The stock has already crossed its key resistance level with strong volume. The spring has snapped. This is an active trade signal.</p>
+      <p style="font-size:12px;"><strong>What you do:</strong> If Grade is A or A+ and there is no earnings warning, you can enter near the Entry price shown. Set Stop Loss immediately. Target T1 and T2 are already shown.</p>
+      <p style="font-size:12px;"><strong>Analogy:</strong> The race gun has fired. The runner (stock) has left the starting blocks. Now you join the race — you are not too late yet.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:10px;">Example with Numbers</h3>
+  <div class="ex">
+    <div style="margin-bottom:8px;"><strong>Stock: NVDA &nbsp;|&nbsp; Status: BREAKOUT &nbsp;|&nbsp; Grade: A+ [92]</strong></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:11px;">
+      <div style="background:rgba(255,255,255,.1);border-radius:6px;padding:8px;text-align:center;"><div style="color:rgba(255,255,255,.5);font-size:9px;margin-bottom:2px;">ENTRY</div><div style="font-size:14px;font-weight:700;">$140.20</div></div>
+      <div style="background:rgba(231,76,60,.3);border-radius:6px;padding:8px;text-align:center;"><div style="color:rgba(255,255,255,.5);font-size:9px;margin-bottom:2px;">STOP LOSS</div><div style="font-size:14px;font-weight:700;color:#ff8080;">$135.00</div><div style="font-size:9px;color:rgba(255,255,255,.5);">-$5.20 risk</div></div>
+      <div style="background:rgba(46,204,113,.25);border-radius:6px;padding:8px;text-align:center;"><div style="color:rgba(255,255,255,.5);font-size:9px;margin-bottom:2px;">TARGET 1</div><div style="font-size:14px;font-weight:700;color:#90ee90;">$145.40</div><div style="font-size:9px;color:rgba(255,255,255,.5);">+1.0R</div></div>
+      <div style="background:rgba(46,204,113,.4);border-radius:6px;padding:8px;text-align:center;"><div style="color:rgba(255,255,255,.5);font-size:9px;margin-bottom:2px;">TARGET 2</div><div style="font-size:14px;font-weight:700;color:#90ee90;">$150.60</div><div style="font-size:9px;color:rgba(255,255,255,.5);">+2.0R</div></div>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.7);">If you want to risk $1,000: Buy 192 shares ($1,000 divided by $5.20 = approx. 192 shares). At T1 sell 96 shares — you lock in +$500 profit. At T2 sell remaining 96 shares for another +$1,000.</div>
+  </div>
+
+  <h3 style="margin-top:12px;">Diagram 1 — The Breakout Journey</h3>
+  <div class="dgm">
+    <h4>How a Stock Moves: Coiling to Breakout to Profit</h4>
+    <div class="drow">
+      <div class="dbox n" style="font-size:10px;">Phase 1:<br>Normal Trading<br>(price moves freely)</div>
+      <div class="arr">→</div>
+      <div class="dbox a" style="font-size:10px;">Phase 2:<br>Tight Coiling<br>(squeezes into box)</div>
+      <div class="arr">→</div>
+      <div class="dbox" style="font-size:10px;border-color:#856404;background:#fffbf0;">SCANNER<br>Says: READY<br>(watch it now)</div>
+    </div>
+    <div class="drow" style="margin-top:8px;">
+      <div class="dbox g" style="font-size:10px;">Price crosses<br>Resistance Level<br>+ Strong Volume</div>
+      <div class="arr">→</div>
+      <div class="dbox g" style="font-size:10px;">SCANNER<br>Says: BREAKOUT<br>(enter here)</div>
+      <div class="arr">→</div>
+      <div class="dbox g" style="font-size:10px;">Price reaches<br>T1 then T2<br>Take Profit!</div>
+    </div>
+    <p style="color:var(--muted);margin-top:8px;font-size:10px;">If price falls back inside the box after breakout — exit immediately at Stop Loss. Small loss, no emotion. Move on.</p>
+  </div>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 5</span></div>
+</div>
+
+<!-- PAGE 6 GOLDEN RULES + DIAGRAM 2 -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Chapter 6</div>
+  <h2>Golden Rules — Never Break These</h2>
+  <div class="div"></div>
+  <div class="rule"><div class="ri">🚦</div><div><h4>Rule 1 — READY does NOT mean Buy</h4><p style="font-size:12px;">Just because the scanner says READY does not mean you enter immediately. READY = watch and wait. Only enter when a BREAKOUT is confirmed with strong volume.</p></div></div>
+  <div class="rule"><div class="ri">🛡️</div><div><h4>Rule 2 — Always Set Your Stop Loss</h4><p style="font-size:12px;">The moment you buy, set the Stop Loss the scanner gives you. No exceptions. A stop loss is not optional. It is the only thing standing between you and a very large loss.</p></div></div>
+  <div class="rule"><div class="ri">💰</div><div><h4>Rule 3 — Risk Only 1–2% of Your Total Money Per Trade</h4><p style="font-size:12px;">If you have Rs.1,00,000 total, risk at most Rs.1,000–Rs.2,000 per trade. Even if 5 trades in a row go wrong, you still have 90%+ of your money left. Survival comes first.</p></div></div>
+  <div class="rule"><div class="ri">📊</div><div><h4>Rule 4 — Only Take Grade A or A+ Setups</h4><p style="font-size:12px;">The scanner grades setups from A+ (best) to C (avoid). As a beginner, trade only Grade A or A+. High grades mean cleaner setups and a higher chance of the trade working.</p></div></div>
+  <div class="rule"><div class="ri">⚠️</div><div><h4>Rule 5 — Skip Stocks with Earnings in 0–3 Days</h4><p style="font-size:12px;">Earnings announcements cause huge unpredictable jumps — up or down. Even the best setup becomes a coin flip near earnings. Skip it and wait for the next clean opportunity.</p></div></div>
+  <div class="rule"><div class="ri">🧘</div><div><h4>Rule 6 — One Loss Does Not Break You</h4><p style="font-size:12px;">Every trader — even the very best in the world — has losing trades. What separates winners from losers is following the system consistently. Take the loss, reset, and find the next trade.</p></div></div>
+  <div class="rule"><div class="ri">📵</div><div><h4>Rule 7 — Do Not Watch the Screen Every Minute</h4><p style="font-size:12px;">After placing the trade with Stop Loss and targets set, step away. Watching every price movement makes you emotional and causes you to exit too early or hold too long. Trust your plan.</p></div></div>
+
+  <h3 style="margin-top:12px;">Diagram 2 — Where to Put Entry, Stop Loss and Targets</h3>
+  <div class="dgm">
+    <h4>A Simple Price Ladder — Know Your Levels Before You Buy</h4>
+    <div style="display:flex;align-items:center;justify-content:center;gap:0;">
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:10px;color:var(--muted);padding-right:8px;">
+        <div style="height:36px;display:flex;align-items:center;">$150.60 ↔</div>
+        <div style="height:36px;display:flex;align-items:center;">$145.40 ↔</div>
+        <div style="height:36px;display:flex;align-items:center;">$140.20 ↔</div>
+        <div style="height:36px;display:flex;align-items:center;">$135.00 ↔</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;width:250px;">
+        <div style="background:#155724;color:white;padding:7px 12px;border-radius:6px;font-size:11px;font-weight:700;">TARGET 2 — +2R — Exit remaining shares here</div>
+        <div style="background:#1e7e34;color:white;padding:7px 12px;border-radius:6px;font-size:11px;font-weight:700;">TARGET 1 — +1R — Sell 50%, move SL to Entry</div>
+        <div style="background:var(--blue);color:white;padding:7px 12px;border-radius:6px;font-size:11px;font-weight:700;">ENTRY — Buy here when price breaks out</div>
+        <div style="background:#721c24;color:white;padding:7px 12px;border-radius:6px;font-size:11px;font-weight:700;">STOP LOSS — Exit if price falls here</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;font-size:10px;color:var(--muted);padding-left:8px;">
+        <div style="height:36px;display:flex;align-items:center;color:#155724;font-weight:600;">+2.0R profit</div>
+        <div style="height:36px;display:flex;align-items:center;color:#1e7e34;font-weight:600;">+1.0R profit</div>
+        <div style="height:36px;display:flex;align-items:center;color:var(--blue);font-weight:600;">You buy here</div>
+        <div style="height:36px;display:flex;align-items:center;color:#721c24;font-weight:600;">Max loss = 1R</div>
+      </div>
+    </div>
+    <p style="color:var(--muted);margin-top:8px;font-size:10px;">1R = your risk amount. Entry $140.20, Stop $135.00, risk = $5.20. T1 = Entry + $5.20 = $145.40. T2 = Entry + $10.40 = $150.60.</p>
+  </div>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 6</span></div>
+</div>
+
+<!-- PAGE 7 QUICK REFERENCE -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Quick Reference</div>
+  <h2>Quick Reference Card — Print and Keep This Near Your Screen</h2>
+  <div class="div"></div>
+  <div class="qgrid">
+    <div class="qcard" style="border-color:#856404;background:#fffbf0;"><h4>READY Signal — What to Do</h4><p>1. Add stock to your watchlist.<br>2. Note the Entry price.<br>3. Set a price alert.<br>4. <strong>Do NOT buy yet.</strong><br>5. Wait for BREAKOUT + high volume.</p></div>
+    <div class="qcard" style="border-color:#155724;background:#f0fff6;"><h4>BREAKOUT Signal — What to Do</h4><p>1. Check Grade (must be A or A+).<br>2. Check no earnings warning.<br>3. Calculate shares: Risk divided by Stop Distance.<br>4. Buy near Entry price.<br>5. <strong>Set Stop Loss immediately.</strong></p></div>
+    <div class="qcard" style="border-color:#721c24;background:#fff5f5;"><h4>Never Do These Things</h4><p>- Buy READY without BREAKOUT confirmation<br>- Trade without a Stop Loss<br>- Risk more than 2% per trade<br>- Trade Grade B or C setups<br>- Trade near earnings (0-3 days)</p></div>
+    <div class="qcard" style="border-color:var(--blue);background:var(--pale);"><h4>Quick Math Reminders</h4><p><strong>Shares to buy:</strong><br>Risk Amount divided by Stop Distance<br><br><strong>Example:</strong><br>Rs.2,000 risk / Rs.20 stop = 100 shares<br><br><strong>T1 = Entry + Risk<br>T2 = Entry + 2x Risk</strong></p></div>
+    <div class="qcard" style="border-color:var(--sky);background:#f0f9ff;"><h4>Score and Grade Guide</h4><p><strong>A+ (90–100):</strong> Exceptional — full confidence<br><strong>A (80–89):</strong> High quality — take it<br><strong>B (70–79):</strong> Borderline — caution or skip<br><strong>C (below 70):</strong> Skip entirely</p></div>
+    <div class="qcard" style="border-color:var(--amber);background:#fffbf0;"><h4>Bonus Strength Signals</h4><p><strong>1D Confirmed:</strong> Daily trend is up — strong<br><strong>Multi-TF:</strong> Daily + 4-hour confirmed — very strong<br><strong>RS: +X%:</strong> Stock beating its sector peers — even stronger</p></div>
+  </div>
+
+  <h3 style="margin-top:14px;">Your Daily Routine (5–15 Minutes)</h3>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;margin:10px 0;">
+    <div style="background:var(--pale);border:1px solid #c5dff5;border-radius:8px;padding:10px 6px;"><div style="font-size:18px;margin-bottom:4px;">☀️</div><div style="font-size:10px;font-weight:700;color:var(--blue);">Pre-Market</div><div style="font-size:10px;color:var(--muted);">Run scanner and note candidates</div></div>
+    <div style="background:var(--pale);border:1px solid #c5dff5;border-radius:8px;padding:10px 6px;"><div style="font-size:18px;margin-bottom:4px;">📋</div><div style="font-size:10px;font-weight:700;color:var(--blue);">Check Grades</div><div style="font-size:10px;color:var(--muted);">Only A or A+</div></div>
+    <div style="background:var(--pale);border:1px solid #c5dff5;border-radius:8px;padding:10px 6px;"><div style="font-size:18px;margin-bottom:4px;">⏰</div><div style="font-size:10px;font-weight:700;color:var(--blue);">Set Alerts</div><div style="font-size:10px;color:var(--muted);">At Entry level for READY stocks</div></div>
+    <div style="background:var(--pale);border:1px solid #c5dff5;border-radius:8px;padding:10px 6px;"><div style="font-size:18px;margin-bottom:4px;">✅</div><div style="font-size:10px;font-weight:700;color:var(--blue);">Take Trade</div><div style="font-size:10px;color:var(--muted);">Entry + Stop Loss set immediately</div></div>
+    <div style="background:var(--pale);border:1px solid #c5dff5;border-radius:8px;padding:10px 6px;"><div style="font-size:18px;margin-bottom:4px;">🧘</div><div style="font-size:10px;font-weight:700;color:var(--blue);">Walk Away</div><div style="font-size:10px;color:var(--muted);">Let the trade work. No screen-watching.</div></div>
+  </div>
+  <div class="box a" style="margin-top:14px;"><strong>TIP:</strong> Print this page and stick it next to your computer. Read it before every trade until the rules feel completely natural and automatic.</div>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 7</span></div>
+</div>
+
+<!-- PAGE 8 FINAL ENCOURAGEMENT -->
+<div class="page">
+<div class="hbar"><span><span class="dot">●</span> Breakout Ready Scanner</span><span>Beginner Guide</span></div>
+<div class="content">
+  <div class="stag">Final Words</div>
+  <h2>You Are Ready. Trust the System.</h2>
+  <div class="div"></div>
+  <p style="font-size:14px;line-height:1.8;">Trading well is not about being the smartest person in the room. It is about being the most <em>disciplined</em> person in the room. The most successful traders in the world use systems exactly like this scanner — not gut feelings, not hot tips, not rumours.</p>
+  <div class="box n" style="margin:16px 0;"><p style="font-size:14px;font-style:italic;margin-bottom:0;color:var(--navy);">"The goal is not to make money on every trade. The goal is to follow the rules on every trade — and let the profits take care of themselves."</p></div>
+  <p style="font-size:13px;">Here is something important to remember as you begin:</p>
+  <div class="rule"><div class="ri">🌱</div><div><p style="font-size:12px;margin:0;"><strong>Every expert was once a beginner.</strong> The scanner has been built with the same logic that professional traders use. You are starting with better tools than most beginners ever had access to.</p></div></div>
+  <div class="rule"><div class="ri">🔄</div><div><p style="font-size:12px;margin:0;"><strong>One bad trade teaches you more than ten good ones.</strong> When a trade hits your Stop Loss, do not be sad — be grateful. The Stop Loss did its job. It saved you from a much bigger loss.</p></div></div>
+  <div class="rule"><div class="ri">📈</div><div><p style="font-size:12px;margin:0;"><strong>Consistency beats cleverness.</strong> Taking 10 clean Grade A trades per month with proper risk management will build your wealth much faster than gambling on 50 random stocks with no plan.</p></div></div>
+  <div class="rule"><div class="ri">🧠</div><div><p style="font-size:12px;margin:0;"><strong>The scanner removes emotion.</strong> You do not need to guess. You do not need to watch business news. The scanner gives you the facts. Follow the facts — not your feelings.</p></div></div>
+  <div style="height:20px;"></div>
+  <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 100%);border-radius:16px;padding:28px 32px;color:white;text-align:center;">
+    <div style="font-size:28px;margin-bottom:10px;">🎯</div>
+    <div style="font-family:'Merriweather',serif;font-size:18px;font-weight:700;margin-bottom:10px;line-height:1.4;">Start small. Follow the rules.<br>Let the system do the work.</div>
+    <p style="color:rgba(255,255,255,.8);font-size:13px;margin-bottom:16px;">Run the scanner. Find a Grade A+ setup. Risk only 1% of your money. Set your Stop Loss. Walk away. Collect your profit at T1 and T2.</p>
+    <div style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:12px 20px;display:inline-block;">
+      <p style="color:rgba(255,255,255,.9);font-size:12px;margin:0;font-style:italic;">The scanner found the setup. You followed the rules. That is all great trading requires.</p>
+    </div>
+  </div>
+  <div style="height:24px;"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--light);padding-top:16px;">
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--navy);">Breakout Ready Scanner</div>
+      <div style="font-size:10px;color:var(--muted);">105 Tests Verified &nbsp;·&nbsp; Phases 0-5 Complete &nbsp;·&nbsp; Institutional Grade Logic</div>
+    </div>
+    <div style="text-align:right;font-size:10px;color:var(--muted);">
+      <div>Questions? Check the RUNBOOK.md for details.</div>
+      <div>Run the scanner daily for best results.</div>
+    </div>
+  </div>
+</div>
+<div class="footer"><span>Breakout Ready Scanner – Beginner Guide</span><span>Page 8</span></div>
+</div>
+
+</body>
+</html>

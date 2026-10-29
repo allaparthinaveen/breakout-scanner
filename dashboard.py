@@ -13,7 +13,7 @@ provider = YFinanceProvider()
 scanner = MultiSymbolScanner(provider, cfg)
 
 # We'll scan a set of symbols
-SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'TSLA', 'GOOGL', 'BTCUSD', 'ETHUSD', 'AMD']
+SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'TSLA', 'GOOGL', 'BTC-USD', 'ETH-USD', 'AMD']
 
 @app.route('/')
 def index():
@@ -31,7 +31,7 @@ def api_scan():
             'symbol': s.symbol,
             'state': s.state.value,
             'trend': s.trend,
-            'score': s.breakout_score,
+            'score': getattr(s, 'bias_score', getattr(s, 'breakout_score', 0)),
             'explanation': explain(s),
             'evidence': s.evidence
         })

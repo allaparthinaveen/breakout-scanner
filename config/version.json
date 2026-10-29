@@ -1,0 +1,6 @@
+{
+  "version": "BASELINE_V1",
+  "phase": "Phase 0 - Baseline & Safety Net",
+  "date": "2026-10-23",
+  "golden_rule": "Whatever is working today must continue to work tomorrow. All changes are additive, feature-flagged, or behind parallel paths."
+}

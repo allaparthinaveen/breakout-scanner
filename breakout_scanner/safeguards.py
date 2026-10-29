@@ -53,7 +53,7 @@ class ProductionSafeguards:
         """
         Prevents entering trades during flash crashes, low liquidity, or widened spreads.
         """
-        spread_pct = ((ask - bid) / ask) * 100
+        spread_pct = ((ask - bid) / ask) * 100 if ask > 0 else 999.0
         max_spread_pct = self.cfg['risk'].get('max_spread_pct', 0.5)
         
         if spread_pct > max_spread_pct:

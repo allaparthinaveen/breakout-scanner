@@ -1,5 +1,6 @@
 import argparse
 import pandas as pd
+import numpy as np
 import requests
 import os
 from dotenv import load_dotenv
@@ -11,8 +12,8 @@ from breakout_scanner.models import State
 load_dotenv()
 
 def send_telegram_message(message: str):
-    token = os.getenv("TG_BOT_TOKEN")
-    chat_id = os.getenv("TG_CHAT_ID")
+    token = os.getenv("TG_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TG_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         print("\n⚠️ Telegram credentials not found in .env file. Skipping Telegram notification.")
         return
@@ -38,72 +39,25 @@ def run_pre_market_scan(watchlist_file: str):
     provider = YFinanceProvider()
     
     with open(watchlist_file, 'r') as f:
-        symbols = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        symbols = [line.split(',')[0].strip() for line in f if line.strip() and not line.strip().startswith('#')]
         
     print(f"Scanning {len(symbols)} symbols on the 1-hour timeframe...\n")
     
-    results = []
+    from breakout_scanner.scanner import MultiSymbolScanner
+    scanner = MultiSymbolScanner(provider, cfg)
+    setups = scanner.scan(symbols, period='60d', interval='1h')
     
-    for sym in symbols:
-        df = provider.candles(sym, period='60d', interval='1h')
-        if df.empty or len(df) < 100:
-            continue
-            
-        engine = BreakoutEngine(cfg, sym)
-        setup = engine.run(df)
-        
-        results.append({
-            'Symbol': sym,
-            'State': setup.state.name,
-            'Trend': "UP" if setup.trend == 1 else "DOWN" if setup.trend == -1 else "FLAT",
-            'Resistance': f"${setup.resistance:.2f}" if setup.resistance else "-",
-            'Support': f"${setup.support:.2f}" if setup.support else "-"
-        })
-        
-    # Group results
-    df_results = pd.DataFrame(results)
+    forming_box = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
+    forming_box.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
+    breaking_out = [s for s in setups if s.state in (State.BUY, State.SELL) and not s.retest_confirmed]
+    breaking_out.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
+    retesting = [s for s in setups if s.state in (State.BUY, State.SELL) and s.retest_confirmed]
+    retesting.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
+    idle = [s for s in setups if s.state in (State.IDLE, State.FAILED)]
     
-    forming_box = df_results[df_results['State'] == 'CONSOLIDATION']
-    breaking_out = df_results[df_results['State'] == 'ACCEPTANCE_WATCH']
-    
-    report_lines = []
-    report_lines.append("<b>🌅 PRE-MARKET BREAKOUT SCANNER</b>\n")
-    
-    report_lines.append("<b>📦 STOCKS FORMING A BOX (CONSOLIDATION)</b>")
-    if not forming_box.empty:
-        report_lines.append("<pre>" + forming_box[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
-    else:
-        report_lines.append("<i>None currently forming a box.</i>")
-        
-    report_lines.append("\n<b>💥 ACTIVELY BREAKING OUT (ACCEPTANCE)</b>")
-    if not breaking_out.empty:
-        report_lines.append("<pre>" + breaking_out[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
-    else:
-        report_lines.append("<i>None currently breaking out.</i>")
-        
-    awaiting_retest = df_results[df_results['State'] == 'ACCEPTED_RETEST_WATCH']
-    report_lines.append("\n<b>⏳ AWAITING RETEST (Watch closely!)</b>")
-    if not awaiting_retest.empty:
-        report_lines.append("<pre>" + awaiting_retest[['Symbol', 'Trend', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
-    else:
-        report_lines.append("<i>None currently awaiting retest.</i>")
-
-    entry_signals = df_results[df_results['State'].isin(['BUY', 'SELL'])]
-    report_lines.append("\n<b>🎯 ENTRY SIGNALS TRIGGERED!</b>")
-    if not entry_signals.empty:
-        report_lines.append("<pre>" + entry_signals[['Symbol', 'State', 'Resistance', 'Support']].to_string(index=False) + "</pre>")
-    else:
-        report_lines.append("<i>No active entry triggers.</i>")
-        
-    idle = df_results[df_results['State'].isin(['IDLE', 'FAILED'])]
-    report_lines.append("\n<b>💤 IDLE / FAILED STOCKS (Ignore today)</b>")
-    if not idle.empty:
-        report_lines.append("<code>" + ", ".join(idle['Symbol'].tolist()) + "</code>")
-    else:
-        report_lines.append("<i>None.</i>")
-        
-    final_report = "\n".join(report_lines)
-    clean_terminal = final_report.replace('<b>', '').replace('</b>', '').replace('<pre>', '\n').replace('</pre>', '').replace('<i>', '').replace('</i>', '').replace('<code>', '').replace('</code>', '')
+    from breakout_scanner.telegram_formatter import format_daily_briefing_html
+    final_report = format_daily_briefing_html(forming_box, breaking_out, retesting, idle)
+    clean_terminal = final_report.replace('<b>', '').replace('</b>', '').replace('<i>', '').replace('</i>', '').replace('<code>', '').replace('</code>', '')
     print("\n" + clean_terminal)
     
     # Send to Telegram
