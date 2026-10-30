@@ -57,6 +57,9 @@ management:
 
 signal_quality:
   enabled: false                      # Phase 2 Feature Flag (Golden Rule default: false)
+  require_clv_confirmation: false     # Flag: require candle close in upper/lower 35% of bar range
+  min_clv_threshold: 0.65             # Minimum close location ratio on breakout candle (>= 0.65)
+  max_failed_breakouts_in_base: null  # Max allowed failed piercing attempts inside base (null = disabled)
   close_location_weight: 0.0          # Weight for breakout candle upper 25-30% close bonus (default: 0.0)
   vdu_slope_weight: 0.0               # Weight for intra-base volume dry-up slope (default: 0.0)
   trigger_tightness_weight: 0.0       # Weight for continuous distance-to-trigger tightness (default: 0.0)
@@ -78,3 +81,17 @@ portfolio_guard:
   max_position_size_pct: 20.0         # Maximum capital allocated to any single trade (e.g. 20% = $20,000)
   max_trades_per_sector: 1            # Correlation stacking defense: max alerts per industry basket
   allow_fractional: false             # Set true for fractional crypto asset sizing
+
+rejection_gate:
+  enabled: true                       # Automated Trade Rejection Gate (Structural risk, friction, payoff, earnings)
+  max_stop_pct: 5.0                   # Reject if structural stop distance > 5.0%
+  max_friction_r: 0.15                # Reject if round-trip friction > 0.15R (15% of risk unit)
+  min_rr_ratio: 1.0                   # Reject if reward-to-risk ratio to TP1 < 1.0R
+  earnings_buffer_days: 3             # Reject if earnings event scheduled within <= 3 trading days
+  enforce_earnings_check: true        # Enforce earnings proximity rejection
+
+friction:
+  base_slippage_pct: 0.05             # Minimum base slippage percentage
+  commission_pct: 0.05                # Base commission percentage
+  use_dynamic_slippage: true          # Dynamic ATR volatility slippage
+  max_friction_r: 0.15                # Maximum acceptable friction in R-units

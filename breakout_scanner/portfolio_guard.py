@@ -226,6 +226,8 @@ class DailyRiskBudgetEngine:
         self.correlation_guard = CorrelationStackingGuard(
             max_trades_per_sector=self.max_trades_per_sector
         )
+        from .rejection_gate import TradeRejectionGate
+        self.rejection_gate = TradeRejectionGate(cfg)
 
     def allocate_slate(
         self,
@@ -301,6 +303,21 @@ class DailyRiskBudgetEngine:
             )
 
             if alloc.status == "REJECTED":
+                suppressed_trades.append(alloc)
+                continue
+
+            # Phase 4 Trade Rejection Gate (Rule 4.4: Structural Risk, Friction, Payoff, Earnings)
+            decision = self.rejection_gate.evaluate_setup(s)
+            if not decision.approved:
+                alloc.status = "REJECTED"
+                alloc.reason = decision.reason
+                suppressed_trades.append(alloc)
+                continue
+
+            # Phase 2 Anti-Chase Guard: Suppress trades extended past pivot tolerance
+            if s.state in (State.BUY, State.SELL) and not s.is_fresh_entry:
+                alloc.status = "SUPPRESSED"
+                alloc.reason = "LATE_CHASE: Price extended past pivot tolerance (Anti-Chase Guard)"
                 suppressed_trades.append(alloc)
                 continue
 

@@ -15,6 +15,23 @@ from breakout_scanner.scanner import MultiSymbolScanner
 from breakout_scanner.providers.base import MarketDataProvider
 from breakout_scanner.telemetry import ScanMetricsLogger, log_scan_metrics
 from breakout_scanner.version import __version__, VERSION
+from unittest.mock import MagicMock
+import yfinance as yf
+
+
+@pytest.fixture(autouse=True)
+def mock_golden_yfinance(monkeypatch):
+    """Ensure golden regression test runs 100% offline without live Yahoo Finance queries."""
+    def mock_ticker(sym):
+        m = MagicMock()
+        if sym in ("AAPL", "MSFT", "NVDA", "CSCO", "ORCL", "AMD"):
+            m.info = {"recommendationKey": "buy"}
+        else:
+            m.info = {"recommendationKey": "hold"}
+        m.calendar = None
+        return m
+
+    monkeypatch.setattr(yf, "Ticker", mock_ticker)
 
 
 class OfflineGoldenProvider(MarketDataProvider):

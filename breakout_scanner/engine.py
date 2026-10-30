@@ -224,14 +224,46 @@ class BreakoutEngine:
                     bull_break = row['Close'] >= self.setup.resistance * (1.0 + c_break['buffer_pct']/100.0)
                     bear_break = row['Close'] <= self.setup.support * (1.0 - c_break['buffer_pct']/100.0)
                     
+                    # Phase 2 CLV (Close Location Value) Filter
+                    c_quality = self.cfg.get('signal_quality', {}) if self.cfg else {}
+                    require_clv = c_quality.get('require_clv_confirmation', False)
+                    min_clv = float(c_quality.get('min_clv_threshold', 0.65))
+
+                    clv_long_ok = True
+                    clv_short_ok = True
+                    bar_rng = row['High'] - row['Low']
+                    if require_clv and is_finite_num(bar_rng) and bar_rng > 1e-9:
+                        clv_val = (row['Close'] - row['Low']) / bar_rng
+                        clv_long_ok = (clv_val >= min_clv)
+                        clv_short_ok = (clv_val <= (1.0 - min_clv))
+                    elif require_clv:
+                        clv_long_ok = False
+                        clv_short_ok = False
+
+                    # Phase 2 Pierced Base Gate (False Breakout Memory)
+                    max_pierced = c_quality.get('max_failed_breakouts_in_base', None)
+                    pierced_ok = True
+                    if max_pierced is not None:
+                        from .signal_quality import compute_failed_breakouts_in_base
+                        failed_in_base = compute_failed_breakouts_in_base(
+                            df.iloc[:i],
+                            resistance=self.setup.resistance,
+                            support=self.setup.support,
+                            base_lookback=max(5, setup_bars),
+                            direction=1
+                        )
+                        self.setup.failed_breakouts_in_base = failed_in_base
+                        if failed_in_base > max_pierced:
+                            pierced_ok = False
+
                     long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
                                    row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'] and
-                                   self.setup.cons_density_confirmed)
+                                   self.setup.cons_density_confirmed and clv_long_ok and pierced_ok)
                                    
                     short_signal = (c_break.get('allow_shorts', True) and
                                     setup_bars >= c_base['min_setup_bars'] and bear_break and 
                                     row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'] and
-                                    self.setup.cons_density_confirmed)
+                                    self.setup.cons_density_confirmed and clv_short_ok and pierced_ok)
                                     
                     if long_signal:
                         structure_stop = self.setup.support * (1.0 - c_risk['structure_buffer_pct']/100.0)
@@ -268,6 +300,7 @@ class BreakoutEngine:
                             self.setup.tp1 = float(self.setup.entry + risk * c_tgt['tp1_r'])
                             self.setup.tp2 = float(self.setup.entry + risk * c_tgt['tp2_r'])
                             self.setup.target = self.setup.tp2
+                            self.setup.atr = float(row['ATR']) if ('ATR' in row and is_finite_num(row['ATR'])) else None
                             self.setup.breakout_level = float(self.setup.resistance) if self.setup.resistance else self.setup.entry
                             
                             structure_target = row['StructTgtHigh']
@@ -319,6 +352,7 @@ class BreakoutEngine:
                             self.setup.tp1 = float(self.setup.entry - risk * c_tgt['tp1_r'])
                             self.setup.tp2 = float(self.setup.entry - risk * c_tgt['tp2_r'])
                             self.setup.target = self.setup.tp2
+                            self.setup.atr = float(row['ATR']) if ('ATR' in row and is_finite_num(row['ATR'])) else None
                             self.setup.breakout_level = float(self.setup.support) if self.setup.support else self.setup.entry
                             
                             structure_target = row['StructTgtLow']
