@@ -85,6 +85,9 @@ class Setup:
     distance_to_trigger_pct: Optional[float] = None
     trigger_tightness_confirmed: bool = False
     failed_breakouts_in_base: int = 0
+    atr: Optional[float] = None
+    requires_confirmation: bool = False
+    is_extended: bool = False
 
     # Phase 3: Confluence & Context Layer
     htf_4h_trend: int = 0
@@ -102,17 +105,19 @@ class Setup:
 
     @property
     def is_tp1_reached(self) -> bool:
-        if self.current_price is None or self.tp1 is None or self.entry is None:
+        curr = self.current_price if self.current_price is not None else self.entry
+        if curr is None or self.tp1 is None or self.entry is None:
             return False
         if self.direction == 1:
-            return self.current_price >= self.tp1
+            return curr >= self.tp1
         elif self.direction == -1:
-            return self.current_price <= self.tp1
+            return curr <= self.tp1
         return False
 
     @property
     def is_fresh_entry(self) -> bool:
-        if self.current_price is None or self.entry is None or self.entry <= 0:
+        curr = self.current_price if self.current_price is not None else self.entry
+        if curr is None or self.entry is None or self.entry <= 0:
             return False
         if self.is_tp1_reached:
             return False
@@ -123,22 +128,27 @@ class Setup:
         # Base breach check: price must not have fallen back inside the base or breached stop
         if self.direction == 1:
             base_level = self.breakout_level if self.breakout_level is not None else self.resistance
-            if base_level is not None and self.current_price < base_level:
+            if base_level is not None and curr < base_level:
                 return False
-            if self.stop is not None and self.current_price <= self.stop:
+            if self.stop is not None and curr <= self.stop:
                 return False
-            favorable_dist = (self.current_price - self.entry) / self.entry * 100.0
+            favorable_dist = (curr - self.entry) / self.entry * 100.0
         elif self.direction == -1:
             base_level = self.breakout_level if self.breakout_level is not None else self.support
-            if base_level is not None and self.current_price > base_level:
+            if base_level is not None and curr > base_level:
                 return False
-            if self.stop is not None and self.current_price >= self.stop:
+            if self.stop is not None and curr >= self.stop:
                 return False
-            favorable_dist = (self.entry - self.current_price) / self.entry * 100.0
+            favorable_dist = (self.entry - curr) / self.entry * 100.0
         else:
             return False
 
-        return favorable_dist <= 1.0
+        max_dist = 1.0
+        if self.atr is not None and self.atr > 0 and self.entry > 0:
+            atr_dist_pct = (0.5 * self.atr / self.entry) * 100.0
+            max_dist = min(1.0, atr_dist_pct)
+
+        return favorable_dist <= max_dist
 
     @property
     def trade_status_label(self) -> str:

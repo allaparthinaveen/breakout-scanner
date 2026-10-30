@@ -140,6 +140,25 @@ class Backtester:
                         if gap_up_pct > max_adverse_gap or not holds_pivot:
                             confirm_ok = False
 
+                # Phase 2 Anti-Chase Extension Filter: Reject if opening beyond pivot tolerance
+                if confirm_ok and c_break.get('use_extension_filter', False):
+                    p_atr = pending_signal.get('atr')
+                    max_chase = float(c_break.get('max_chase_pct', 2.0))
+                    if p_dir == 1 and pending_signal.get('resistance'):
+                        p_res = pending_signal['resistance']
+                        dist_pct = (cur_open - p_res) / p_res * 100.0
+                        atr_limit = (0.75 * (p_atr / p_res * 100.0)) if (p_atr and p_atr > 0) else max_chase
+                        max_allowed = min(max_chase, max(1.0, atr_limit))
+                        if dist_pct > max_allowed:
+                            confirm_ok = False
+                    elif p_dir == -1 and pending_signal.get('support'):
+                        p_sup = pending_signal['support']
+                        dist_pct = (p_sup - cur_open) / p_sup * 100.0
+                        atr_limit = (0.75 * (p_atr / p_sup * 100.0)) if (p_atr and p_atr > 0) else max_chase
+                        max_allowed = min(max_chase, max(1.0, atr_limit))
+                        if dist_pct > max_allowed:
+                            confirm_ok = False
+
                 if capital <= 0 or not confirm_ok:
                     pending_signal = None
                 elif p_dir == 1:  # Long / BUY
@@ -494,12 +513,27 @@ class Backtester:
                         bull_break = cur_close >= setup_resistance * (1.0 + c_break['buffer_pct'] / 100.0)
                         bear_break = cur_close <= setup_support * (1.0 - c_break['buffer_pct'] / 100.0)
                         
+                        # Phase 2 CLV (Close Location Value) Filter
+                        c_quality = self.cfg.get('signal_quality', {}) if self.cfg else {}
+                        require_clv = c_quality.get('require_clv_confirmation', False)
+                        min_clv = float(c_quality.get('min_clv_threshold', 0.65))
+                        clv_long_ok = True
+                        clv_short_ok = True
+                        bar_rng = cur_high - cur_low
+                        if require_clv and bar_rng > 1e-9:
+                            clv_val = (cur_close - cur_low) / bar_rng
+                            clv_long_ok = (clv_val >= min_clv)
+                            clv_short_ok = (clv_val <= (1.0 - min_clv))
+                        elif require_clv:
+                            clv_long_ok = False
+                            clv_short_ok = False
+
                         long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
-                                       row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'])
+                                       row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'] and clv_long_ok)
                                        
                         short_signal = (c_break.get('allow_shorts', True) and
                                         setup_bars >= c_base['min_setup_bars'] and bear_break and 
-                                        row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
+                                        row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'] and clv_short_ok)
                                         
                         if long_signal:
                             structure_stop = setup_support * (1.0 - c_risk['structure_buffer_pct'] / 100.0)
@@ -530,7 +564,8 @@ class Backtester:
                                     'resistance': setup_resistance,
                                     'support': setup_support,
                                     'stop_floor_binding': is_floor_binding,
-                                    'friction_r': round(float(friction_r), 3)
+                                    'friction_r': round(float(friction_r), 3),
+                                    'atr': float(row['ATR']) if ('ATR' in row and row['ATR'] is not None) else None
                                 }
                             state = State.IDLE
                             
@@ -563,7 +598,8 @@ class Backtester:
                                     'resistance': setup_resistance,
                                     'support': setup_support,
                                     'stop_floor_binding': is_floor_binding,
-                                    'friction_r': round(float(friction_r), 3)
+                                    'friction_r': round(float(friction_r), 3),
+                                    'atr': float(row['ATR']) if ('ATR' in row and row['ATR'] is not None) else None
                                 }
                             state = State.IDLE
 

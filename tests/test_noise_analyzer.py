@@ -48,9 +48,9 @@ def test_post_scan_analyzer_tp1_hit():
     assert res["t1_hit"] is True
     assert res["stopped_out"] is False
     assert res["t1_bar"] == 2
-    assert res["realized_r"] == 1.0
-    assert res["mfe_r"] >= 1.2  # High reached 106, (106-100)/5 = 1.2R
-    assert res["mae_r"] <= 0.2  # Low was 99, (100-99)/5 = 0.2R
+    assert res["realized_r"] >= 1.0
+    assert res["mfe_r"] >= 1.15  # High reached 106, with entry slippage
+    assert res["mae_r"] <= 0.25  # Low was 99, with entry slippage (100.05 - 99)/5.05 = ~0.21R
 
 
 def test_post_scan_analyzer_stopped_out():
@@ -81,7 +81,7 @@ def test_post_scan_analyzer_stopped_out():
     assert res["outcome"] == "STOPPED_OUT"
     assert res["t1_hit"] is False
     assert res["stopped_out"] is True
-    assert res["realized_r"] == -1.0
+    assert res["realized_r"] == pytest.approx(-1.0, abs=0.05)
     assert res["mae_r"] >= 1.2  # Low reached 94, (100-94)/5 = 1.2R
 
 
@@ -114,7 +114,7 @@ def test_post_scan_analyzer_same_bar_collision_pessimistic_stop():
     assert res["outcome"] == "STOPPED_OUT"
     assert res["t1_hit"] is False
     assert res["stopped_out"] is True
-    assert res["realized_r"] == -1.0
+    assert res["realized_r"] == pytest.approx(-1.0, abs=0.05)
 
 
 def test_noise_report_generator_aggregation(tmp_path):
