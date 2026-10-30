@@ -95,3 +95,17 @@ friction:
   commission_pct: 0.05                # Base commission percentage
   use_dynamic_slippage: true          # Dynamic ATR volatility slippage
   max_friction_r: 0.15                # Maximum acceptable friction in R-units
+
+dynamic_universe:
+  enabled: true                       # Dynamic Liquidity Universe Engine Feature Flag
+  target_size: 30                     # Target high-liquidity universe size
+  buffer_cutoff: 35                   # Hysteresis buffer zone cutoff for incumbents (ranks 1-35)
+  min_active_sessions: 18             # Must trade in >= 18 of last 20 sessions
+  lookback_days: 20                   # 20-day ADV computation window
+  min_price:
+    us: 5.0                           # Exclude US penny stocks < $5.00
+    nse: 50.0                         # Exclude NSE low-priced stocks < Rs 50.00
+  max_sector_concentration: 8         # Maximum stocks allowed from any single sector in Top 30
+  max_spread_pct: 6.0                 # Reject stocks with average candle spread > 6.0%
+  max_avg_gap_pct: 2.5                # Flag stocks with average overnight gap > 2.5%
+  metadata_dir: "data/universe"       # Storage path for active watchlist and snapshots

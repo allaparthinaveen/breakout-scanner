@@ -92,6 +92,11 @@ def scan_now():
         action="store_true",
         help="Display Phase 4 Institutional Actionable Trade Slate with exact sizing & risk budgeting",
     )
+    parser.add_argument(
+        "--dynamic-universe",
+        action="store_true",
+        help="Screen broad market dynamically for Top 30 high-liquidity stocks using ADV_20 & stability buffer",
+    )
     args = parser.parse_args()
 
     print(f"Loading config from {args.config}...")
@@ -114,6 +119,14 @@ def scan_now():
     else:
         print(f"File {filename} not found.")
         return
+
+    if args.dynamic_universe:
+        from breakout_scanner.universe.engine import DynamicLiquidityEngine
+        u_engine = DynamicLiquidityEngine(cfg)
+        market = 'nse' if ('nifty' in filename.lower() or 'nse' in filename.lower()) else 'us'
+        u_result = u_engine.run_selection(provider, market=market, custom_watchlist=filename if os.path.exists(filename) else None)
+        symbols = u_result.selected_symbols
+        print(f"  • Dynamic Universe: Screened {u_result.total_eligible} -> Selected Top {len(symbols)} (Turnover: {u_result.turnover_rate_pct:.1f}%)")
 
     print("=" * 65)
     print(f"  BREAKOUT SCANNER: {os.path.basename(args.config).upper()}")
