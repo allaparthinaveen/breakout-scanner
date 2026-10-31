@@ -18,7 +18,8 @@ from breakout_scanner.confluence import (
     compute_4h_confluence,
     compute_market_regime,
     check_earnings_proximity,
-    enrich_confluence_and_context
+    enrich_confluence_and_context,
+    is_non_equity_symbol
 )
 
 
@@ -167,3 +168,46 @@ def test_scorer_phase3_active_weights_modifiers():
 
     # Should be penalized (-8 for high-vol selloff, -5 for earnings warning = -13 pts)
     assert score_drag_penalized == max(0, score_drag_base - 13)
+
+
+def test_is_non_equity_symbol_classification():
+    """Verify that macro, future, forex, index, and crypto symbols are correctly identified."""
+    # Futures & Commodities
+    assert is_non_equity_symbol("GC=F") is True
+    assert is_non_equity_symbol("SI=F") is True
+    assert is_non_equity_symbol("CL=F") is True
+    assert is_non_equity_symbol("BZ=F") is True
+    assert is_non_equity_symbol("NG=F") is True
+
+    # Forex
+    assert is_non_equity_symbol("GBPUSD=X") is True
+    assert is_non_equity_symbol("USDJPY=X") is True
+    assert is_non_equity_symbol("AUDUSD=X") is True
+    assert is_non_equity_symbol("CAD=X") is True
+
+    # Indices
+    assert is_non_equity_symbol("^FTSE") is True
+    assert is_non_equity_symbol("^GDAXI") is True
+    assert is_non_equity_symbol("^DJI") is True
+    assert is_non_equity_symbol("^NDX") is True
+    assert is_non_equity_symbol("^HSI") is True
+
+    # Crypto
+    assert is_non_equity_symbol("BTC-USD") is True
+    assert is_non_equity_symbol("ETH-USDT") is True
+
+    # Equities (should be False)
+    assert is_non_equity_symbol("AAPL") is False
+    assert is_non_equity_symbol("NVDA") is False
+    assert is_non_equity_symbol("RELIANCE.NS") is False
+    assert is_non_equity_symbol("") is False
+    assert is_non_equity_symbol(None) is False
+
+
+def test_non_equity_skips_earnings_proximity():
+    """Verify that non-equity instruments bypass earnings check without calling yfinance."""
+    for sym in ["GC=F", "SI=F", "CL=F", "^NDX", "^DJI", "GBPUSD=X"]:
+        days, imminent = check_earnings_proximity(sym)
+        assert days is None
+        assert imminent is False
+

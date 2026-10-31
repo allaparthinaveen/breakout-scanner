@@ -174,8 +174,10 @@ class MultiSymbolScanner:
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
             # ----------------------------------------------------
+            from .confluence import is_non_equity_symbol
             is_crypto = setup.symbol.endswith('-USD') or setup.symbol.endswith('-USDT')
             is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
+            is_macro = is_non_equity_symbol(setup.symbol)
 
             if is_crypto:
                 # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above upward-sloping 50-day SMA)
@@ -218,6 +220,19 @@ class MultiSymbolScanner:
                     score += 1
                 elif target_dir == -1 and not nifty_bullish:
                     score += 1
+
+            elif is_macro:
+                # Macro & Derivative Instruments (Commodities, Futures, Forex, Global Indices)
+                # These lack single-stock fundamentals/analyst ratings.
+                # Align with proxy/benchmark trend if available.
+                if not proxy_df.empty and len(proxy_df) >= 55:
+                    macro_sma = proxy_df['Close'].rolling(50).mean()
+                    macro_bullish = (proxy_df['Close'].iloc[-1] > macro_sma.iloc[-1]) and (macro_sma.iloc[-1] > macro_sma.iloc[-5])
+                    if target_dir == 1 and macro_bullish:
+                        score += 1
+                    elif target_dir == -1 and not macro_bullish:
+                        score += 1
+
             else:
                 # US Stocks: Wall Street Analyst Ratings & Earnings Risk
                 ticker = yf.Ticker(setup.symbol)

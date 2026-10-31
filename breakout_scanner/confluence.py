@@ -15,6 +15,30 @@ import pandas as pd
 from .models import Setup, State
 
 
+def is_non_equity_symbol(symbol: str) -> bool:
+    """
+    Returns True if the symbol represents a macro or derivative instrument:
+    - Index (^NDX, ^DJI, ^FTSE, ^GDAXI, ^HSI, ^NSEI, etc.)
+    - Commodity / Index Future (=F, e.g. GC=F, SI=F, CL=F, NQ=F)
+    - Forex currency pair (=X, e.g. GBPUSD=X, USDJPY=X)
+    - Cryptocurrency (-USD, -USDT, etc.)
+
+    These instruments do not have corporate earnings calendars or Wall Street analyst coverage.
+    """
+    if not symbol:
+        return False
+    s = str(symbol).strip().upper()
+    return (
+        s.startswith("^")
+        or "=F" in s
+        or "=X" in s
+        or s.endswith("-USD")
+        or s.endswith("-USDT")
+        or s.endswith("-EUR")
+        or s.endswith("-BTC")
+    )
+
+
 def is_finite(val) -> bool:
     if val is None:
         return False
@@ -157,6 +181,9 @@ def check_earnings_proximity(
     Returns (days_until_earnings, is_earnings_imminent).
     is_earnings_imminent is True if earnings occur within 0 to 3 trading days.
     """
+    if not symbol or is_non_equity_symbol(symbol):
+        return None, False
+
     try:
         cal = calendar_data
         if cal is None:
@@ -225,8 +252,8 @@ def enrich_confluence_and_context(
     setup.market_regime = regime_name
     setup.market_regime_favorable = favorable
 
-    # 3. Earnings Proximity
-    if setup.symbol and not (setup.symbol.endswith("-USD") or setup.symbol.endswith("-USDT")):
+    # 3. Earnings Proximity (Equities only - skip non-equity macro instruments)
+    if setup.symbol and not is_non_equity_symbol(setup.symbol):
         days_until, imminent = check_earnings_proximity(setup.symbol)
         setup.days_to_earnings = days_until
         if imminent:
