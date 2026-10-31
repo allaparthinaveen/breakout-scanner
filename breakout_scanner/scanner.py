@@ -297,6 +297,16 @@ class MultiSymbolScanner:
         c_score, c_grade = calculate_composite_score(setup, quality_cfg=quality_cfg, context_cfg=context_cfg)
         setup.composite_score = c_score
         setup.composite_grade = c_grade
+
+        # Phase 2/3: Tiered Follow-Through Confirmation Policy
+        confirmation_cfg = self.cfg.get('confirmation_policy', {}) if self.cfg else {}
+        min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 85))
+        setup.requires_confirmation = (c_score < min_auto_entry_score)
+        if setup.requires_confirmation:
+            setup.confirmation_status = "AWAITING_FOLLOW_THROUGH"
+        else:
+            setup.confirmation_status = "CONFIRMED"
+
         # Phase 1: Options Policy Tag
         setup.underlying_validated = False
         setup.options_eligible = False

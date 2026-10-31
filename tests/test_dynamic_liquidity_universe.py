@@ -380,7 +380,8 @@ def test_daily_scan_integration_without_modifying_breakout_engine(tmp_path):
             "buffer_cutoff": 3,
             "min_price": {"us": 5.0},
             "min_active_sessions": 18,
-            "metadata_dir": u_dir
+            "metadata_dir": u_dir,
+            "report_dir": str(tmp_path / "reports")
         },
         "portfolio_guard": {
             "account_equity": 100000.0,
@@ -420,3 +421,44 @@ def test_daily_scan_integration_without_modifying_breakout_engine(tmp_path):
     slate = generate_actionable_slate([s_nvda, s_aapl], config=cfg)
     assert len(slate.actionable_trades) >= 1
     assert slate.actionable_trades[0].symbol == "NVDA"
+
+    # 4. Verify markdown report generation
+    assert universe_result.report_path is not None
+    assert os.path.exists(universe_result.report_path)
+
+
+def test_markdown_audit_report_content(tmp_path):
+    """Verify detailed contents of generated universe liquidity audit markdown report."""
+    provider = MockOfflineProvider({})
+    u_dir = str(tmp_path / "universe")
+    rep_path = str(tmp_path / "universe_report.md")
+
+    cfg = {
+        "dynamic_universe": {
+            "target_size": 2,
+            "buffer_cutoff": 3,
+            "metadata_dir": u_dir,
+            "report_dir": str(tmp_path / "reports")
+        }
+    }
+
+    engine = DynamicLiquidityEngine(cfg)
+    df_a = create_daily_df([100.0] * 20, [1000000.0] * 20)
+    df_b = create_daily_df([50.0] * 20, [500000.0] * 20)
+
+    res = engine.run_selection(
+        provider=provider,
+        market="US",
+        broad_symbols=["SYM_A", "SYM_B"],
+        symbols_daily_data={"SYM_A": df_a, "SYM_B": df_b}
+    )
+
+    report_content = engine.generate_markdown_report(res, output_path=rep_path)
+    assert os.path.exists(rep_path)
+    assert "Layer 1 Universe Intelligence" in report_content
+    assert "Selected Top 2 Liquid Constituents" in report_content
+    assert "SYM_A" in report_content
+    assert "SYM_B" in report_content
+    assert "Sector Concentration & Diversification" in report_content
+    assert "Boundary & Churn Audit" in report_content
+

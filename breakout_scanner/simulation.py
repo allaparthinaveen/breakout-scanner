@@ -91,6 +91,57 @@ def simulate_forward_trade(
     first_bar = future_candles.iloc[0]
     first_open = float(first_bar['Open'])
 
+    # Phase 2/3: Tiered Follow-Through Confirmation Policy
+    requires_conf = bool(candidate.get('requires_confirmation', False))
+    breakout_high = candidate.get('breakout_high') or candidate.get('entry')
+    breakout_low = candidate.get('breakout_low') or candidate.get('entry')
+
+    if requires_conf and len(future_candles) > 0:
+        first_high = float(first_bar['High'])
+        first_low = float(first_bar['Low'])
+        if direction == 1 and breakout_high is not None and first_high <= (breakout_high * 1.0001):
+            return {
+                **candidate,
+                "outcome": "UNCONFIRMED",
+                "exit_reason": "FAILED_FOLLOW_THROUGH",
+                "entry_price": None,
+                "exit_price": None,
+                "mfe_r": 0.0,
+                "mae_r": 0.0,
+                "realized_r": 0.0,
+                "gross_pnl": 0.0,
+                "net_pnl": 0.0,
+                "commissions": 0.0,
+                "bars_tracked": 1,
+                "t1_hit": False,
+                "t1_bar": None,
+                "t2_hit": False,
+                "t2_bar": None,
+                "stopped_out": False,
+                "stop_bar": None
+            }
+        elif direction == -1 and breakout_low is not None and first_low >= (breakout_low * 0.9999):
+            return {
+                **candidate,
+                "outcome": "UNCONFIRMED",
+                "exit_reason": "FAILED_FOLLOW_THROUGH",
+                "entry_price": None,
+                "exit_price": None,
+                "mfe_r": 0.0,
+                "mae_r": 0.0,
+                "realized_r": 0.0,
+                "gross_pnl": 0.0,
+                "net_pnl": 0.0,
+                "commissions": 0.0,
+                "bars_tracked": 1,
+                "t1_hit": False,
+                "t1_bar": None,
+                "t2_hit": False,
+                "t2_bar": None,
+                "stopped_out": False,
+                "stop_bar": None
+            }
+
     # Entry execution at Next-Bar Open
     if direction == 1:
         entry_fill = first_open * (1.0 + slippage_pct)

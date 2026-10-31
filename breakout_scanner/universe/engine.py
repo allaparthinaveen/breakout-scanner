@@ -41,6 +41,7 @@ class DynamicLiquidityEngine:
 
         universe_dir = u_cfg.get("metadata_dir", "data/universe")
         snapshot_dir = os.path.join(universe_dir, "snapshots")
+        self.report_dir = u_cfg.get("report_dir", "reports")
 
         self.screener = LiquidityScreener(
             lookback_sessions=self.lookback_sessions,
@@ -111,5 +112,94 @@ class DynamicLiquidityEngine:
             date_str=date_str
         )
 
+        # Step 5: Automatically generate Markdown Audit Report
+        try:
+            report_out = os.path.join(self.report_dir, "universe_liquidity_report.md")
+            self.generate_markdown_report(result, output_path=report_out)
+        except Exception:
+            pass
+
         return result
+
+    def generate_markdown_report(
+        self,
+        result: UniverseSelectionResult,
+        output_path: str = "reports/universe_liquidity_report.md"
+    ) -> str:
+        """
+        Generates a comprehensive Markdown audit report for the screened universe.
+        """
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        lines = [
+            f"# 🏛️ Layer 1 Universe Intelligence: Dynamic Liquidity Audit Report",
+            f"",
+            f"> **Market:** `{result.market.upper()}` | **Date:** `{result.date}`  ",
+            f"> **Eligible Universe:** {result.total_eligible} candidates | **Qualified:** {result.qualified_count} | **Rejected:** {result.rejected_count}  ",
+            f"> **Stability Metrics:** Target: {result.target_size} | Buffer Cutoff: {result.buffer_cutoff} | Retained: {len(result.retained_symbols)} | Additions: {len(result.added_symbols)} | Drops: {len(result.removed_symbols)} | Turnover: {result.turnover_rate_pct:.1f}%",
+            f"",
+            f"---",
+            f"",
+            f"## 1. Selected Top {len(result.selected_symbols)} Liquid Constituents",
+            f"",
+            f"| Rank | Symbol | Sector | Last Close | 20D ADV | 20D Avg Vol | Trend | Spread % | Gap Risk | Impact (bps) | Status |",
+            f"| :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |",
+        ]
+
+        c_map = {c.symbol: c for c in result.candidates}
+        curr_symbol = "₹" if result.market.upper() == "NSE" else "$"
+
+        for sym in result.selected_symbols:
+            c = c_map.get(sym)
+            if not c:
+                continue
+            adv_str = f"{curr_symbol}{c.adv_20d:,.0f}"
+            vol_str = f"{c.volume_20d_avg:,.0f}"
+            gap_flag = "⚠️ YES" if c.gap_risk_flag else "NO"
+            lines.append(
+                f"| {c.rank} | **{c.symbol}** | {c.sector} | {curr_symbol}{c.last_close:.2f} | {adv_str} | {vol_str} | {c.liquidity_trend_label} ({c.liquidity_trend:.2f}x) | {c.spread_pct:.2f}% | {gap_flag} | {c.market_impact_est_bps:.1f} bps | `{c.status}` |"
+            )
+
+        lines.extend([
+            f"",
+            f"---",
+            f"",
+            f"## 2. Sector Concentration & Diversification",
+            f"",
+            f"| Sector | Count | Allocation % | Max Cap ({self.max_sector_concentration}) | Concentration Status |",
+            f"| :--- | :---: | :---: | :---: | :--- |",
+        ])
+
+        for sec, count in sorted(result.sector_distribution.items(), key=lambda x: x[1], reverse=True):
+            pct = result.sector_concentration_pct.get(sec, 0.0)
+            status = "⚠️ AT CAP" if count >= self.max_sector_concentration else "OK"
+            lines.append(f"| **{sec}** | {count} | {pct:.1f}% | {self.max_sector_concentration} | {status} |")
+
+        lines.extend([
+            f"",
+            f"---",
+            f"",
+            f"## 3. Boundary & Churn Audit",
+            f"",
+            f"- **🟢 New Inclusions ({len(result.added_symbols)}):** {', '.join(result.added_symbols) if result.added_symbols else 'None'}",
+            f"- **🛡️ Buffer Retentions ({len(result.retained_symbols)}):** {', '.join(result.retained_symbols) if result.retained_symbols else 'None'}",
+            f"- **🔴 Dropped Constituents ({len(result.removed_symbols)}):** {', '.join(result.removed_symbols) if result.removed_symbols else 'None'}",
+            f"",
+            f"---",
+            f"",
+            f"## 4. Reproducibility & Audit Paths",
+            f"",
+            f"- **Active Watchlist File:** `{result.watchlist_path}`",
+            f"- **Latest Metadata File:** `{result.metadata_path}`",
+            f"- **Historical Snapshot:** `{result.snapshot_path}`",
+        ])
+
+        content = "\n".join(lines) + "\n"
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            result.report_path = output_path
+        except Exception:
+            pass
+
+        return content
 

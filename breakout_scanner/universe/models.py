@@ -54,3 +54,4 @@ class UniverseSelectionResult:
     watchlist_path: Optional[str] = None
     metadata_path: Optional[str] = None
     snapshot_path: Optional[str] = None
+    report_path: Optional[str] = None

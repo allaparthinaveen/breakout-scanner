@@ -290,3 +290,53 @@ def test_cross_pipeline_equivalence_backtester_and_forward_analyzer():
     assert b_trade["mfe_r"] == pytest.approx(f_trade["mfe_r"], abs=0.05)
     assert b_trade["mae_r"] == pytest.approx(f_trade["mae_r"], abs=0.05)
 
+
+def test_tiered_confirmation_policy_unconfirmed_follow_through():
+    """Verify that a candidate requiring confirmation is skipped if Bar 0 fails to breach breakout high."""
+    cfg = get_base_test_config()
+    candidate = {
+        "symbol": "TIER_B_TRAP",
+        "direction": 1,
+        "entry": 100.0,
+        "breakout_high": 102.0,
+        "stop": 95.0,
+        "requires_confirmation": True
+    }
+    # Bar 0 opens at 100.5, high is only 101.0 (fails to exceed breakout high 102.0!)
+    future_candles = pd.DataFrame([
+        {"Open": 100.5, "High": 101.0, "Low": 98.0, "Close": 99.0, "Volume": 1000},
+        {"Open": 99.0, "High": 99.5, "Low": 92.0, "Close": 93.0, "Volume": 1500},
+    ])
+
+    res = simulate_forward_trade(candidate, future_candles, cfg=cfg)
+    assert res["outcome"] == "UNCONFIRMED"
+    assert res["exit_reason"] == "FAILED_FOLLOW_THROUGH"
+    assert res["entry_price"] is None
+    assert res["realized_r"] == 0.0
+
+
+def test_tiered_confirmation_policy_confirmed_follow_through():
+    """Verify that a candidate requiring confirmation enters normally when Bar 0 breaches breakout high."""
+    cfg = get_base_test_config()
+    candidate = {
+        "symbol": "TIER_B_WINNER",
+        "direction": 1,
+        "entry": 100.0,
+        "breakout_high": 102.0,
+        "stop": 95.0,
+        "tp1": 105.0,
+        "tp2": 110.0,
+        "requires_confirmation": True
+    }
+    # Bar 0 opens at 101.0, high reaches 103.5 (breaches breakout high 102.0 -> Confirmed!)
+    future_candles = pd.DataFrame([
+        {"Open": 101.0, "High": 103.5, "Low": 100.5, "Close": 103.0, "Volume": 1000},
+        {"Open": 103.0, "High": 106.0, "Low": 102.5, "Close": 105.5, "Volume": 1500},
+    ])
+
+    res = simulate_forward_trade(candidate, future_candles, cfg=cfg)
+    assert res["outcome"] != "UNCONFIRMED"
+    assert res["entry_price"] == 101.0
+    assert res["t1_hit"] is True
+
+

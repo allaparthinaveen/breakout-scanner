@@ -88,7 +88,8 @@ def run_daily_scan_pipeline(
     period: Optional[str] = None,
     custom_universe: Optional[str] = None,
     send_tg: bool = True,
-    dry_run: bool = False
+    dry_run: bool = False,
+    universe_only: bool = False
 ):
     print("=" * 70)
     print(" 🏛️  INSTITUTIONAL DAILY SCANNING PIPELINE")
@@ -139,6 +140,18 @@ def run_daily_scan_pipeline(
     selected_watchlist = universe_result.selected_symbols
     if not selected_watchlist:
         print("\n❌ No symbols qualified for liquidity watchlist. Aborting scan.")
+        return
+
+    if universe_only:
+        print("\n" + "=" * 70)
+        print(f" [UNIVERSE ONLY] TOP {target_size} LIQUIDITY WATCHLIST GENERATED & AUDITED")
+        print("=" * 70)
+        print(f"  • Active Watchlist:      {universe_result.watchlist_path}")
+        print(f"  • Metadata Path:         {universe_result.metadata_path}")
+        print(f"  • Historical Snapshot:   {universe_result.snapshot_path}")
+        print(f"  • Markdown Audit Report: {universe_result.report_path}")
+        print("=" * 70)
+        print(f"\n✅ Universe Generation Complete for {datetime.date.today().isoformat()}.")
         return
 
     # -----------------------------------------------------------------
@@ -196,6 +209,7 @@ def main():
     parser.add_argument("--custom-universe", type=str, default=None, help="Optional custom universe watchlist file")
     parser.add_argument("--no-tg", action="store_true", help="Suppress Telegram alerts")
     parser.add_argument("--dry-run", action="store_true", help="Execute without sending notifications or writing persistent files")
+    parser.add_argument("--universe-only", action="store_true", help="Generate and audit liquidity universe without running breakout scanner")
     args = parser.parse_args()
 
     run_daily_scan_pipeline(
@@ -206,7 +220,8 @@ def main():
         period=args.period,
         custom_universe=args.custom_universe,
         send_tg=not args.no_tg,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        universe_only=args.universe_only
     )
 
 

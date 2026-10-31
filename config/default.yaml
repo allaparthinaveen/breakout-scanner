@@ -89,6 +89,13 @@ rejection_gate:
   min_rr_ratio: 1.0                   # Reject if reward-to-risk ratio to TP1 < 1.0R
   earnings_buffer_days: 3             # Reject if earnings event scheduled within <= 3 trading days
   enforce_earnings_check: true        # Enforce earnings proximity rejection
+  enforce_anti_chase: true            # Disqualify late chase entries extended beyond pivot tolerance
+  max_extension_pct: 1.0              # Maximum allowable extension past pivot (1.0% or 0.5 ATR)
+  max_failed_breakouts_in_base: 2     # Reject setups with > 2 failed breakout wicks inside base (trap defense)
+
+confirmation_policy:
+  enabled: true                       # Tiered follow-through confirmation policy
+  min_auto_entry_score: 85            # Score >= 85 (Grade A/A+) auto-fill; < 85 requires Bar t+1 High breach
 
 friction:
   base_slippage_pct: 0.05             # Minimum base slippage percentage
