@@ -67,7 +67,6 @@ NFLX
 META
 GOOGL
 CHTR
-EA
 
 # Energy / Materials / Others
 NEM
