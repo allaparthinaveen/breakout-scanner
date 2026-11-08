@@ -174,8 +174,10 @@ class MultiSymbolScanner:
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
             # ----------------------------------------------------
+            from .confluence import is_non_equity_symbol
             is_crypto = setup.symbol.endswith('-USD') or setup.symbol.endswith('-USDT')
             is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
+            is_macro = is_non_equity_symbol(setup.symbol)
 
             if is_crypto:
                 # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above upward-sloping 50-day SMA)
@@ -218,6 +220,19 @@ class MultiSymbolScanner:
                     score += 1
                 elif target_dir == -1 and not nifty_bullish:
                     score += 1
+
+            elif is_macro:
+                # Macro & Derivative Instruments (Commodities, Futures, Forex, Global Indices)
+                # These lack single-stock fundamentals/analyst ratings.
+                # Align with proxy/benchmark trend if available.
+                if not proxy_df.empty and len(proxy_df) >= 55:
+                    macro_sma = proxy_df['Close'].rolling(50).mean()
+                    macro_bullish = (proxy_df['Close'].iloc[-1] > macro_sma.iloc[-1]) and (macro_sma.iloc[-1] > macro_sma.iloc[-5])
+                    if target_dir == 1 and macro_bullish:
+                        score += 1
+                    elif target_dir == -1 and not macro_bullish:
+                        score += 1
+
             else:
                 # US Stocks: Wall Street Analyst Ratings & Earnings Risk
                 ticker = yf.Ticker(setup.symbol)
@@ -269,67 +284,35 @@ class MultiSymbolScanner:
             pass
             
         setup.bias_score = score
-        c_score, c_grade = calculate_composite_score(setup)
+
+        # Phase 3: Confluence & Context Layer
+        try:
+            from .confluence import enrich_confluence_and_context
+            enrich_confluence_and_context(setup, df, proxy_df=proxy_df, cfg=self.cfg)
+        except Exception:
+            pass
+
+        quality_cfg = self.cfg.get('signal_quality', {}) if self.cfg else None
+        context_cfg = self.cfg.get('confluence_context', {}) if self.cfg else None
+        c_score, c_grade = calculate_composite_score(setup, quality_cfg=quality_cfg, context_cfg=context_cfg)
         setup.composite_score = c_score
         setup.composite_grade = c_grade
+
+        # Phase 2/3: Tiered Follow-Through Confirmation Policy
+        confirmation_cfg = self.cfg.get('confirmation_policy', {}) if self.cfg else {}
+        min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 85))
+        setup.requires_confirmation = (c_score < min_auto_entry_score)
+        if setup.requires_confirmation:
+            setup.confirmation_status = "AWAITING_FOLLOW_THROUGH"
+        else:
+            setup.confirmation_status = "CONFIRMED"
+
         # Phase 1: Options Policy Tag
         setup.underlying_validated = False
         setup.options_eligible = False
         setup.options_status = "UNDERLYING_UNVALIDATED"
 
     def report(self, setups: List[Setup]):
-        print("\n=======================================================")
-        print(" SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)")
-        print("=======================================================")
-        
-        base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-        base_setups.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
-        if not base_setups:
-            print("  (None)")
-        else:
-            for s in base_setups:
-                res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
-                sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
-                width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
-                coil = f"\033[94m🗜️ Coil: {s.decay_ratio:.1f}x\033[0m" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
-                vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
-                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
-                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
-                htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
-                grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
-                
-                target_dir = s.direction if s.direction in (1, -1) else (1 if s.trend >= 0 else -1)
-                bias_label = "Upside" if target_dir == 1 else "Downside"
-                if s.bias_score >= 2:
-                    bias_text = f"Strong {bias_label} Bias ({s.bias_score}/3)"
-                    bias_color = "\033[92m" if target_dir == 1 else "\033[91m"
-                elif s.bias_score == 1:
-                    bias_text = f"Weak {bias_label} Bias ({s.bias_score}/3)"
-                    bias_color = "\033[93m"
-                else:
-                    bias_text = f"Neutral/Counter Bias ({s.bias_score}/3)"
-                    bias_color = "\033[90m"
-                    
-                if s.earnings_warning:
-                    bias_text += " ⚠️ EARNINGS RISK"
-                    
-                bias_str = f"{bias_color}Bias: {bias_text}\033[0m"
-                parts = [f"  • {s.symbol:9}", res, sup]
-                if width:
-                    parts.append(width)
-                if coil:
-                    parts.append(coil)
-                if vdu:
-                    parts.append(vdu)
-                if sector:
-                    parts.append(sector)
-                if htf:
-                    parts.append(htf)
-                if grade_badge:
-                    parts.append(grade_badge)
-                parts.append(bias_str)
-                print(" | ".join(parts))
-
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
         fresh_setups = [s for s in active_setups if s.is_fresh_entry]
         progress_setups = [s for s in active_setups if not s.is_fresh_entry]
@@ -376,6 +359,77 @@ class MultiSymbolScanner:
                 pnl_str = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
                 print(f"  ❌ \033[91m{s.symbol:<8}\033[0m | Was {d_str} | PnL: {pnl_str} | Alert: {s.failure_reason or 'Fell back inside base'}")
 
+        print("\n=======================================================")
+        print(" SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)")
+        print("=======================================================")
+        
+        base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
+        base_setups.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
+        if not base_setups:
+            print("  (None)")
+        else:
+            for s in base_setups:
+                res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
+                sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
+                width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+                coil = f"\033[94m🗜️ Coil: {s.decay_ratio:.1f}x\033[0m" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
+                vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
+                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
+                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
+                
+                # Multi-TF HTF Badging
+                if s.htf_confirmed and getattr(s, 'htf_4h_confirmed', False):
+                    htf = "\033[93m⭐⭐ Multi-TF (1D+4H)\033[0m"
+                elif s.htf_confirmed:
+                    htf = "\033[93m⭐ 1D Confirmed\033[0m"
+                elif getattr(s, 'htf_4h_confirmed', False):
+                    htf = "\033[93m⭐ 4H Confirmed\033[0m"
+                else:
+                    htf = ""
+
+                grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
+                
+                target_dir = s.direction if s.direction in (1, -1) else (1 if s.trend >= 0 else -1)
+                bias_label = "Upside" if target_dir == 1 else "Downside"
+                if s.bias_score >= 2:
+                    bias_text = f"Strong {bias_label} Bias ({s.bias_score}/3)"
+                    bias_color = "\033[92m" if target_dir == 1 else "\033[91m"
+                elif s.bias_score == 1:
+                    bias_text = f"Weak {bias_label} Bias ({s.bias_score}/3)"
+                    bias_color = "\033[93m"
+                else:
+                    bias_text = f"Neutral/Counter Bias ({s.bias_score}/3)"
+                    bias_color = "\033[90m"
+                    
+                if s.earnings_warning:
+                    bias_text += " ⚠️ EARNINGS RISK"
+                    
+                bias_str = f"{bias_color}Bias: {bias_text}\033[0m"
+                parts = [f"  • {s.symbol:9}", res, sup]
+                if width:
+                    parts.append(width)
+                if coil:
+                    parts.append(coil)
+                if vdu:
+                    parts.append(vdu)
+                if sector:
+                    parts.append(sector)
+                if htf:
+                    parts.append(htf)
+                if grade_badge:
+                    parts.append(grade_badge)
+                parts.append(bias_str)
+                print(" | ".join(parts))
+
+        # Phase 4: Portfolio Guard Actionable Trade Slate
+        if self.cfg and self.cfg.get('portfolio_guard', {}).get('enabled', False):
+            try:
+                from .portfolio_guard import generate_actionable_slate, format_trade_slate_cli
+                slate = generate_actionable_slate(setups, config=self.cfg)
+                print(format_trade_slate_cli(slate))
+            except Exception:
+                pass
+
         print("\n")
 
     def format_active_setup(self, s: Setup, is_fresh: bool) -> str:
@@ -403,7 +457,6 @@ class MultiSymbolScanner:
         sector = f"[{s.sector_name}{trend_sym}]" if s.sector_name else ""
         htf = "\033[93m⭐ 1D\033[0m" if s.htf_confirmed else ""
         grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
-        options_badge = f"\033[90m[Opt: {s.options_status}]\033[0m"
         
         parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
         if risk_str:
@@ -420,7 +473,6 @@ class MultiSymbolScanner:
             parts.append(htf)
         if grade_badge:
             parts.append(grade_badge)
-        parts.append(options_badge)
             
         if not is_fresh:
             pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""

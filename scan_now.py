@@ -61,8 +61,15 @@ def scan_now():
     parser.add_argument(
         "--watchlist",
         type=str,
-        default="config/watchlist.txt",
+        default=None,
         help="Path to watchlist file (defaults to config/watchlist.txt)",
+    )
+    parser.add_argument(
+        "--market",
+        type=str,
+        default="us",
+        choices=["us", "nse", "US", "NSE"],
+        help="Target exchange market for dynamic universe (default: us)",
     )
     parser.add_argument(
         "--config",
@@ -87,6 +94,16 @@ def scan_now():
         action="store_true",
         help="Suppress Telegram notification (CLI terminal report only)",
     )
+    parser.add_argument(
+        "--slate",
+        action="store_true",
+        help="Display Phase 4 Institutional Actionable Trade Slate with exact sizing & risk budgeting",
+    )
+    parser.add_argument(
+        "--dynamic-universe",
+        action="store_true",
+        help="Screen broad market dynamically for Top 30 high-liquidity stocks using ADV_20 & stability buffer",
+    )
     args = parser.parse_args()
 
     print(f"Loading config from {args.config}...")
@@ -97,18 +114,29 @@ def scan_now():
     interval = args.interval or cfg.get('timeframe', {}).get('interval', '1h')
     period = args.period or cfg.get('timeframe', {}).get('period', '60d')
     
-    filename = args.watchlist
-    symbols = []
-    
-    if os.path.exists(filename):
-        with open(filename, 'r') as f:
-            for line in f:
-                sym = line.split(',')[0].strip()
-                if sym and not sym.startswith('#') and sym not in symbols:
-                    symbols.append(sym)
+    if args.dynamic_universe:
+        from breakout_scanner.universe.engine import DynamicLiquidityEngine
+        u_engine = DynamicLiquidityEngine(cfg)
+        market = args.market.lower()
+        custom_wl = args.watchlist if (args.watchlist and os.path.exists(args.watchlist)) else None
+        if custom_wl and ('nifty' in custom_wl.lower() or 'nse' in custom_wl.lower()):
+            market = 'nse'
+        u_result = u_engine.run_selection(provider, market=market, custom_watchlist=custom_wl)
+        symbols = u_result.selected_symbols
+        filename = u_result.watchlist_path or f"data/universe/{market}_top30_active.txt"
+        print(f"  • Dynamic Universe: Screened {u_result.total_eligible} -> Selected Top {len(symbols)} (Turnover: {u_result.turnover_rate_pct:.1f}%)")
     else:
-        print(f"File {filename} not found.")
-        return
+        filename = args.watchlist or "config/watchlist.txt"
+        symbols = []
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                for line in f:
+                    sym = line.split(',')[0].strip()
+                    if sym and not sym.startswith('#') and sym not in symbols:
+                        symbols.append(sym)
+        else:
+            print(f"File {filename} not found.")
+            return
 
     print("=" * 65)
     print(f"  BREAKOUT SCANNER: {os.path.basename(args.config).upper()}")
@@ -118,6 +146,11 @@ def scan_now():
     print(f"  • Timeframe:       {interval.upper()} (Period: {period})")
     print(f"  • Long-Only:       {'Yes' if not cfg.get('breakout', {}).get('allow_shorts', True) else 'No (Bi-directional)'}")
     print(f"  • Cost Filter:     {'Enabled (Max ' + str(cfg.get('risk', {}).get('max_friction_r', 0.15)) + 'R)' if cfg.get('risk', {}).get('use_cost_filter') else 'Disabled'}")
+    if 'option' in args.config.lower():
+        print("  ⚠️  OPTIONS SCREENING NOTICE:")
+        print("  • Signals represent UNDERLYING stock momentum candidates only.")
+        print("  • Manual option chain required: Delta 0.40–0.60 | 14–30 DTE | Spread < 10% | IV < 50%.")
+        print("  • NEVER use underlying stop distance directly as option contract stop.")
     print("=" * 65)
     
     from breakout_scanner.scanner import MultiSymbolScanner
@@ -128,6 +161,23 @@ def scan_now():
     
     # Print the CLI colored report
     scanner.report(setups)
+
+    # Phase 4: Actionable Trade Slate (if --slate is requested and not already printed by scanner.report)
+    if args.slate and not cfg.get('portfolio_guard', {}).get('enabled', False):
+        try:
+            from breakout_scanner.portfolio_guard import generate_actionable_slate, format_trade_slate_cli
+            slate = generate_actionable_slate(setups, config=cfg)
+            print(format_trade_slate_cli(slate))
+        except Exception as e:
+            print(f"Trade Slate error: {e}")
+
+    # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
+    try:
+        from breakout_scanner.telemetry import log_scan_metrics
+        market_label = 'crypto' if 'crypto' in filename.lower() else ('nse' if 'nifty' in filename.lower() or 'nse' in filename.lower() else 'us')
+        log_scan_metrics(setups, market=market_label, timeframe=interval, config_name=os.path.basename(args.config))
+    except Exception:
+        pass
     
     # Build HTML string and send via Telegram if enabled
     if not args.no_tg:

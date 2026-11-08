@@ -1,180 +1,289 @@
-# Institutional Remediation & Implementation Plan
+# 🏛️ Institutional Implementation Plan: Production-Grade Breakout System
 
-> **Scope:** Remediation of critical and high-priority findings from the quantitative review on commit `1d273fd`.  
-> **Target Branch:** `main`  
-> **Core Objective:** Eliminate lookahead bias, enforce data integrity, unify backtester with the live execution engine, and establish trustworthy NSE performance metrics.
+> **Scope:** High-rigor engineering and quantitative validation roadmap for the Breakout Scanner engine.  
+> **Target System:** End-to-end signal discovery, quantitative scoring, backtest simulation, risk allocation, and live paper execution.  
+> **Guiding Principle:** **Measurements must be flawless before signals are tuned.** Every filter must justify its inclusion through empirical out-of-sample evidence. Risk controls must protect the aggregate portfolio, not merely individual trades.
 
 ---
 
-## 🗺️ Roadmap & Phase Overview
+## 🗺️ Five-Phase Architectural Blueprint
 
 ```mermaid
 flowchart TD
-    subgraph Phase1 ["Phase 1: Data Integrity & Confirmed Candle Policy"]
-        A1["Robust Data Validation Layer<br>(Sort, Dedup, OHLC Sanity)"]
-        A2["Confirmed Candle Policy<br>(Discard Incomplete/Open Live Bar)"]
-        A3["Eliminate .bfill() Lookahead Leak<br>(Strict Forward-Only Alignment)"]
+    subgraph P1 ["Phase 1: Make Measurements Trustworthy (P0 · First)"]
+        direction TB
+        A1["Unify Execution Engine<br>(Shared Simulator for Backtest & Forward Tracking)"]
+        A2["Precision Trade Lifecycle<br>(Partial TP1 Scale-Out & Strict MFE / MAE in R)"]
+        A3["Eliminate Synthetic Fallbacks<br>(Explicit Rejection of Invalid Stops/Targets)"]
+        A4["Bar-by-Bar Event Replay<br>(No Stride Skips, No Duplicate Overlaps)"]
+        A5["Deterministic Test Shield<br>(Hand-Calculated Tests: Gaps, Collisions, Noise)"]
     end
 
-    subgraph Phase2 ["Phase 2: Bidirectional Scoring & Benchmark Precision"]
-        B1["Bidirectional Bias Scorer<br>(Symmetric Long vs. Short Evaluation)"]
-        B2["Meaningful VCP Setup Gating<br>(Tightening & Volume Exhaustion Gates)"]
-        B3["Accurate NSE Sector Mappings<br>(Nifty Financial Services & Utilities)"]
+    subgraph P2 ["Phase 2: Reduce Bad Breakout Signals (Signal Quality)"]
+        direction TB
+        B1["Consolidation & Base Hygiene<br>(Wave Decay, ATR Contraction, Piercing Penalty)"]
+        B2["Candle Strength & Session RVOL<br>(Close Location Value & Time-of-Day Curve)"]
+        B3["Extension / Anti-Chase Guard<br>(Max 0.5 ATR / 1.0% from Pivot)"]
+        B4["Confirmation Policy<br>(Follow-Through Gate for Lower-Tier Setups)"]
+        B5["A/B Control Group Infrastructure<br>(Zero-Weight Default Feature Flags)"]
     end
 
-    subgraph Phase3 ["Phase 3: Unified Institutional Backtest Engine"]
-        C1["Chronological Bar-by-Bar Simulator<br>(Entry at Next-Bar Open)"]
-        C2["Full Live Engine Trade Parity<br>(TP1 Breakeven Trailing & Time Exits)"]
-        C3["Friction Modeling & End-of-Test Settlement<br>(Slippage, STT/Brokerage, Mark-to-Market)"]
+    subgraph P3 ["Phase 3: Prove Which Filters Add Value (Research & Ablation)"]
+        direction TB
+        C1["Isolated Filter Ablation<br>(HTF, Regime, Wick, RS, Earnings)"]
+        C2["Identical Universe & Horizon Comparison<br>(Apples-to-Apples Evaluation)"]
+        C3["Chronological Walk-Forward & Final Holdout<br>(Rolling Train/Test + Untouched 2025-2026)"]
+        C4["Multivariate Performance Decomposition<br>(Score Tiers, Volatility Regimes, Sectors)"]
     end
 
-    subgraph Phase4 ["Phase 4: NSE Equity Backtesting Suite & Metrics"]
-        D1["Multi-Market Backtest CLI (run_backtest.py)<br>(NSE Top 30, US Tech, Crypto)"]
-        D2["Out-of-Sample Validation & Equity Curves<br>(Expectancy, Drawdown, Profit Factor)"]
+    subgraph P4 ["Phase 4: Protect the Portfolio (Risk Controls)"]
+        direction TB
+        D1["Portfolio-Level Risk Budgeting<br>(2% Account Cap & Dynamic Fractional Sizing)"]
+        D2["Correlation & Sector Exposure Guard<br>(Max 2 per Sector & Top-Score Deduplication)"]
+        D3["Microstructure & Gap Realism<br>(Market-Specific Friction: STT/Brokerage/Slippage)"]
+        D4["Multi-Trade Rejection Gate<br>(Friction > 0.15R, Stop > 5%, RR < 1.0)"]
     end
 
-    Phase1 --> Phase2 --> Phase3 --> Phase4
+    subgraph P5 ["Phase 5: Paper Trade & Release Carefully (Validation & Go/No-Go)"]
+        direction TB
+        E1["Automated Paper Trading Daemon<br>(Live Bar Ingestion & Simulated Order Ledger)"]
+        E2["Execution Variance & Slippage Audit<br>(Expected vs Executable Fill Price Logging)"]
+        E3["Realized Expectancy & Telemetry<br>(Net R, Drawdown, Attrition Funnel Tracking)"]
+        E4["Pre-Declared Gate Criteria<br>(Formal Go/No-Go for Micro-Capital Live Release)"]
+    end
+
+    P1 ==> P2 ==> P3 ==> P4 ==> P5
 ```
 
 ---
 
-## 📌 Phase 1: Data Integrity, Confirmed Candle Policy & Lookahead Elimination (Priority 1 & 2 Fixes)
+## 📌 Phase 1 — Make the Measurements Trustworthy
+> **Priority:** P0 · First  
+> **Deliverable:** A reliable, zero-bias baseline execution and measurement engine.  
+> **Done When:** The exact same historical trade produces identical entry, partial exit, trailing stop, MFE/MAE, and net-R results across the backtester, post-scan analyzer, and noise reports.
 
-### 1.1 Robust Market Data Validation Layer (`breakout_scanner/providers/validation.py`)
-* **Problem**: [yfinance_provider.py](file:///Users/naveen/Git/breakout-scanner/breakout_scanner/providers/yfinance_provider.py) only drops null rows without verifying data integrity.
-* **Solution**: Implement strict data validation:
-  1. **Chronological Sorting & Deduplication**: Sort index chronologically and remove duplicate timestamps (`~df.index.duplicated(keep='last')`).
-  2. **Geometric OHLC Consistency**:
-     $$\text{High} \ge \text{Low}, \quad \text{High} \ge \max(\text{Open}, \text{Close}), \quad \text{Low} \le \min(\text{Open}, \text{Close})$$
-     $$\text{Open} > 0, \quad \text{High} > 0, \quad \text{Low} > 0, \quad \text{Close} > 0, \quad \text{Volume} \ge 0$$
-  3. **Minimum History Warmup**: Require at least 50 valid bars for indicator stability (50 SMA, 20 Base, 14 ATR). Reject or flag datasets failing this threshold.
+### 1.1 Unify Forward Analyzer and Backtester Execution Core
+* **Current Vulnerability:** [`Backtester`](breakout_scanner/backtester.py) and [`PostScanAnalyzer`](tools/post_scan_analyzer.py) maintain separate simulation routines. Slight divergences in trailing mechanics, same-bar conflict resolution, or friction deductions introduce reporting discrepancy.
+* **Architecture Change:**
+  - Create a unified simulation kernel: `breakout_scanner/simulation/engine.py` (or consolidate in `Backtester`).
+  - Standardize trade state transitions into an immutable cycle:
+    $$\text{IDLE} \longrightarrow \text{TRIGGERED} \longrightarrow \text{FILLED} \longrightarrow \text{TP1\_PARTIAL} \longrightarrow \text{CLOSED (STOP / TP2 / TIME\_EXIT)}$$
+  - Both `run_backtest.py` and `post_scan_analyzer.py` call the identical execution simulator functions.
 
-### 1.2 Confirmed-Candle Policy (Anti-Wick Protection)
-* **Problem**: When querying intraday candles (e.g. 1H) during active trading hours, `yfinance` returns the *currently forming, unclosed candle* as the latest row. An unfinished 15-minute wick can trigger an alert that collapses before the hour ends.
-* **Solution**:
-  - Check the timestamp of the latest candle against current UTC/local market time.
-  - If the latest bar has not closed, truncate it from analysis so that signals are generated **strictly on closed, locked candles**.
+### 1.2 Correct Partial Exits and MFE/MAE Calculations
+* **Partial Scale-Out Modeling:**
+  - Upon touching $\text{TP1}$ ($\text{High} \ge \text{TP1}$ for longs, $\text{Low} \le \text{TP1}$ for shorts):
+    - Close exactly $50\%$ of position at $\text{TP1}$ price adjusted for slippage.
+    - Move stop-loss of remaining $50\%$ to exact breakeven ($\text{Entry Price}$).
+    - Continue trade until remaining $50\%$ hits $\text{TP2}$, trailing stop, or time exit.
+* **Normalized Risk-Adjusted Excursion ($R$-Multiple):**
+  - Define initial structural risk: $R_{\text{initial}} = |\text{Entry Fill} - \text{Initial Stop}|$.
+  - Compute MFE and MAE continuously across all bars held:
+    $$\text{MFE}_R = \max_{t \in [t_{\text{entry}}, t_{\text{exit}}]} \left( \frac{\text{Direction} \times (\text{High}_t - \text{Entry})}{R_{\text{initial}}} \right)$$
+    $$\text{MAE}_R = \max_{t \in [t_{\text{entry}}, t_{\text{exit}}]} \left( \frac{\text{Direction} \times (\text{Entry} - \text{Low}_t)}{R_{\text{initial}}} \right)$$
+  - Net Realized $R$ must reflect weighted blended scale-outs minus friction:
+    $$R_{\text{net}} = \frac{\text{Net Cash P&L}}{\text{Dollar Risk at Inception}}$$
 
-### 1.3 Elimination of Lookahead Leaks in Relative Strength (`scanner.py`)
-* **Problem**: [scanner.py:93](file:///Users/naveen/Git/breakout-scanner/breakout_scanner/scanner.py#L93) uses:
-  ```python
-  proxy_returns = proxy_df['Close'].reindex(stock_returns.index).ffill().bfill()
-  ```
-  `.bfill()` fills earlier missing benchmark values using **future** prices, creating lookahead distortion.
-* **Solution**: Remove `.bfill()` entirely. Use strict forward-fill (`.ffill()`) and drop any leading unaligned data points.
+### 1.3 Remove Synthetic Stop & Target Fallbacks
+* **Zero Guesswork Policy:**
+  - Remove all fallback approximations (such as `entry * 0.98` or `entry + abs(...)`) in `PostScanAnalyzer` and `BreakoutEngine`.
+  - If a setup fails to calculate a structural support pivot or valid ATR stop:
+    - Mark setup state as `INVALID_SETUP` with reject reason `MISSING_STRUCTURAL_STOP`.
+    - Drop from trade slate completely. Never fabricate synthetic $2\%$ stops.
 
----
+### 1.4 Bar-by-Bar Replay Engine (No Missing Triggers, No Double Counts)
+* **Replay Integrity:**
+  - Deprecate arbitrary bar strides (`stride_bars = 10` or `25`) in historical outcome evaluators.
+  - Evaluate chronologically bar-by-bar:
+    - When a valid breakout triggers at Bar $t$, simulate entry at Bar $t+1$ Open.
+    - Lock symbol as `ACTIVE_IN_POSITION`.
+    - Suppress subsequent breakout triggers on the same symbol until the active trade reaches terminal closure.
 
-## 📌 Phase 2: Bidirectional Scoring, Setup Gating & NSE Benchmark Precision (Priority 3 & 4 Fixes)
-
-### 2.1 Bidirectional Bias Scorer (`scanner.py`, `scorer.py`)
-* **Problem**: Bias scoring is strictly upside-oriented (`score += 1` for bullish trend, outperformance, and Nifty > 50 SMA). For a `SELL` breakdown, a high score is misleadingly labeled as `"Strong Upside Bias (3/3)"`.
-* **Solution**:
-  - Implement symmetric scoring based on setup direction:
-    - **BUY / Long**: Reward $\text{Price} > \text{SMA50}$, stock outperformance ($\text{RS} > 0$), and macro regime above 50 SMA.
-    - **SELL / Short**: Reward $\text{Price} < \text{SMA50}$, stock underperformance ($\text{RS} < 0$), and macro regime below 50 SMA.
-    - **CONTRACTION**: Assess compression above vs. below 50 SMA to report accurate directional accumulation bias.
-
-### 2.2 Meaningful VCP Setup Gating (`config/default.yaml`, `engine.py`)
-* **Problem**: `require_tightening: false` and `use_volume_contraction: false` allow loose boxes to qualify as VCP setups.
-* **Solution**: Enable measurable contraction gates with sensible defaults:
-  - Tightening ratio decay $\le 0.70$
-  - Volume contraction $\le 0.85$ (dry-up confirmation)
-
-### 2.3 Refined NSE Sector Mappings (`sectors.py`)
-* **Problem**: Non-bank financial services (`BAJFINANCE.NS`, `LICI.NS`, etc.) are mapped to `^NSEBANK` (commercial banks only), and utilities (`NTPC.NS`, `POWERGRID.NS`) to `^CNXENERGY`.
-* **Solution**:
-  - Map NBFCs and insurance names to Nifty Financial Services (`NIFTY_FIN_SERVICE.NS` or `^CNXFIN`).
-  - Distinguish Power Utilities from Oil & Gas.
-
----
+### 1.5 Deterministic Hand-Calculated Test Cases
+* **Test Suite Expansion (`tests/test_execution_integrity.py`):**
+  - **Overnight Gap Tests:** Bar opens below stop loss $\implies$ fill at Open (slippage), not at stop price.
+  - **Overnight Gap Profit:** Bar opens above TP1 $\implies$ fill partial scale-out at Open.
+  - **Same-Bar Collision:** Single candle breaches both Stop and TP1 $\implies$ strictly prioritize Stop (pessimistic fill).
+  - **Zero / Negative / NaN Bar Ingestion:** Assert zero division guards and graceful handling.
 
 ---
 
-## 📌 Phase 3: Unified Institutional Backtest Engine (Priority 1 Critical Fix) ✅ COMPLETED
+## 📌 Phase 2 — Reduce Bad Breakout Signals
+> **Focus:** Signal Quality & Setup Hygiene  
+> **Deliverable:** Fewer, cleaner, higher-conviction candidates.  
+> **Done When:** A frozen A/B evaluation against the control baseline demonstrates reduced losing trades and increased expectancy ($E(R)$) without killing opportunity frequency ($> 50\%$ candidate retention).
 
-### 3.1 Chronological Bar-by-Bar Simulator (`backtester.py`) ✅
-* **Zero Lookahead**: Signals confirmed at Bar $i$ Close $\rightarrow$ Execution strictly at Bar $i+1$ Open.
-* Trade execution checks begin strictly on Bar $i+1$ and beyond.
+### 2.1 Consolidation Base Quality & False-Breakout Memory
+* **Consolidation Health Index:**
+  - Measure wave decay: sequential volatility contraction across waves ($C_3 < C_2 < C_1$).
+  - Measure ATR contraction ratio ($\text{ATR}_{14} / \text{Price}$ at lowest quartile of 60-bar range).
+* **Piercing Penalty (False Breakout Memory):**
+  - Scan the 20-bar base for prior upper wick piercings ($\text{High} > \text{Resistance}$ followed by $\text{Close} < \text{Resistance}$).
+  - Deduct $5$ points per failed piercing (cap at $-10$ pts) or reject if $> 2$ failed attempts in the same base.
 
-### 3.2 100% Live Engine Trade Parity ✅
-* Replicated all live trade management mechanics from [engine.py](file:///Users/naveen/Git/breakout-scanner/breakout_scanner/engine.py):
-  1. **TP1 (1.0R)**: Scales out 50% shares and trails stop loss to Breakeven ($+0.10\%$).
-  2. **TP2 (2.0R)**: Fully closes remaining position.
-  3. **Time-Based Exit**: Closes position if held longer than `max_hold_days`.
+### 2.2 Candle Close Strength & Session-Aware RVOL
+* **Close Location Value (CLV / Upper Close):**
+  $$\text{CLV} = \frac{\text{Close} - \text{Low}}{\text{High} - \text{Low}}$$
+  - **Long:** Require $\text{CLV} \ge 0.65$ on breakout bar (reject shooting stars / severe upper wicks).
+  - **Short:** Require $\text{CLV} \le 0.35$ on breakdown bar (reject hammers / strong lower wicks).
+* **Session-Aware Intraday Volume (Intraday U-Curve):**
+  - Instead of comparing hourly volume to a flat 20-period daily mean:
+  - Benchmark volume against the *same time-of-day bucket* (e.g., 09:30–10:30 US or 09:15–10:15 NSE) over trailing 20 sessions to prevent midday false negatives and opening bell false positives.
 
-### 3.3 Friction & Edge Accounting ✅
-* **Slippage**: 0.05% slippage on entry and exit legs.
-* **Transaction Costs**: 0.05% brokerage and exchange fees on every leg.
-* **Gap-Through-Stop**: Filled at Open price if candle opens past the stop level.
-* **End-of-Test Settlement**: Mark-to-market all remaining open positions at test end with `END_OF_DATA`.
+### 2.3 Anti-Chase / Extension Guard
+* **Chase Protection Thresholds:**
+  - Compute entry distance from structural resistance:
+    $$\Delta_{\text{pivot}} = \frac{\text{Current Price} - \text{Resistance}}{\text{Resistance}}$$
+  - If $\Delta_{\text{pivot}} > \min(1.0\%, 0.5 \times \text{ATR}_{14})$:
+    - Mark trade as `LATE_CHASE` / `EXTENDED`.
+    - Prohibit market entry. Allow limit order resting at pivot or skip entirely.
 
----
+### 2.4 Confirmation Rule for Borderline Setups
+* **Tiered Confirmation Policy:**
+  - **Grade A+ Setups (Score $\ge 90$):** Immediate next-bar Open entry.
+  - **Grade B / C Setups (Score $70–84$):** Require confirmation candle:
+    - Longs: Bar $t+1$ must print $\text{High} > \text{High}_t$ before trigger.
+    - If confirmation fails within 2 bars, invalidate signal.
 
-## 📌 Phase 4: NSE Backtesting Suite & Out-of-Sample Verification ✅ COMPLETED
-
-### 4.1 Multi-Market Backtest CLI (`run_backtest.py`) ✅
-* Added CLI arguments:
-  ```bash
-  python3 run_backtest.py --market nse --watchlist config/nsetop10_watchlist.txt --period 3y
-  python3 run_backtest.py --market us --watchlist config/top30_watchlist.txt --period 3y
-  python3 run_backtest.py --market crypto --watchlist config/crypto_watchlist.txt --period 3y
-  ```
-* **Verified Backtest Results (`config/watchlist.txt` — 16 Stocks, 3-Year Daily with Structural Stop & 5% Rejection Gate)**:
-  | Metric | Value |
-  | :--- | :--- |
-  | **Total Completed Trades** | **272** |
-  | **Win / Loss Distribution** | 123 Wins / 149 Losses |
-  | **Realized Win Rate** | **45.22%** |
-  | **Profit Factor** | **1.47** |
-  | **Average R-Multiple** | **+0.14R** |
-  | **TP1 (1.0R) Scale-Out Hit Rate** | **40.44%** |
-  | **Total Gross P&L** | **+$33,210.04** |
-  | **Total Frictions (Slippage & Fees)** | **$5,620.75** |
-  | **Net Realized P&L** | **+$27,589.29** |
-  | **Portfolio Net Return** | **+27.59%** |
-  | **Portfolio Max Drawdown** | **4.40%** (Significantly reduced from 7.62%) |
-  | **Trade Execution Log** | [`backtest/all_trades.csv`](file:///Users/naveen/Git/breakout-scanner/backtest/all_trades.csv) (272 trades) |
-  | **Portfolio Summary JSON** | [`backtest/portfolio_summary.json`](file:///Users/naveen/Git/breakout-scanner/backtest/portfolio_summary.json) |
-
-* **Per-Symbol Highlights**:
-  - `NVDA`: 4 trades, **75.0%** win rate, Profit Factor **8.48**, Net Return **+4.06%**
-  - `ACN`: 20 trades, **60.0%** win rate, Profit Factor **3.72**, Net Return **+7.21%**
-  - `GS`: 21 trades, **52.4%** win rate, Profit Factor **2.09**, Net Return **+4.30%**
-  - `BAC`: 27 trades, **55.6%** win rate, Profit Factor **2.05**, Net Return **+5.14%**
-  - `AAPL`: 21 trades, **42.9%** win rate, Profit Factor **1.73**, Net Return **+2.97%**
-  - `NFLX`: 19 trades, **42.1%** win rate, Profit Factor **1.72**, Net Return **+2.41%**
-  - `MSFT`: 25 trades, **44.0%** win rate, Profit Factor **1.46**, Net Return **+2.39%**
-  - `TSLA`: 0 trades (Wide/loose swings $> 5\%$ risk properly rejected by the structural risk gate)
+### 2.5 A/B Control Group Infrastructure
+* **Strict Control Preservation:**
+  - Implement all new filters behind configuration switches under `signal_quality` (default: `0.0` weight or `false`).
+  - Run side-by-side comparative scans (`--experiment control_vs_quality`) on identical market datasets.
 
 ---
 
-## 📌 Phase 5: Post-Audit Refinements (P0 & P1 Action Items)
+## 📌 Phase 3 — Prove Which Filters Add Value
+> **Focus:** Quantitative Research & Empirical Ablation  
+> **Deliverable:** Evidence-backed scoring parameters with validated out-of-sample edge.  
+> **Done When:** Each retained feature proves positive incremental out-of-sample expectancy ($E(R)$) rather than merely cosmetic score inflation.
 
-### 5.1 Fix 1 (P0): Stop Placement & Risk Separation ✅ COMPLETED
-* **Structural Stop Anchoring**: Stop loss is anchored strictly to base support (or ATR), without clamping into market noise.
-* **Risk Rejection Gate**: If structural risk $> \text{max\_stop\_pct}$ (5.0%), the setup is **rejected/invalidated** rather than shortening the stop.
-* **Dynamic Position Sizing**: Every trade dynamically scales share count so total dollar risk is mathematically locked to exactly **1.0% of capital**.
-* **Variable Shadowing Fix**: Eliminated inner `risk_pct` variable collision that caused sizing distortions.
+### 3.1 Isolated Single-Variable Filter Ablation
+* **Ablation Matrix:**
+  Test baseline against one isolated filter increment at a time:
+  1. Baseline (VCP + 20 EMA + Breakout Volume)
+  2. Baseline + CLV (Upper Close Location)
+  3. Baseline + Intra-Base VDU Volume Slope
+  4. Baseline + Multi-Timeframe 1D/4H Alignment
+  5. Baseline + Benchmark RS Momentum Slope
+  6. Baseline + Market Regime Volatility Attenuator
+  7. Baseline + Earnings Proximity Filter
 
-### 5.2 Fix 2 (P0): Time-Exit Calendar/Timeframe Synchronization ✅ COMPLETED
-* **Elapsed Days via Timestamps**: Synchronized holding periods in both `engine.py` and `backtester.py` to calculate elapsed calendar days using timestamps (`(current_dt - entry_dt).total_seconds() / 86400.0`).
-* **Timeframe Scaling Fallback**: For integer-indexed datasets, automatically scales bars by timeframe (e.g. 7 bars/day for NSE 1H, 24 bars/day for crypto 1H, 25 bars/day for 15M).
-* **Prevention of Premature 1H Exits**: Trades on 1-hour or 15-minute timeframes now hold for the intended swing horizon (e.g. 10 days / 70+ hourly bars) instead of prematurely exiting after 10 hours.
-* **Verification**: Verified with `test_hourly_timeframe_hold_days_synchronization` in `tests/test_backtester.py`.
+### 3.2 Standardized Evaluation Universe & Timelines
+* **Data Harmonization:**
+  - Evaluate on identical historical data blocks:
+    - **US Tech 15:** `AAPL`, `NVDA`, `MSFT`, `AMZN`, `GOOGL`, `META`, `TSLA`, `AVGO`, `COST`, `CRM`, `CSCO`, `NFLX`, `AMD`, `QCOM`, `INTC`.
+    - **NSE 15:** `RELIANCE.NS`, `TCS.NS`, `HDFCBANK.NS`, `INFY.NS`, `ICICIBANK.NS`, `BHARTIARTL.NS`, `SBIN.NS`, `LICI.NS`, `ITC.NS`, `HINDUNILVR.NS`, `LT.NS`, `BAJFINANCE.NS`, `HCLTECH.NS`, `MARUTI.NS`, `SUNPHARMA.NS`.
 
-### 5.3 Fix 3 (P1): Scorer Integrity & Missing Evidence Handling ✅ COMPLETED
-* **Zero Phantom Points**: Completely eliminated fake fallback points (+5, +4, +10, +6) across all 5 quantitative pillars in `scorer.py`.
-* **Zero-Point Pillar Rule**: Missing evidence strictly yields $0$ points for that pillar, preventing unearned grade inflation.
-* **Unconfirmed Evidence Flags**: Automatically flags missing pillars on `setup.evidence_status` (`Unconfirmed HTF`, `Unconfirmed Sector`, `Unconfirmed Volume`).
-* **Verification**: Verified with `test_missing_evidence_zero_points_and_unconfirmed_flags` in `tests/test_precision.py`.
+### 3.3 Chronological Walk-Forward & Untouched Holdout
+* **Walk-Forward Splits:**
+  - **In-Sample Train:** 2021-01-01 to 2023-12-31 (Feature tuning & weight calibration).
+  - **Out-of-Sample Test (Walk-Forward):** 2024-01-01 to 2024-12-31 (Validation).
+  - **Untouched Final Holdout:** 2025-01-01 to Present (Strict zero-contamination test).
+* **Anti-Overfitting Criterion:**
+  - Any parameter improvement in In-Sample that degrades Out-of-Sample $E(R)$ by $> 20\%$ is discarded as curve-fitting.
 
-### 5.4 Fix 4 (P1): Provider Closed-Candle Default & Cache Invalidation ✅ COMPLETED
-* **Closed Candle Default**: `YFinanceProvider` and `validate_and_clean_candles` now default to `enforce_closed_candle = True` to prevent unclosed bar lookahead in live and test environments.
-* **Cache TTL & Session Invalidation**: In-memory `daily_cache` and `market_cache` now track timestamps (`daily_cache_ts`) and automatically invalidate entries after 4 hours or whenever the calendar date/session advances.
-* **SMA50 Slope Verification**: Higher-timeframe 1D confirmation now requires positive slope (`SMA50[-1] > SMA50[-5]`) for Bullish setups and negative slope (`SMA50[-1] < SMA50[-5]`) for Bearish setups.
-* **Verification**: Verified with `test_provider_enforce_closed_candle_default` and `test_sma50_slope_check_and_cache_ttl` in `tests/test_validation.py`.
+### 3.4 Multi-Regime Performance Decomposition
+* **Performance Breakdown Table:**
+  Report performance partitioned across:
+  - **Macro Regime:** Bull Expansion ($\text{SPY} > \text{SMA50}$ & low ATR), Sideways Chop, Bear Breakdown ($\text{SPY} < \text{SMA50}$).
+  - **Score Buckets:** $90–100$ (A+), $80–89$ (A), $70–79$ (B), $<70$ (C/Reject).
+  - **Metrics Required:** Win Rate, Loss Rate, Profit Factor, Expectancy $E(R)$, Max Drawdown, Calmar Ratio, Average Holding Days.
 
+---
 
+## 📌 Phase 4 — Protect the Portfolio
+> **Focus:** Institutional Risk Controls & Portfolio Management  
+> **Deliverable:** Safe, automated trade selection and multi-position portfolio risk governance.  
+> **Done When:** Risk limits enforce portfolio-level capital safety across multiple concurrent positions, eliminating single-trade and correlation blowups.
 
+### 4.1 Portfolio-Level Risk Budgeting & Sizing
+* **Account Sizing Parameters (`breakout_scanner/portfolio_guard.py`):**
+  - **Total Account Equity:** $C_{\text{equity}}$ (e.g., \$100,000).
+  - **Max Single-Trade Risk:** Fixed at $1.0\%$ of equity:
+    $$\text{Position Size (Shares)} = \left\lfloor \frac{0.01 \times C_{\text{equity}}}{|\text{Entry Fill} - \text{Stop Loss}|} \right\rfloor$$
+  - **Max Concurrent Positions:** Default $4$ open trades (maximum $4.0\%$ concurrent capital risk).
+  - **Daily Total Risk Budget:** Hard ceiling at $2.0\%$ capital risk deployed in any single calendar day.
+
+### 4.2 Sector Exposure & Correlation Clustering Guard
+* **Sector Concentration Caps:**
+  - Maximum capital allocated to any single industry sector: $25\%$ of portfolio value.
+  - Maximum concurrent open trades in the same sector: $\le 2$ trades.
+* **Intraday Correlation Stacking Gate:**
+  - When multiple symbols from the same sector trigger simultaneously (e.g., `NVDA`, `AMD`, `QCOM` all breaking out on the same bar):
+  - Do NOT open 3 correlated positions.
+  - Select exclusively the single highest-scoring setup (`Grade A+`); suppress or queue the remainder.
+
+### 4.3 Microstructure & Real-World Friction Realism
+* **Market-Specific Cost Engines:**
+  - **NSE Equity:** Include STT ($0.1\%$ delivery / $0.025\%$ intraday), Exchange Turnover, GST ($18\%$ on brokerage), SEBI turnover, and Stamp Duty.
+  - **US Equity:** Include SEC fees, FINRA TAF, and exchange clearing costs.
+  - **Dynamic Volatility Slippage:**
+    $$\text{Slippage} = \max(\text{Fixed Base Pct}, 0.05 \times \text{ATR}_{14} / \text{Price})$$
+* **Gap Risk Haircut:**
+  - Apply empirical overnight gap slippage distribution on positions held across market closes.
+
+### 4.4 Trade Rejection Gate
+* **Automated Trade Disqualification:**
+  - Reject immediately if:
+    1. **Structural Risk Exceeded:** $(\text{Entry} - \text{Stop}) / \text{Entry} > 5.0\%$.
+    2. **Friction Excessive:** Total round-trip costs $> 0.15R$ ($15\%$ of potential risk unit).
+    3. **Unfavorable Payoff:** Distance to $\text{TP1} < 1.0 \times \text{Risk Distance}$ ($R:R < 1.0$).
+    4. **Imminent Earnings:** Event scheduled within $\le 3$ trading sessions.
+
+---
+
+## 📌 Phase 5 — Paper Trade and Release Carefully
+> **Focus:** Live Validation & Controlled Production Deployment  
+> **Deliverable:** A documented, empirical go/no-go operational release.  
+> **Done When:** Live paper execution matches backtest and research expectations over a minimum validation window with zero critical execution bugs.
+
+### 5.1 Automated Paper Trading Daemon
+* **Real-Time Shadow Execution:**
+  - Run `BreakoutScanner` daemon during live market hours:
+    - US Market: 09:30–16:00 EST.
+    - NSE Market: 09:15–15:30 IST.
+  - Ingest strictly closed, completed bars (anti-wick policy).
+  - Emit virtual paper orders to simulated order ledger: `data/paper_trading/orders.jsonl`.
+
+### 5.2 Execution Variance & Slippage Tracking
+* **Slippage & Timing Audit:**
+  - For each virtual fill, record:
+    - $t_{\text{signal}}$: Timestamp candle closed.
+    - $P_{\text{theoretical}}$: Theoretical breakout entry price.
+    - $t_{\text{fill}}$: Next candle open timestamp.
+    - $P_{\text{actual}}$: Realized executable open price.
+    - Slippage delta: $\Delta_{\text{slip}} = P_{\text{actual}} - P_{\text{theoretical}}$.
+
+### 5.3 Live Telemetry & Performance Attrition Ledger
+* **Operational Telemetry (`data/paper_trading/performance_ledger.jsonl`):**
+  - Track:
+    - Total setups scanned vs emitted vs rejected.
+    - Fill rate of actionable setups.
+    - Realized win rate and net $R$-multiple.
+    - Maximum observed paper portfolio drawdown.
+    - Telegram alert latency and heartbeat status.
+
+### 5.4 Pre-Declared Go/No-Go Release Criteria
+* **Production Gate Checklist:**
+  A transition to micro-capital live trading requires satisfying **all** criteria over a 30-day paper test (or minimum 40 completed trades):
+
+| Metric | Minimum Required Gate | Fail / Re-work Action |
+| :--- | :--- | :--- |
+| **Net Realized Expectancy $E(R)$** | $\ge +0.20R$ per trade | Refine signal quality filters |
+| **Realized Profit Factor** | $\ge 1.40$ | Review stop placement and scale-outs |
+| **Max Paper Portfolio Drawdown** | $\le 5.0\%$ | Reduce daily risk budget or position caps |
+| **Execution Slippage Variance** | Average slippage $\le 0.08R$ | Tighten spread filter or anti-chase limit |
+| **Zero Critical Defects** | 0 uncaught exceptions or desyncs | Fix software stability |
+
+---
+
+## 📅 Execution Schedule & Milestone Tracking
+
+| Phase | Core Milestone | Target Timeline | Verification Artifact |
+| :---: | :--- | :---: | :--- |
+| **Phase 1** | Unify Simulator, Fix Partial/MFE/MAE, Hand-Calculated Tests | Weeks 1–2 | `tests/test_execution_integrity.py` |
+| **Phase 2** | CLV Wick Filter, Session RVOL, Anti-Chase, Control Group | Weeks 3–4 | `reports/ab_signal_quality_comparison.md` |
+| **Phase 3** | Single-Filter Ablation, Chronological Walk-Forward OOS | Weeks 5–6 | `reports/ablation_research_study.md` |
+| **Phase 4** | Portfolio-Level Risk Guard, Sector Caps, Friction Realism | Weeks 7–8 | `tests/test_portfolio_risk_budget.py` |
+| **Phase 5** | 30-Day Paper Trading Daemon, Slippage Audit, Go/No-Go Gate | Weeks 9–12 | `reports/paper_trading_audit_report.md` |
 

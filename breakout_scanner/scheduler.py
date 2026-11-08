@@ -250,6 +250,13 @@ class SessionScheduler:
             f"Deduplicated Skipped: {duplicates_skipped}"
         )
 
+        # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
+        try:
+            from .telemetry import log_scan_metrics
+            log_scan_metrics(setups, market="multi", timeframe="1h", config_name="live_daemon")
+        except Exception:
+            pass
+
         return {
             "scanned": len(symbols),
             "alerts_sent": fresh_alerts_sent,

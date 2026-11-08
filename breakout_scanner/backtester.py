@@ -64,6 +64,11 @@ class Backtester:
         setup_support = None
         
         start_index = c_base['base_lookback'] + c_base['tight_lookback']
+
+        is_intraday_data = False
+        if len(df) > 1 and isinstance(df.index, pd.DatetimeIndex):
+            median_delta = (df.index[1:] - df.index[:-1]).median()
+            is_intraday_data = median_delta.total_seconds() < 43200
         
         def _close_active_trade(trade: Dict, exit_fill: float, exit_reason: str, exit_time: Any, current_capital: float) -> float:
             rem_shares = trade['shares_remaining']
@@ -133,6 +138,25 @@ class Backtester:
                         gap_up_pct = ((cur_open - sig_close) / sig_close * 100.0) if sig_close else 0.0
                         holds_pivot = (cur_open <= p_sup * 1.001) if p_sup else True
                         if gap_up_pct > max_adverse_gap or not holds_pivot:
+                            confirm_ok = False
+
+                # Phase 2 Anti-Chase Extension Filter: Reject if opening beyond pivot tolerance
+                if confirm_ok and c_break.get('use_extension_filter', False):
+                    p_atr = pending_signal.get('atr')
+                    max_chase = float(c_break.get('max_chase_pct', 2.0))
+                    if p_dir == 1 and pending_signal.get('resistance'):
+                        p_res = pending_signal['resistance']
+                        dist_pct = (cur_open - p_res) / p_res * 100.0
+                        atr_limit = (0.75 * (p_atr / p_res * 100.0)) if (p_atr and p_atr > 0) else max_chase
+                        max_allowed = min(max_chase, max(1.0, atr_limit))
+                        if dist_pct > max_allowed:
+                            confirm_ok = False
+                    elif p_dir == -1 and pending_signal.get('support'):
+                        p_sup = pending_signal['support']
+                        dist_pct = (p_sup - cur_open) / p_sup * 100.0
+                        atr_limit = (0.75 * (p_atr / p_sup * 100.0)) if (p_atr and p_atr > 0) else max_chase
+                        max_allowed = min(max_chase, max(1.0, atr_limit))
+                        if dist_pct > max_allowed:
                             confirm_ok = False
 
                 if capital <= 0 or not confirm_ok:
@@ -296,19 +320,30 @@ class Backtester:
                     active_trade['fwd_ret_8b'] = round(float((cur_close - active_trade['entry_price']) / active_trade['entry_price'] * 100.0 * t_dir), 2)
                 
                 # Time-Exit Calendar/Timeframe Synchronization:
-                try:
-                    cur_dt = pd.to_datetime(bar_time)
-                    entry_dt = pd.to_datetime(active_trade['entry_time'])
-                    held_days = (cur_dt - entry_dt).total_seconds() / 86400.0
-                except Exception:
-                    tf = str(self.cfg.get('interval', self.cfg.get('timeframe', '1d'))).lower()
-                    bars_per_day = 1
-                    if tf in ('1h', '60m'):
-                        bars_per_day = 7 if str(self.cfg.get('market', '')).lower() == 'nse' else 24
-                    elif tf in ('15m',):
-                        bars_per_day = 25
-                    held_days = bars_held / bars_per_day
-                    
+                if not is_intraday_data:
+                    held_days = float(bars_held)
+                else:
+                    try:
+                        cur_dt = pd.to_datetime(bar_time)
+                        entry_dt = pd.to_datetime(active_trade['entry_time'])
+                        is_crypto = str(self.cfg.get('market', '')).lower() == 'crypto'
+                        if is_crypto:
+                            held_days = (cur_dt - entry_dt).total_seconds() / 86400.0
+                        else:
+                            cur_date = cur_dt.date()
+                            entry_date = entry_dt.date()
+                            if cur_date == entry_date:
+                                held_days = (cur_dt - entry_dt).total_seconds() / 86400.0
+                            else:
+                                total_sec = (cur_dt - entry_dt).total_seconds()
+                                dates_range = pd.date_range(entry_date, cur_date, freq='D')
+                                weekend_days = sum(1 for d in dates_range if d.weekday() >= 5)
+                                adj_sec = max(0.0, total_sec - (weekend_days * 86400.0))
+                                held_days = adj_sec / 86400.0
+                    except Exception:
+                        bars_per_day = 7 if str(self.cfg.get('market', '')).lower() in ('nse', 'us', '') else 24
+                        held_days = bars_held / bars_per_day
+
                 active_trade['held_days'] = round(float(held_days), 2)
                 
                 if t_dir == 1:  # LONG MANAGEMENT
@@ -370,12 +405,13 @@ class Backtester:
                                     active_trade = None
                                     state = State.IDLE
                                     
-                                # Check Time Exit if still active
+                                # Check Time Exit if still active (Calendar/weekend resilient)
                                 if active_trade is not None:
                                     is_time_exit = False
                                     if c_mgmt.get('use_time_exit', True):
-                                        if c_mgmt.get('max_hold_bars') is not None and bars_held >= c_mgmt.get('max_hold_bars'):
-                                            is_time_exit = True
+                                        if c_mgmt.get('max_hold_bars') is not None:
+                                            if bars_held >= c_mgmt.get('max_hold_bars'):
+                                                is_time_exit = True
                                         elif held_days >= c_mgmt.get('max_hold_days', 10):
                                             is_time_exit = True
                                     
@@ -442,12 +478,13 @@ class Backtester:
                                     active_trade = None
                                     state = State.IDLE
                                     
-                                # Check Time Exit if still active
+                                # Check Time Exit if still active (Calendar/weekend resilient)
                                 if active_trade is not None:
                                     is_time_exit = False
                                     if c_mgmt.get('use_time_exit', True):
-                                        if c_mgmt.get('max_hold_bars') is not None and bars_held >= c_mgmt.get('max_hold_bars'):
-                                            is_time_exit = True
+                                        if c_mgmt.get('max_hold_bars') is not None:
+                                            if bars_held >= c_mgmt.get('max_hold_bars'):
+                                                is_time_exit = True
                                         elif held_days >= c_mgmt.get('max_hold_days', 10):
                                             is_time_exit = True
                                     
@@ -476,12 +513,27 @@ class Backtester:
                         bull_break = cur_close >= setup_resistance * (1.0 + c_break['buffer_pct'] / 100.0)
                         bear_break = cur_close <= setup_support * (1.0 - c_break['buffer_pct'] / 100.0)
                         
+                        # Phase 2 CLV (Close Location Value) Filter
+                        c_quality = self.cfg.get('signal_quality', {}) if self.cfg else {}
+                        require_clv = c_quality.get('require_clv_confirmation', False)
+                        min_clv = float(c_quality.get('min_clv_threshold', 0.65))
+                        clv_long_ok = True
+                        clv_short_ok = True
+                        bar_rng = cur_high - cur_low
+                        if require_clv and bar_rng > 1e-9:
+                            clv_val = (cur_close - cur_low) / bar_rng
+                            clv_long_ok = (clv_val >= min_clv)
+                            clv_short_ok = (clv_val <= (1.0 - min_clv))
+                        elif require_clv:
+                            clv_long_ok = False
+                            clv_short_ok = False
+
                         long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
-                                       row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'])
+                                       row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'] and clv_long_ok)
                                        
                         short_signal = (c_break.get('allow_shorts', True) and
                                         setup_bars >= c_base['min_setup_bars'] and bear_break and 
-                                        row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'])
+                                        row['BearMom'] and row['ShortTrendOK'] and row['BreakoutVolOK'] and clv_short_ok)
                                         
                         if long_signal:
                             structure_stop = setup_support * (1.0 - c_risk['structure_buffer_pct'] / 100.0)
@@ -512,7 +564,8 @@ class Backtester:
                                     'resistance': setup_resistance,
                                     'support': setup_support,
                                     'stop_floor_binding': is_floor_binding,
-                                    'friction_r': round(float(friction_r), 3)
+                                    'friction_r': round(float(friction_r), 3),
+                                    'atr': float(row['ATR']) if ('ATR' in row and row['ATR'] is not None) else None
                                 }
                             state = State.IDLE
                             
@@ -545,7 +598,8 @@ class Backtester:
                                     'resistance': setup_resistance,
                                     'support': setup_support,
                                     'stop_floor_binding': is_floor_binding,
-                                    'friction_r': round(float(friction_r), 3)
+                                    'friction_r': round(float(friction_r), 3),
+                                    'atr': float(row['ATR']) if ('ATR' in row and row['ATR'] is not None) else None
                                 }
                             state = State.IDLE
 
