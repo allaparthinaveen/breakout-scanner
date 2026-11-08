@@ -261,3 +261,67 @@ def test_rejection_gate_approved_setup():
     assert decision.approved is True
     assert decision.rejection_code is None
 
+
+def test_rejection_gate_late_chase_extension():
+    """Verify that setups extended beyond tolerance (1.0% or 0.5 ATR) are rejected as LATE_CHASE."""
+    cfg = {
+        "rejection_gate": {
+            "enabled": True,
+            "enforce_anti_chase": True,
+            "max_extension_pct": 1.0
+        }
+    }
+    gate = TradeRejectionGate(cfg)
+
+    # Long setup: Resistance/Entry was 100.0, but current price has run to 102.0 (+2.0% extended)
+    setup_chase = Setup("EXTENDED_STOCK", state=State.BUY, direction=1, entry=100.0, stop=97.0, tp1=106.0)
+    setup_chase.current_price = 102.0
+    setup_chase.resistance = 100.0
+    setup_chase.atr = 1.0  # 0.5 ATR = 0.50 -> 0.50% max tolerance
+    setup_chase.friction_r = 0.05
+
+    decision = gate.evaluate_setup(setup_chase)
+    assert decision.approved is False
+    assert decision.rejection_code == "LATE_CHASE"
+    assert "Price extension" in decision.reason
+
+    # Clean setup: Current price is 100.20 (+0.20% extended <= 0.50% tolerance)
+    setup_clean = Setup("CLEAN_STOCK", state=State.BUY, direction=1, entry=100.0, stop=97.0, tp1=106.0)
+    setup_clean.current_price = 100.20
+    setup_clean.resistance = 100.0
+    setup_clean.atr = 1.0
+    setup_clean.friction_r = 0.05
+
+    decision_clean = gate.evaluate_setup(setup_clean)
+    assert decision_clean.approved is True
+
+
+def test_rejection_gate_base_trap_churn():
+    """Verify rejection of setups with excessive failed breakout piercings in base (trap defense)."""
+    cfg = {
+        "rejection_gate": {
+            "enabled": True,
+            "max_failed_breakouts_in_base": 2
+        }
+    }
+    gate = TradeRejectionGate(cfg)
+
+    # Setup with 3 failed breakouts in base (exceeds limit 2)
+    setup_trap = Setup("CHOP_TRAP", state=State.BUY, direction=1, entry=100.0, stop=97.0, tp1=106.0)
+    setup_trap.failed_breakouts_in_base = 3
+    setup_trap.friction_r = 0.05
+
+    decision = gate.evaluate_setup(setup_trap)
+    assert decision.approved is False
+    assert decision.rejection_code == "BASE_TRAP_CHURN"
+    assert "failed breakouts in base exceeds limit 2" in decision.reason
+
+    # Setup with 1 failed breakout in base (within limit 2)
+    setup_ok = Setup("SOLID_BASE", state=State.BUY, direction=1, entry=100.0, stop=97.0, tp1=106.0)
+    setup_ok.failed_breakouts_in_base = 1
+    setup_ok.friction_r = 0.05
+
+    decision_ok = gate.evaluate_setup(setup_ok)
+    assert decision_ok.approved is True
+
+

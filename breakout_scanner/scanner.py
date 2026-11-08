@@ -174,8 +174,10 @@ class MultiSymbolScanner:
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
             # ----------------------------------------------------
+            from .confluence import is_non_equity_symbol
             is_crypto = setup.symbol.endswith('-USD') or setup.symbol.endswith('-USDT')
             is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
+            is_macro = is_non_equity_symbol(setup.symbol)
 
             if is_crypto:
                 # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above upward-sloping 50-day SMA)
@@ -218,6 +220,19 @@ class MultiSymbolScanner:
                     score += 1
                 elif target_dir == -1 and not nifty_bullish:
                     score += 1
+
+            elif is_macro:
+                # Macro & Derivative Instruments (Commodities, Futures, Forex, Global Indices)
+                # These lack single-stock fundamentals/analyst ratings.
+                # Align with proxy/benchmark trend if available.
+                if not proxy_df.empty and len(proxy_df) >= 55:
+                    macro_sma = proxy_df['Close'].rolling(50).mean()
+                    macro_bullish = (proxy_df['Close'].iloc[-1] > macro_sma.iloc[-1]) and (macro_sma.iloc[-1] > macro_sma.iloc[-5])
+                    if target_dir == 1 and macro_bullish:
+                        score += 1
+                    elif target_dir == -1 and not macro_bullish:
+                        score += 1
+
             else:
                 # US Stocks: Wall Street Analyst Ratings & Earnings Risk
                 ticker = yf.Ticker(setup.symbol)
@@ -282,6 +297,16 @@ class MultiSymbolScanner:
         c_score, c_grade = calculate_composite_score(setup, quality_cfg=quality_cfg, context_cfg=context_cfg)
         setup.composite_score = c_score
         setup.composite_grade = c_grade
+
+        # Phase 2/3: Tiered Follow-Through Confirmation Policy
+        confirmation_cfg = self.cfg.get('confirmation_policy', {}) if self.cfg else {}
+        min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 85))
+        setup.requires_confirmation = (c_score < min_auto_entry_score)
+        if setup.requires_confirmation:
+            setup.confirmation_status = "AWAITING_FOLLOW_THROUGH"
+        else:
+            setup.confirmation_status = "CONFIRMED"
+
         # Phase 1: Options Policy Tag
         setup.underlying_validated = False
         setup.options_eligible = False

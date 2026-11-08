@@ -61,8 +61,15 @@ def scan_now():
     parser.add_argument(
         "--watchlist",
         type=str,
-        default="config/watchlist.txt",
+        default=None,
         help="Path to watchlist file (defaults to config/watchlist.txt)",
+    )
+    parser.add_argument(
+        "--market",
+        type=str,
+        default="us",
+        choices=["us", "nse", "US", "NSE"],
+        help="Target exchange market for dynamic universe (default: us)",
     )
     parser.add_argument(
         "--config",
@@ -92,6 +99,11 @@ def scan_now():
         action="store_true",
         help="Display Phase 4 Institutional Actionable Trade Slate with exact sizing & risk budgeting",
     )
+    parser.add_argument(
+        "--dynamic-universe",
+        action="store_true",
+        help="Screen broad market dynamically for Top 30 high-liquidity stocks using ADV_20 & stability buffer",
+    )
     args = parser.parse_args()
 
     print(f"Loading config from {args.config}...")
@@ -102,18 +114,29 @@ def scan_now():
     interval = args.interval or cfg.get('timeframe', {}).get('interval', '1h')
     period = args.period or cfg.get('timeframe', {}).get('period', '60d')
     
-    filename = args.watchlist
-    symbols = []
-    
-    if os.path.exists(filename):
-        with open(filename, 'r') as f:
-            for line in f:
-                sym = line.split(',')[0].strip()
-                if sym and not sym.startswith('#') and sym not in symbols:
-                    symbols.append(sym)
+    if args.dynamic_universe:
+        from breakout_scanner.universe.engine import DynamicLiquidityEngine
+        u_engine = DynamicLiquidityEngine(cfg)
+        market = args.market.lower()
+        custom_wl = args.watchlist if (args.watchlist and os.path.exists(args.watchlist)) else None
+        if custom_wl and ('nifty' in custom_wl.lower() or 'nse' in custom_wl.lower()):
+            market = 'nse'
+        u_result = u_engine.run_selection(provider, market=market, custom_watchlist=custom_wl)
+        symbols = u_result.selected_symbols
+        filename = u_result.watchlist_path or f"data/universe/{market}_top30_active.txt"
+        print(f"  • Dynamic Universe: Screened {u_result.total_eligible} -> Selected Top {len(symbols)} (Turnover: {u_result.turnover_rate_pct:.1f}%)")
     else:
-        print(f"File {filename} not found.")
-        return
+        filename = args.watchlist or "config/watchlist.txt"
+        symbols = []
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                for line in f:
+                    sym = line.split(',')[0].strip()
+                    if sym and not sym.startswith('#') and sym not in symbols:
+                        symbols.append(sym)
+        else:
+            print(f"File {filename} not found.")
+            return
 
     print("=" * 65)
     print(f"  BREAKOUT SCANNER: {os.path.basename(args.config).upper()}")

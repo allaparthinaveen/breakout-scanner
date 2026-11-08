@@ -41,6 +41,9 @@ class TradeRejectionGate:
         self.min_rr_ratio = float(gate_cfg.get("min_rr_ratio", 1.0))
         self.earnings_buffer_days = int(gate_cfg.get("earnings_buffer_days", 3))
         self.enforce_earnings_check = bool(gate_cfg.get("enforce_earnings_check", True))
+        self.enforce_anti_chase = bool(gate_cfg.get("enforce_anti_chase", True))
+        self.max_extension_pct = float(gate_cfg.get("max_extension_pct", 1.0))
+        self.max_failed_breakouts = gate_cfg.get("max_failed_breakouts_in_base", None)
 
         self.friction_engine = MarketFrictionEngine(cfg)
 
@@ -120,6 +123,48 @@ class TradeRejectionGate:
                 reason=f"FRICTION_EXCESSIVE: Round-trip friction {friction_r:.3f}R exceeds maximum threshold {self.max_friction_r:.2f}R.",
                 details={"friction_r": friction_r, "max_friction_r": self.max_friction_r}
             )
+
+        # 6. Anti-Chase Extension Control (Disqualify late chase > max tolerance)
+        if self.enforce_anti_chase and setup.state in (State.BUY, State.SELL):
+            curr_p = setup.current_price if setup.current_price is not None else setup.entry
+            if curr_p is not None and curr_p > 0:
+                target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.state == State.BUY else -1)
+                pivot = setup.breakout_level or (setup.resistance if target_dir == 1 else setup.support) or setup.entry
+                if pivot is not None and pivot > 0:
+                    max_tol = self.max_extension_pct
+                    if setup.atr is not None and setup.atr > 0:
+                        atr_tol = (0.5 * setup.atr / pivot) * 100.0
+                        max_tol = min(self.max_extension_pct, atr_tol)
+
+                    if target_dir == 1 and curr_p > pivot:
+                        ext_pct = (curr_p - pivot) / pivot * 100.0
+                        if ext_pct > (max_tol + 1e-4):
+                            return RejectionDecision(
+                                approved=False,
+                                rejection_code="LATE_CHASE",
+                                reason=f"LATE_CHASE: Price extension {ext_pct:.2f}% exceeds tolerance {max_tol:.2f}%.",
+                                details={"extension_pct": round(ext_pct, 2), "max_allowed": round(max_tol, 2)}
+                            )
+                    elif target_dir == -1 and curr_p < pivot:
+                        ext_pct = (pivot - curr_p) / pivot * 100.0
+                        if ext_pct > (max_tol + 1e-4):
+                            return RejectionDecision(
+                                approved=False,
+                                rejection_code="LATE_CHASE",
+                                reason=f"LATE_CHASE: Price extension {ext_pct:.2f}% exceeds tolerance {max_tol:.2f}%.",
+                                details={"extension_pct": round(ext_pct, 2), "max_allowed": round(max_tol, 2)}
+                            )
+
+        # 7. Trap Detection & Base Piercing Memory
+        if self.max_failed_breakouts is not None:
+            failed_count = getattr(setup, "failed_breakouts_in_base", 0)
+            if failed_count > self.max_failed_breakouts:
+                return RejectionDecision(
+                    approved=False,
+                    rejection_code="BASE_TRAP_CHURN",
+                    reason=f"BASE_TRAP_CHURN: {failed_count} failed breakouts in base exceeds limit {self.max_failed_breakouts} (high trap risk).",
+                    details={"failed_breakouts": failed_count, "max_allowed": self.max_failed_breakouts}
+                )
 
         return RejectionDecision(
             approved=True,
