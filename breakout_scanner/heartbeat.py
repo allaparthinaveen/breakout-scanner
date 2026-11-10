@@ -29,7 +29,9 @@ class HeartbeatMonitor:
             "scanned_total": 0,
             "alerts_sent_total": 0,
             "last_scan_utc": None,
+            "configured_markets": [],
             "active_markets": [],
+            "closed_markets": [],
             "status": "STARTING",
         }
         self._ensure_dir()
@@ -43,15 +45,21 @@ class HeartbeatMonitor:
         self,
         scanned: int = 0,
         alerts: int = 0,
+        configured_markets: Optional[list] = None,
         active_markets: Optional[list] = None,
+        closed_markets: Optional[list] = None,
         status: str = "HEALTHY",
     ):
         """Updates internal telemetry metrics."""
         self.stats["scanned_total"] += scanned
         self.stats["alerts_sent_total"] += alerts
         self.stats["last_scan_utc"] = datetime.now(timezone.utc).isoformat()
+        if configured_markets is not None:
+            self.stats["configured_markets"] = configured_markets
         if active_markets is not None:
             self.stats["active_markets"] = active_markets
+        if closed_markets is not None:
+            self.stats["closed_markets"] = closed_markets
         self.stats["status"] = status
         self.beat(force=True)
 
@@ -71,7 +79,9 @@ class HeartbeatMonitor:
             "pid": self.pid,
             "hostname": self.hostname,
             "status": self.stats["status"],
+            "configured_markets": self.stats.get("configured_markets", []),
             "active_markets": self.stats["active_markets"],
+            "closed_markets": self.stats.get("closed_markets", []),
             "scanned_total": self.stats["scanned_total"],
             "alerts_sent_total": self.stats["alerts_sent_total"],
             "last_scan_utc": self.stats["last_scan_utc"],

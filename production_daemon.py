@@ -60,7 +60,7 @@ class CloudDaemonRunner:
         heartbeat_interval: int = 900,
         log_file: str = "logs/cloud_daemon.log",
     ):
-        self.markets = markets or ["US", "NSE", "TSE", "HKEX", "CRYPTO"]
+        self.markets = markets or ["US", "NSE", "CRYPTO"]
         self.config_path = config_path
         self.heartbeat_interval = heartbeat_interval
         self.logger = setup_logger(log_file)
@@ -87,10 +87,13 @@ class CloudDaemonRunner:
                     scanned = res.get("scanned", 0)
                     alerts = res.get("alerts_sent", 0)
                     active = self.orchestrator.get_active_markets()
+                    closed = [m for m in self.markets if m not in active]
                     self.heartbeat.update_stats(
                         scanned=scanned,
                         alerts=alerts,
+                        configured_markets=self.markets,
                         active_markets=active,
+                        closed_markets=closed,
                         status="HEALTHY",
                     )
                     return res
@@ -126,15 +129,43 @@ class CloudDaemonRunner:
         else:
             self.logger.warning("⚠️ Telegram credentials not configured. Signals will be logged locally only.")
 
+        import schedule
+
         # Register market schedules
         self.scheduler.schedule_all()
 
+        # Scheduled hourly scan cadence across active markets at :01 past every hour (candle close)
+        def _scan_open_markets():
+            active = self.orchestrator.get_active_markets()
+            if not active:
+                self.logger.info("💤 No active exchanges currently open. Deep sleeping...")
+                return {}
+            self.logger.info(f"⚡ Hourly candle close scan triggered for active markets: {active}")
+            return self.scheduler.scan_active_markets()
+
+        schedule.every().hour.at(":01").do(_scan_open_markets)
+        self.logger.info("⏱️ Scheduled hourly candle close scanner at :01 past every hour")
+
         # Schedule heartbeat at :58 past every hour (2 mins before candle closes at :00/:01)
-        import schedule
-        schedule.every().hour.at(":58").do(lambda: self.heartbeat.beat(force=True))
+        def _hourly_heartbeat():
+            active = self.orchestrator.get_active_markets()
+            closed = [m for m in self.markets if m not in active]
+            self.heartbeat.update_stats(
+                active_markets=active,
+                closed_markets=closed,
+                status="HEALTHY",
+            )
+        schedule.every().hour.at(":58").do(_hourly_heartbeat)
         self.logger.info("💓 Scheduled health heartbeat at :58 past every hour (CPU sleeps remainder)")
 
-        self.heartbeat.update_stats(status="HEALTHY", active_markets=self.orchestrator.get_active_markets())
+        active = self.orchestrator.get_active_markets()
+        closed = [m for m in self.markets if m not in active]
+        self.heartbeat.update_stats(
+            status="HEALTHY",
+            configured_markets=self.markets,
+            active_markets=active,
+            closed_markets=closed,
+        )
 
         # Optional startup scan
         if startup_scan:
@@ -162,8 +193,8 @@ def main(argv=None):
     parser.add_argument(
         "--markets",
         type=str,
-        default="US,NSE,TSE,HKEX,CRYPTO",
-        help="Comma-separated market identifiers to orchestrate",
+        default="US,NSE,CRYPTO",
+        help="Comma-separated market identifiers to orchestrate (default: US,NSE,CRYPTO)",
     )
     parser.add_argument(
         "--config",
@@ -202,7 +233,10 @@ def main(argv=None):
             print("✅ [HEALTHY] Daemon is running normally.")
             print(f"   PID: {data.get('pid')} | Uptime: {data.get('uptime_seconds')}s")
             print(f"   Last Beat: {data.get('timestamp_utc')} ({res.get('age_seconds')}s ago)")
-            print(f"   Active Markets: {data.get('active_markets')}")
+            print(f"   Monitored Markets: {data.get('configured_markets', data.get('active_markets', []))}")
+            print(f"   Active Markets: {data.get('active_markets', [])} (currently open)")
+            if data.get('closed_markets'):
+                print(f"   Closed Markets: {data.get('closed_markets')} (off-hours / sleeping)")
             print(f"   Scanned Total: {data.get('scanned_total')} | Alerts Sent: {data.get('alerts_sent_total')}")
             sys.exit(0)
         else:

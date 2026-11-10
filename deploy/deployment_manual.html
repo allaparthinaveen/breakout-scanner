@@ -469,8 +469,13 @@ sudo systemctl status breakout-scanner</code></pre>
             <pre><code>✅ [HEALTHY] Daemon is running normally.
    PID: 14820 | Uptime: 52.3s
    Last Beat: 2026-11-10T16:58:00+00:00 (15.2s ago)
-   Active Markets: ['US', 'CRYPTO']
+   Monitored Markets: ['US', 'NSE', 'CRYPTO']
+   Active Markets: ['US', 'CRYPTO'] (currently open)
+   Closed Markets: ['NSE'] (off-hours / sleeping)
    Scanned Total: 50 | Alerts Sent: 3</code></pre>
+            <div class="alert alert-info" style="margin-top: 10px; padding: 12px; background: rgba(88, 166, 255, 0.1); border-left: 4px solid var(--accent-blue); border-radius: 4px;">
+                <strong>💡 Market Session Note:</strong> <code>Monitored Markets</code> shows all venues configured for the daemon. <code>Active Markets</code> lists only those venues whose exchange is actively trading at this exact minute. When NSE is asleep (after 15:30 IST or on market holidays), it cleanly moves to <code>Closed Markets</code> to eliminate dead scans and save CPU burst credits.
+            </div>
         </div>
 
         <!-- STAGE 9: OPERATIONS & EMERGENCY PLAYBOOK -->
