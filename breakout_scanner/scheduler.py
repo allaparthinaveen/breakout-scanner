@@ -287,8 +287,9 @@ class SessionScheduler:
             if os.path.exists(filename):
                 with open(filename, "r") as f:
                     for line in f:
-                        sym = line.split(",")[0].strip()
-                        if sym and not sym.startswith("#") and sym not in symbols:
+                        # Strip inline comments, commas, whitespace and normalize to uppercase
+                        sym = line.split("#")[0].split(",")[0].strip().upper()
+                        if sym and sym not in symbols:
                             symbols.append(sym)
         return symbols
 
@@ -538,7 +539,15 @@ class MultiMarketScheduler:
         for m in self.market_names:
             m_cfg = STANDARD_MARKET_CONFIGS.get(m)
             profile_path = m_cfg.profile_path if (m_cfg and m_cfg.profile_path and os.path.exists(m_cfg.profile_path)) else base_cfg_path
-            wl_files = [m_cfg.watchlist_file] if (m_cfg and m_cfg.watchlist_file and os.path.exists(m_cfg.watchlist_file)) else None
+            # Resolve all configured watchlists (supports multi-watchlist lists)
+            wl_files = []
+            if m_cfg:
+                if getattr(m_cfg, "watchlist_files", None):
+                    wl_files.extend([f for f in m_cfg.watchlist_files if os.path.exists(f)])
+                elif m_cfg.watchlist_file and os.path.exists(m_cfg.watchlist_file):
+                    wl_files.append(m_cfg.watchlist_file)
+            if not wl_files:
+                wl_files = None
             dedup_path = f"data/alert_dedup_{m.lower()}.json"
             
             self.schedulers[m] = SessionScheduler(

@@ -48,6 +48,7 @@ class MarketSessionConfig:
     pre_open_offset_minutes: int = 60
     minute_offset: int = 1  # Grace period buffer past candle close (e.g. :01 past the hour)
     watchlist_file: Optional[str] = None
+    watchlist_files: Optional[List[str]] = None
     profile_path: Optional[str] = None
     allow_fractional: bool = False
 
@@ -60,6 +61,13 @@ STANDARD_MARKET_CONFIGS: Dict[str, MarketSessionConfig] = {
         pre_open_offset_minutes=60,
         minute_offset=1,
         watchlist_file="config/watchlist.txt",
+        watchlist_files=[
+            "config/watchlist.txt",
+            "config/us_today_watchlist.txt",
+            "config/nasdaq_50_watchlist.txt",
+            "config/sp_50_watchlist.txt",
+            "config/top30_watchlist.txt",
+        ],
         profile_path="config/profiles/us_production.yaml",
         allow_fractional=False,
     ),
@@ -70,6 +78,11 @@ STANDARD_MARKET_CONFIGS: Dict[str, MarketSessionConfig] = {
         pre_open_offset_minutes=60,
         minute_offset=1,
         watchlist_file="config/nsetop10_watchlist.txt",
+        watchlist_files=[
+            "config/nsetop10_watchlist.txt",
+            "config/nifty_50_watchlist.txt",
+            "config/nseliqtop10_watchlist.txt",
+        ],
         profile_path="config/profiles/nse_production.yaml",
         allow_fractional=False,
     ),
@@ -80,6 +93,7 @@ STANDARD_MARKET_CONFIGS: Dict[str, MarketSessionConfig] = {
         pre_open_offset_minutes=60,
         minute_offset=1,
         watchlist_file="config/japan_top30_watchlist.txt",
+        watchlist_files=["config/japan_top30_watchlist.txt"],
         profile_path=None,
         allow_fractional=False,
     ),
@@ -90,6 +104,7 @@ STANDARD_MARKET_CONFIGS: Dict[str, MarketSessionConfig] = {
         pre_open_offset_minutes=60,
         minute_offset=1,
         watchlist_file="config/hk_top30_watchlist.txt",
+        watchlist_files=["config/hk_top30_watchlist.txt"],
         profile_path=None,
         allow_fractional=False,
     ),
@@ -100,6 +115,7 @@ STANDARD_MARKET_CONFIGS: Dict[str, MarketSessionConfig] = {
         pre_open_offset_minutes=0,
         minute_offset=1,
         watchlist_file="config/crypto_watchlist.txt",
+        watchlist_files=["config/crypto_watchlist.txt"],
         profile_path="config/profiles/crypto_production.yaml",
         allow_fractional=True,
     ),
