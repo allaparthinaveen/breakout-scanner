@@ -36,7 +36,7 @@ SSH into your EC2 instance and run:
 
 ```bash
 # Clone the repository
-git clone https://github.com/naveenallaparthi/breakout-scanner.git
+git clone https://github.com/allaparthinaveen/breakout-scanner.git
 cd breakout-scanner
 
 # Run automated bootstrap (installs Python 3.11, sets up 2GB swap, configures systemd)
