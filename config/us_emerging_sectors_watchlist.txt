@@ -1,0 +1,108 @@
+#us_emerging_sectors_watchlist.txt
+# AI Infrastructure & Semiconductors
+NVDA
+AVGO
+AMD
+TSM
+MU
+ARM
+MRVL
+ASML
+AMAT
+LRCX
+# AI Software & Platforms
+MSFT
+GOOGL
+META
+AMZN
+ORCL
+PLTR
+NOW
+SNOW
+DDOG
+APP
+# Data Center Power / Nuclear / Cooling
+VST
+CEG
+GEV
+ETN
+VRT
+OKLO
+SMR
+CCJ
+TLN
+NRG
+# Quantum Computing
+IONQ
+RGTI
+QBTS
+QUBT
+IBM
+ARQQ
+LAES
+# Space & Defense Tech
+RKLB
+ASTS
+LUNR
+PL
+KTOS
+AVAV
+LMT
+RTX
+NOC
+AXON
+# Robotics / Autonomy / EV
+TSLA
+ISRG
+SYM
+TER
+UBER
+JOBY
+ACHR
+MBLY
+RIVN
+ROK
+# Biotech / GLP-1
+LLY
+NVO
+VKTX
+AMGN
+REGN
+VRTX
+GILD
+ABBV
+MRK
+MRNA
+# Cybersecurity
+CRWD
+PANW
+ZS
+FTNT
+NET
+S
+OKTA
+CHKP
+RBRK
+TENB
+# Fintech & Crypto
+COIN
+HOOD
+XYZ
+PYPL
+SOFI
+MSTR
+MARA
+RIOT
+CRCL
+AFRM
+# Clean Energy & Storage
+FSLR
+ENPH
+NEE
+BE
+PLUG
+RUN
+EOSE
+FLNC
+NXT
+ENVX
