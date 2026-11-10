@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 import pytest
 from unittest.mock import MagicMock
 from breakout_scanner.models import Setup, State
@@ -128,14 +129,15 @@ def test_format_scan_report_html():
     s_base = Setup(symbol="AAPL", state=State.CONTRACTION, bias_score=3, resistance=341.57, support=330.70, base_width_pct=3.2, decay_ratio=0.6, tightening_confirmed=True, composite_grade="A", composite_score=81)
 
     html = format_scan_report_html([s_fresh, s_progress, s_base])
-    assert "SECTION 2A: FRESH ENTRIES" in html
+    assert "SECTION 2A: FRESH ACTIONABLE ENTRIES" in html
     assert "MSFT" in html
-    assert "[ENTER NOW — FRESH]" in html
-    assert "SECTION 2B: IN PROGRESS" in html
+    assert "▲ BUY [🚀 BREAKOUT]" in html
+    assert "SECTION 2B: TRADES IN PROGRESS" in html
     assert "NVDA" in html
-    assert "[TP1 HIT:" in html
-    assert "SECTION 1: VCP BASES" in html
-    assert "AAPL" in html
+    assert "▼ SELL [🚀 BREAKOUT]" in html
+    # Section 1 (VCP Bases) must be excluded from Telegram
+    assert "SECTION 1" not in html
+    assert "AAPL" not in html
 
 
 def test_scheduler_scan_and_deduplication(tmp_path):
@@ -155,6 +157,8 @@ def test_scheduler_scan_and_deduplication(tmp_path):
     # Mock Telegram dispatch
     scheduler.send_telegram_alert = MagicMock(return_value=True)
 
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     # Setup 1: Fresh Breakout on latest candle (bars_since_breakout=0, fresh entry)
     s1 = Setup(
         symbol="DOT-USD",
@@ -169,7 +173,8 @@ def test_scheduler_scan_and_deduplication(tmp_path):
         tp1=1.3012,
         tp2=1.3209,
         bars_since_breakout=0,
-        breakout_time="2026-10-12 14:00:00"
+        breakout_time=now_str,
+        friction_r=0.10
     )
 
     # Setup 2: In-Progress / TP1 already hit (is_fresh_entry=False)
@@ -186,7 +191,7 @@ def test_scheduler_scan_and_deduplication(tmp_path):
         tp1=227.02,
         tp2=224.72,
         bars_since_breakout=0,
-        breakout_time="2026-10-12 14:00:00"
+        breakout_time=now_str
     )
 
     # Setup 3: Stale Breakout from 10 candles ago (bars_since_breakout=10)

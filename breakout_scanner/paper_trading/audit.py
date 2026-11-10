@@ -13,7 +13,9 @@ Generates: reports/paper_trading_audit_report.md
 
 import os
 import json
+import uuid
 import datetime
+from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
 import numpy as np
 
@@ -21,6 +23,113 @@ from .models import (
     GateAuditCheck,
     GoNoGoAuditReport,
 )
+
+
+@dataclass
+class IncidentRecord:
+    """Evidential record of a single system defect, data anomaly, or state desync."""
+    incident_id: str
+    timestamp: str
+    category: str  # EXCEPTION, STATE_DESYNC, MISSING_STOP, DATA_GAP, STALE_DATA, ORDER_REJECT
+    severity: str = "CRITICAL"  # CRITICAL, WARNING, INFO
+    symbol: Optional[str] = None
+    message: str = ""
+    details: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "incident_id": self.incident_id,
+            "timestamp": self.timestamp,
+            "category": self.category,
+            "severity": self.severity,
+            "symbol": self.symbol,
+            "message": self.message,
+            "details": self.details,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "IncidentRecord":
+        return cls(
+            incident_id=data.get("incident_id", ""),
+            timestamp=data.get("timestamp", ""),
+            category=data.get("category", "EXCEPTION"),
+            severity=data.get("severity", "CRITICAL"),
+            symbol=data.get("symbol"),
+            message=data.get("message", ""),
+            details=data.get("details", {}),
+        )
+
+
+class IncidentLedger:
+    """
+    Append-only evidential ledger for recording operational anomalies,
+    data delays, state desyncs, and uncaught exceptions during paper trading.
+    """
+    def __init__(self, ledger_path: Optional[str] = None):
+        self.ledger_path = ledger_path
+        self.incidents: List[IncidentRecord] = []
+        if self.ledger_path and os.path.exists(self.ledger_path):
+            self.load()
+
+    def record_incident(
+        self,
+        category: str,
+        message: str,
+        severity: str = "CRITICAL",
+        symbol: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ) -> IncidentRecord:
+        rec = IncidentRecord(
+            incident_id=str(uuid.uuid4())[:8],
+            timestamp=datetime.datetime.now().isoformat(),
+            category=category,
+            severity=severity.upper(),
+            symbol=symbol,
+            message=message,
+            details=details or {},
+        )
+        self.incidents.append(rec)
+        if self.ledger_path:
+            self._append_to_file(rec)
+        return rec
+
+    def _append_to_file(self, rec: IncidentRecord):
+        try:
+            dir_name = os.path.dirname(self.ledger_path)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+            with open(self.ledger_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec.to_dict()) + "\n")
+        except Exception:
+            pass
+
+    def load(self):
+        if not self.ledger_path or not os.path.exists(self.ledger_path):
+            return
+        self.incidents = []
+        try:
+            with open(self.ledger_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        self.incidents.append(IncidentRecord.from_dict(json.loads(line)))
+        except Exception:
+            pass
+
+    def get_critical_incidents(self) -> List[IncidentRecord]:
+        return [i for i in self.incidents if i.severity == "CRITICAL"]
+
+    @property
+    def critical_count(self) -> int:
+        return len(self.get_critical_incidents())
+
+    def clear(self):
+        self.incidents = []
+        if self.ledger_path and os.path.exists(self.ledger_path):
+            try:
+                os.remove(self.ledger_path)
+            except Exception:
+                pass
 
 
 DEFAULT_REPORT_PATH = "reports/paper_trading_audit_report.md"
@@ -50,11 +159,18 @@ class GoNoGoAuditor:
         self,
         completed_trades: List[Dict[str, Any]],
         variance_records: Optional[List[Any]] = None,
-        critical_defects_count: int = 0
+        critical_defects_count: Optional[int] = None,
+        incident_ledger: Optional[IncidentLedger] = None
     ) -> GoNoGoAuditReport:
         """
         Runs rigorous audit checks against the completed paper trades and slippage ledger.
         """
+        if critical_defects_count is None:
+            if incident_ledger is not None:
+                critical_defects_count = incident_ledger.critical_count
+            else:
+                critical_defects_count = 0
+
         variance_records = variance_records or []
         n_trades = len(completed_trades)
 
@@ -155,7 +271,8 @@ class GoNoGoAuditor:
     def write_markdown_report(
         self,
         report: GoNoGoAuditReport,
-        output_path: str = DEFAULT_REPORT_PATH
+        output_path: str = DEFAULT_REPORT_PATH,
+        incident_ledger: Optional[IncidentLedger] = None
     ) -> str:
         """Renders the formal Phase 5 release audit markdown document."""
         verdict_badge = "🟢 **GO FOR MICRO-CAPITAL LIVE RELEASE**" if "GO" in report.overall_verdict and "NO-GO" not in report.overall_verdict else "🔴 **NO-GO: REMEDIATION REQUIRED**"
@@ -180,6 +297,21 @@ class GoNoGoAuditor:
             lines.append(
                 f"| **{c.criterion_name}** | {c.threshold_str} | **{c.actual_value_str}** | {status_icon} | {c.fail_action} |"
             )
+
+        if incident_ledger and incident_ledger.incidents:
+            lines.extend([
+                "",
+                "---",
+                "",
+                "## ⚠️ Operational Incident & Defect Ledger",
+                "",
+                "| Incident ID | Timestamp | Severity | Category | Symbol | Message |",
+                "| :--- | :---: | :---: | :---: | :---: | :--- |"
+            ])
+            for inc in incident_ledger.incidents:
+                lines.append(
+                    f"| `{inc.incident_id}` | {inc.timestamp} | **{inc.severity}** | `{inc.category}` | {inc.symbol or 'N/A'} | {inc.message} |"
+                )
 
         lines.extend([
             "",

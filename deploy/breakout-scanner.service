@@ -1,0 +1,29 @@
+[Unit]
+Description=Breakout Scanner Multi-Market Cloud Daemon
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/breakout-scanner
+ExecStart=/home/ec2-user/breakout-scanner/venv/bin/python3 production_daemon.py --startup-scan
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# Environment variables
+Environment=PYTHONUNBUFFERED=1
+Environment=AWS_DEFAULT_REGION=ap-southeast-1
+
+# Standard output and error logging
+StandardOutput=append:/home/ec2-user/breakout-scanner/logs/systemd.log
+StandardError=append:/home/ec2-user/breakout-scanner/logs/systemd_err.log
+
+# Resource containment
+CPUWeight=100
+MemoryMax=1.5G
+
+[Install]
+WantedBy=multi-user.target

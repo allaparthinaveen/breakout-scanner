@@ -2,41 +2,90 @@ import os
 import time
 import json
 import logging
+import tempfile
+import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 import requests
 from dotenv import load_dotenv
 import schedule
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 from .models import Setup, State
 from .config import load_config
 from .providers.yfinance_provider import YFinanceProvider
 from .scanner import MultiSymbolScanner
+from .safeguards import ProductionSafeguards
 
 load_dotenv()
+
+
+@contextmanager
+def file_lock(lock_path: str):
+    """Advisory file lock context manager for cross-process concurrency safety."""
+    if fcntl is None:
+        yield
+        return
+    lock_file = open(lock_path, "a")
+    try:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            lock_file.close()
+        except Exception:
+            pass
 
 
 class CandleAlertDeduplicator:
     """
     Prevents duplicate Telegram alerts for the same candle close.
-    Stores signatures in an atomic persistent JSON cache so state survives daemon restarts.
+    Supports:
+    1. Atomic JSON storage with advisory file locking (os.replace + fcntl.flock).
+    2. SQLite database backend (.sqlite or .db) for high-concurrency production setups.
     """
     def __init__(self, cache_file: str = "data/alert_dedup.json"):
         self.cache_file = cache_file
+        self.is_sqlite = self.cache_file.endswith((".db", ".sqlite"))
+        self.lock_file = self.cache_file + ".lock"
         self.records: Dict[str, dict] = {}
         self._ensure_cache_dir()
-        self.load()
+        if self.is_sqlite:
+            self._init_sqlite()
+        else:
+            self.load()
 
     def _ensure_cache_dir(self):
         dir_name = os.path.dirname(self.cache_file)
         if dir_name and not os.path.exists(dir_name):
             os.makedirs(dir_name, exist_ok=True)
 
+    def _init_sqlite(self):
+        with sqlite3.connect(self.cache_file, timeout=10.0) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS alert_dedup (
+                    signature TEXT PRIMARY KEY,
+                    recorded_at TEXT NOT NULL,
+                    meta TEXT
+                );
+            """)
+            conn.commit()
+
     def load(self):
+        if self.is_sqlite:
+            return
         if os.path.exists(self.cache_file):
             try:
-                with open(self.cache_file, "r") as f:
-                    self.records = json.load(f)
+                with file_lock(self.lock_file):
+                    with open(self.cache_file, "r") as f:
+                        self.records = json.load(f)
             except Exception as e:
                 logging.getLogger("scheduler").warning(f"Failed to load alert dedup cache: {e}. Starting fresh.")
                 self.records = {}
@@ -44,12 +93,27 @@ class CandleAlertDeduplicator:
             self.records = {}
 
     def save(self):
+        if self.is_sqlite:
+            return
         self._ensure_cache_dir()
+        dir_name = os.path.dirname(self.cache_file) or "."
+        temp_path = None
         try:
-            with open(self.cache_file, "w") as f:
-                json.dump(self.records, f, indent=2)
+            with file_lock(self.lock_file):
+                # Atomic persistence: write to temp file then atomic rename to prevent corruption on crash
+                with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
+                    json.dump(self.records, tf, indent=2)
+                    tf.flush()
+                    os.fsync(tf.fileno())
+                    temp_path = tf.name
+                os.replace(temp_path, self.cache_file)
         except Exception as e:
             logging.getLogger("scheduler").error(f"Failed to save alert dedup cache: {e}")
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
 
     @staticmethod
     def build_signature(symbol: str, signal_type: str, candle_time: str) -> str:
@@ -58,11 +122,25 @@ class CandleAlertDeduplicator:
         return f"{symbol.upper()}:{signal_type.upper()}:{clean_time}"
 
     def is_duplicate(self, signature: str) -> bool:
+        if self.is_sqlite:
+            with sqlite3.connect(self.cache_file, timeout=10.0) as conn:
+                row = conn.execute("SELECT 1 FROM alert_dedup WHERE signature = ?", (signature,)).fetchone()
+                return row is not None
         return signature in self.records
 
     def record_alert(self, signature: str, meta: Optional[dict] = None):
+        now_iso = datetime.now().isoformat()
+        if self.is_sqlite:
+            with sqlite3.connect(self.cache_file, timeout=10.0) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO alert_dedup (signature, recorded_at, meta) VALUES (?, ?, ?)",
+                    (signature, now_iso, json.dumps(meta or {}))
+                )
+                conn.commit()
+            return
+
         self.records[signature] = {
-            "recorded_at": datetime.now().isoformat(),
+            "recorded_at": now_iso,
             "meta": meta or {}
         }
         self.save()
@@ -70,6 +148,12 @@ class CandleAlertDeduplicator:
     def prune(self, max_age_days: int = 7):
         """Removes entries older than max_age_days to keep cache compact."""
         cutoff = datetime.now() - timedelta(days=max_age_days)
+        if self.is_sqlite:
+            with sqlite3.connect(self.cache_file, timeout=10.0) as conn:
+                conn.execute("DELETE FROM alert_dedup WHERE recorded_at < ?", (cutoff.isoformat(),))
+                conn.commit()
+            return
+
         to_delete = []
         for sig, data in self.records.items():
             rec_str = data.get("recorded_at")
@@ -86,23 +170,43 @@ class CandleAlertDeduplicator:
             self.save()
 
     def clear(self):
+        if self.is_sqlite:
+            with sqlite3.connect(self.cache_file, timeout=10.0) as conn:
+                conn.execute("DELETE FROM alert_dedup")
+                conn.commit()
+            return
+
         self.records = {}
         if os.path.exists(self.cache_file):
             try:
                 os.remove(self.cache_file)
             except Exception:
                 pass
+        if os.path.exists(self.lock_file):
+            try:
+                os.remove(self.lock_file)
+            except Exception:
+                pass
 
 
-from .telegram_formatter import format_instant_alert_html, format_price
+from .telegram_formatter import format_instant_alert_html, format_price, format_actionable_slate_html
+from .slate import SlatePipeline, EffectiveConfigSummary, ActionableSlate
+from .market_session import (
+    MarketSessionManager,
+    MarketSessionConfig,
+    CandleBoundaryVerifier,
+    MultiMarketOrchestrator,
+    STANDARD_MARKET_CONFIGS,
+)
+from .secrets import get_telegram_credentials
 
 
-def format_instant_alert(setup: Setup, timeframe: str = "1H") -> str:
+def format_instant_alert(setup: Setup, timeframe: str = "1H", allocation: Optional[Any] = None) -> str:
     """
     Formats the high-priority instant push alert for candle closes.
     Uses mobile-first card layout with rich HTML badges.
     """
-    return format_instant_alert_html(setup, timeframe)
+    return format_instant_alert_html(setup, timeframe, allocation=allocation)
 
 
 class SessionScheduler:
@@ -117,11 +221,21 @@ class SessionScheduler:
         watchlist_files: Optional[List[str]] = None,
         dedup_file: str = "data/alert_dedup.json",
         log_file: str = "logs/scanner.log",
+        market_id: str = "US",
+        enforce_market_hours: bool = False,
     ):
+        self.market_id = market_id
+        self.enforce_market_hours = enforce_market_hours
+        try:
+            self.market_session = MarketSessionManager.from_market_id(self.market_id)
+        except Exception:
+            self.market_session = None
+
         self.cfg = load_config(cfg_path)
         self.provider = YFinanceProvider()
         self.scanner = MultiSymbolScanner(self.provider, self.cfg)
         self.deduplicator = CandleAlertDeduplicator(dedup_file)
+        self.pipeline = SlatePipeline(cfg=self.cfg, scanner=self.scanner)
         
         self.watchlist_files = watchlist_files or [
             "config/watchlist.txt",
@@ -132,11 +246,17 @@ class SessionScheduler:
             "config/japan_top30_watchlist.txt"
         ]
 
-        self.telegram_token = os.getenv("TG_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-        self.telegram_chat_id = os.getenv("TG_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
+        token, chat_id = get_telegram_credentials()
+        self.telegram_token = token
+        self.telegram_chat_id = chat_id
+
+        self.safeguards = ProductionSafeguards(self.cfg)
+        if os.getenv("KILL_SWITCH", "").lower() in ("true", "1", "yes"):
+            self.safeguards.engage_kill_switch("KILL_SWITCH environment variable is set")
 
         self.log_file = log_file
         self.logger = self._setup_logging()
+        EffectiveConfigSummary.log_matrix(self.cfg, self.logger)
 
     def _setup_logging(self) -> logging.Logger:
         logger = logging.getLogger("breakout_daemon")
@@ -191,7 +311,7 @@ class SessionScheduler:
             self.logger.error(f"Failed to dispatch Telegram message: {e}")
             return False
 
-    def scan_and_alert(self) -> dict:
+    def scan_and_alert(self, force: bool = False) -> dict:
         """
         Core scanning execution triggered upon candle close.
         Evaluates symbols on 1H interval, detects fresh setups, deduplicates,
@@ -201,53 +321,131 @@ class SessionScheduler:
         start_time = time.time()
         self.logger.info(f"⚡ Starting candle close scan across {len(symbols)} symbols...")
 
+        # Market Session Open Check (when enforce_market_hours is enabled)
+        if self.enforce_market_hours and not force and self.market_session is not None:
+            if not self.market_session.is_open(datetime.now()):
+                self.logger.info(
+                    f"⏸️ [SESSION] Market {self.market_id} is currently CLOSED or in lunch break. Skipping live scan."
+                )
+                return {
+                    "scanned": 0,
+                    "fresh_alerts": 0,
+                    "duplicates_skipped": 0,
+                    "safeguards_rejected": 0,
+                    "status": "MARKET_CLOSED",
+                    "candidates": [],
+                }
+
+        # Production Safeguards Check 1: Kill Switch
+        if self.safeguards.kill_switch_active:
+            self.logger.critical("🛑 [SAFEGUARDS] Global Kill Switch is ACTIVE. Halting scan and alert pipeline.")
+            return {
+                "scanned": 0,
+                "fresh_alerts": 0,
+                "duplicates_skipped": 0,
+                "safeguards_rejected": 0,
+                "status": "HALTED_BY_KILL_SWITCH",
+                "candidates": []
+            }
+
+        # Production Safeguards Check 2: Daily Loss Limit
+        account_size = float(self.cfg.get('risk', {}).get('account_size', 100000.0))
+        if not self.safeguards.check_daily_loss_limit(account_size):
+            self.logger.critical("🛑 [SAFEGUARDS] Daily loss limit breached. Circuit breaker tripped.")
+            return {
+                "scanned": 0,
+                "fresh_alerts": 0,
+                "duplicates_skipped": 0,
+                "safeguards_rejected": 0,
+                "status": "HALTED_BY_DAILY_LOSS",
+                "candidates": []
+            }
+
         # 1H candles for timely execution
         setups = self.scanner.scan(symbols, period="60d", interval="1h")
+
+        # Phase 1: Authoritative ActionableSlate evaluation
+        slate = self.pipeline.evaluate_setups(setups, total_scanned=len(symbols))
         
         fresh_alerts_sent = 0
         duplicates_skipped = 0
+        safeguards_rejected = 0
         fresh_candidates = []
 
-        for s in setups:
-            # Active signal state
-            if s.state in (State.BUY, State.SELL):
-                # Must be on the latest closed candle (bars_since_breakout <= 1)
-                # and qualify as a pristine fresh entry (within 1% of entry, TP1 not hit)
-                is_latest_candle = (s.bars_since_breakout is not None and s.bars_since_breakout <= 1)
+        for t in slate.selected_trades:
+            s = t.setup
+            if not s:
+                continue
+
+            # Must be on the latest closed candle (bars_since_breakout <= 1)
+            is_latest_candle = (s.bars_since_breakout is None or s.bars_since_breakout <= 1)
+            if not is_latest_candle:
+                continue
+
+            candle_epoch = time.time()
+            if hasattr(s, 'breakout_time') and s.breakout_time:
+                try:
+                    candle_epoch = datetime.fromisoformat(str(s.breakout_time)).timestamp()
+                except Exception:
+                    pass
+
+            # Production Safeguards Check 3: Pre-trade validation gate
+            if not self.safeguards.pre_trade_validation(
+                s,
+                current_capital=account_size,
+                current_timestamp=candle_epoch,
+                timeframe_seconds=3600
+            ):
+                safeguards_rejected += 1
+                self.logger.warning(f"🛡️ [SAFEGUARDS REJECTED] {s.symbol} blocked by pre-trade validation gate.")
+                continue
+
+            signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
+            candle_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
+            signature = self.deduplicator.build_signature(s.symbol, signal_type, candle_time)
+            
+            if self.deduplicator.is_duplicate(signature):
+                duplicates_skipped += 1
+                self.logger.debug(f"[DEDUP] Already alerted {signature}, skipping.")
+            else:
+                alert_msg = format_instant_alert(s, timeframe="1H", allocation=t)
+                self.logger.info(f"🚨 FRESH SIGNAL DETECTED: {signature}")
+                self.logger.info("\n" + alert_msg)
                 
-                if is_latest_candle and s.is_fresh_entry:
-                    signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
-                    candle_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
-                    signature = self.deduplicator.build_signature(s.symbol, signal_type, candle_time)
-                    
-                    if self.deduplicator.is_duplicate(signature):
-                        duplicates_skipped += 1
-                        self.logger.debug(f"[DEDUP] Already alerted {signature}, skipping.")
-                    else:
-                        alert_msg = format_instant_alert(s, timeframe="1H")
-                        self.logger.info(f"🚨 FRESH SIGNAL DETECTED: {signature}")
-                        self.logger.info("\n" + alert_msg)
-                        
-                        sent = self.send_telegram_alert(alert_msg)
-                        if sent:
-                            self.deduplicator.record_alert(signature, {
-                                "symbol": s.symbol,
-                                "type": signal_type,
-                                "entry": s.entry,
-                                "stop": s.stop,
-                                "grade": s.composite_grade,
-                                "score": s.composite_score
-                            })
-                            fresh_alerts_sent += 1
-                        fresh_candidates.append(s)
+                # Decoupled notification observer
+                sent = self.send_telegram_alert(alert_msg)
+                if sent:
+                    self.deduplicator.record_alert(signature, {
+                        "symbol": s.symbol,
+                        "type": signal_type,
+                        "entry": s.entry,
+                        "stop": s.stop,
+                        "shares": t.shares,
+                        "dollar_risk": t.dollar_risk,
+                        "grade": s.composite_grade,
+                        "score": s.composite_score
+                    })
+                    fresh_alerts_sent += 1
+                else:
+                    self.logger.warning(f"⚠️ Telegram dispatch failed for {signature}, recorded locally.")
+                    self.deduplicator.record_alert(signature, {
+                        "symbol": s.symbol,
+                        "type": signal_type,
+                        "entry": s.entry,
+                        "stop": s.stop,
+                        "shares": t.shares,
+                        "dollar_risk": t.dollar_risk,
+                        "delivery_failed": True
+                    })
+                fresh_candidates.append(s)
 
         elapsed = time.time() - start_time
         self.deduplicator.prune(max_age_days=7)
         
         self.logger.info(
             f"💓 [HEARTBEAT] Scan finished in {elapsed:.1f}s. "
-            f"Evaluated {len(symbols)} symbols | Fresh Alerts: {fresh_alerts_sent} | "
-            f"Deduplicated Skipped: {duplicates_skipped}"
+            f"Evaluated {len(symbols)} symbols | Slate Actionable: {len(slate.selected_trades)} | "
+            f"Fresh Alerts: {fresh_alerts_sent} | Deduplicated Skipped: {duplicates_skipped}"
         )
 
         # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
@@ -259,8 +457,13 @@ class SessionScheduler:
 
         return {
             "scanned": len(symbols),
+            "slate": slate,
+            "actionable_trades": len(slate.selected_trades),
+            "suppressed_trades": len(slate.suppressed_trades),
+            "rejected_trades": len(slate.rejected_trades),
             "alerts_sent": fresh_alerts_sent,
-            "duplicates_skipped": fresh_duplicates if 'fresh_duplicates' in locals() else duplicates_skipped,
+            "duplicates_skipped": duplicates_skipped,
+            "safeguards_rejected": safeguards_rejected,
             "elapsed_seconds": round(elapsed, 2)
         }
 
@@ -281,6 +484,24 @@ class SessionScheduler:
             schedule.every().day.at(t).do(self.scan_and_alert)
             self.logger.info(f"⏱️ Scheduled session-aligned scan at {t}.")
 
+    def schedule_market_sessions(self, timeframe: str = "1h"):
+        """
+        Schedules exchange-aligned scans dynamically using exchange_calendars.
+        Respects market open/close, lunch breaks, and DST transitions.
+        """
+        if self.market_session is None:
+            self.logger.warning("No market session configured. Falling back to hourly schedule.")
+            self.schedule_hourly()
+            return
+
+        today = datetime.now()
+        events = self.market_session.get_scheduled_events(today, timeframe=timeframe)
+        self.logger.info(f"📅 Setting up exchange-aligned schedule for {self.market_id} ({self.market_session.config.timezone}):")
+        for ev_type, ev_time in events:
+            time_str = ev_time.strftime("%H:%M")
+            schedule.every().day.at(time_str).do(self.scan_and_alert)
+            self.logger.info(f"   ⏱️ Scheduled {ev_type} at {time_str} ({self.market_session.config.timezone})")
+
     def start(self, run_immediately: bool = True, poll_sec: int = 1):
         """
         Runs the daemon loop continuously.
@@ -295,3 +516,60 @@ class SessionScheduler:
                 time.sleep(poll_sec)
         except (KeyboardInterrupt, SystemExit):
             self.logger.info("🛑 Background Session Scheduler daemon stopped gracefully.")
+
+
+class MultiMarketScheduler:
+    """
+    Orchestrates multiple market schedulers (e.g. US, NSE, TSE, HKEX, CRYPTO)
+    in a single continuous background daemon process with timezone-aware scheduling.
+    """
+    def __init__(
+        self,
+        markets: Optional[List[str]] = None,
+        base_cfg_path: str = "config/default.yaml",
+        log_file: str = "logs/multi_market.log",
+    ):
+        self.market_names = markets or ["US", "NSE", "TSE", "HKEX", "CRYPTO"]
+        self.base_cfg_path = base_cfg_path
+        self.log_file = log_file
+        self.schedulers: Dict[str, SessionScheduler] = {}
+        self.orchestrator = MultiMarketOrchestrator(self.market_names)
+
+        for m in self.market_names:
+            m_cfg = STANDARD_MARKET_CONFIGS.get(m)
+            profile_path = m_cfg.profile_path if (m_cfg and m_cfg.profile_path and os.path.exists(m_cfg.profile_path)) else base_cfg_path
+            wl_files = [m_cfg.watchlist_file] if (m_cfg and m_cfg.watchlist_file and os.path.exists(m_cfg.watchlist_file)) else None
+            dedup_path = f"data/alert_dedup_{m.lower()}.json"
+            
+            self.schedulers[m] = SessionScheduler(
+                cfg_path=profile_path,
+                watchlist_files=wl_files,
+                dedup_file=dedup_path,
+                log_file=self.log_file,
+                market_id=m,
+                enforce_market_hours=True,
+            )
+
+    def schedule_all(self, timeframe: str = "1h"):
+        """Configures market-session aligned schedules for all target markets."""
+        for mid, sched in self.schedulers.items():
+            sched.schedule_market_sessions(timeframe=timeframe)
+
+    def scan_active_markets(self) -> Dict[str, dict]:
+        """Runs scans across all currently open exchanges."""
+        active = self.orchestrator.get_active_markets()
+        results = {}
+        for mid in active:
+            if mid in self.schedulers:
+                results[mid] = self.schedulers[mid].scan_and_alert()
+        return results
+
+    def start(self, poll_sec: int = 1):
+        """Runs the multi-market event loop."""
+        self.schedule_all()
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(poll_sec)
+        except (KeyboardInterrupt, SystemExit):
+            pass

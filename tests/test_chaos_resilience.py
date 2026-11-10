@@ -28,7 +28,7 @@ from breakout_scanner.scorer import calculate_composite_score
 def make_normal_df(n_bars: int = 80, price: float = 100.0, volume: float = 100_000.0) -> pd.DataFrame:
     """Generate a clean, sane OHLCV DataFrame."""
     rng = np.random.default_rng(42)
-    dates = pd.date_range("2024-01-01", periods=n_bars, freq="H")
+    dates = pd.date_range("2024-01-01", periods=n_bars, freq="h")
     noise = rng.normal(0, 0.3, n_bars)
     close = np.maximum(price + np.cumsum(noise), 0.01)
     high = close + abs(rng.normal(0, 0.15, n_bars))
@@ -173,7 +173,7 @@ def test_flat_price_no_crash():
         "Low": np.full(n, flat_price),
         "Close": np.full(n, flat_price),
         "Volume": np.full(n, 100_000.0),
-    }, index=pd.date_range("2024-01-01", periods=n, freq="H"))
+    }, index=pd.date_range("2024-01-01", periods=n, freq="h"))
 
     try:
         result = engine.run(df)
@@ -265,7 +265,7 @@ def test_missing_columns_no_crash():
     df_minimal = pd.DataFrame({
         "Close": np.random.uniform(90, 110, 60),
         "Volume": np.full(60, 50_000.0),
-    }, index=pd.date_range("2024-01-01", periods=60, freq="H"))
+    }, index=pd.date_range("2024-01-01", periods=60, freq="h"))
 
     try:
         result = engine.run(df_minimal)

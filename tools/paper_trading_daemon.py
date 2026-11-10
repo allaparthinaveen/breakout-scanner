@@ -78,10 +78,14 @@ def run_paper_replay(
     audit_report = auditor.evaluate_performance(
         completed_trades=daemon.completed_trades,
         variance_records=daemon.variance_records,
-        critical_defects_count=0
+        incident_ledger=daemon.incident_ledger
     )
 
-    report_md = auditor.write_markdown_report(audit_report, output_path=report_output)
+    report_md = auditor.write_markdown_report(
+        audit_report,
+        output_path=report_output,
+        incident_ledger=daemon.incident_ledger
+    )
     print(f"Paper Trading Audit Report generated at: {report_output}")
     print(f"Overall Release Verdict: {audit_report.overall_verdict}")
     return report_md

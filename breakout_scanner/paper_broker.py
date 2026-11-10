@@ -17,8 +17,15 @@ class Position:
 
 class PaperBroker:
     """
-    Phase 8: Simulated execution environment for paper trading.
-    Manages a virtual account balance and executes simulated market/limit orders.
+    ⚠️ RESEARCH & PROTOTYPE SIMULATOR ONLY (Phase 8):
+    Not an exchange execution venue.
+    This simulator manages in-memory simulated market/limit orders for research prototyping.
+    It intentionally lacks:
+    - True exchange lifecycle states (SUBMITTED, ACK, PARTIAL_FILL, REJECTED)
+    - Gap-through stops and dynamic queue priority
+    - Statutory exchange/regulatory fees and borrowing costs
+    - State recovery and broker truth reconciliation across process restarts.
+    For production live execution and forward shadow validation, see Phase 3 Hardened Paper Execution.
     """
     def __init__(self, cfg: dict, initial_balance: float = 10000.0):
         self.cfg = cfg

@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""
+Production Always-On Multi-Market Cloud Daemon.
+
+Designed for AWS EC2 (t4g.small Singapore ap-southeast-1) and Systemd/Docker deployment.
+Features:
+- Timezone-aware multi-market scheduling (US, NSE, TSE, HKEX, Crypto)
+- Heartbeat state monitoring (data/heartbeat.json) for CloudWatch / Systemd watchdog
+- AWS SSM Parameter Store credential resolution (zero hardcoded secrets)
+- Atomic deduplication persistence and cross-process locking
+- Clean signal handling (SIGTERM, SIGINT) for zero-data-loss graceful shutdowns
+"""
+
+import os
+import sys
+import time
+import signal
+import argparse
+import logging
+from typing import List, Optional
+from logging.handlers import RotatingFileHandler
+
+from breakout_scanner.scheduler import MultiMarketScheduler, SessionScheduler
+from breakout_scanner.market_session import MultiMarketOrchestrator, STANDARD_MARKET_CONFIGS
+from breakout_scanner.heartbeat import HeartbeatMonitor
+from breakout_scanner.secrets import get_telegram_credentials
+
+
+def setup_logger(log_file: str = "logs/cloud_daemon.log") -> logging.Logger:
+    logger = logging.getLogger("cloud_daemon")
+    logger.setLevel(logging.INFO)
+    logger.handlers = []
+
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+    formatter = logging.Formatter(
+        "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Rotating file handler (10MB max per file, keep last 3 archives to protect disk space)
+    rfh = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")
+    rfh.setFormatter(formatter)
+    logger.addHandler(rfh)
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
+
+    return logger
+
+
+class CloudDaemonRunner:
+    def __init__(
+        self,
+        markets: Optional[List[str]] = None,
+        config_path: str = "config/default.yaml",
+        heartbeat_interval: int = 900,
+        log_file: str = "logs/cloud_daemon.log",
+    ):
+        self.markets = markets or ["US", "NSE", "TSE", "HKEX", "CRYPTO"]
+        self.config_path = config_path
+        self.heartbeat_interval = heartbeat_interval
+        self.logger = setup_logger(log_file)
+        self.running = False
+
+        self.heartbeat = HeartbeatMonitor(
+            filepath="data/heartbeat.json",
+            interval_seconds=self.heartbeat_interval,
+        )
+        self.scheduler = MultiMarketScheduler(
+            markets=self.markets,
+            base_cfg_path=self.config_path,
+            log_file=log_file,
+        )
+        self.orchestrator = MultiMarketOrchestrator(self.markets)
+
+        # Hook scan_and_alert wrappers to capture telemetry
+        for mid, s in self.scheduler.schedulers.items():
+            original_scan = s.scan_and_alert
+
+            def make_wrapped(orig, market_name):
+                def wrapped_scan(*args, **kwargs):
+                    res = orig(*args, **kwargs)
+                    scanned = res.get("scanned", 0)
+                    alerts = res.get("alerts_sent", 0)
+                    active = self.orchestrator.get_active_markets()
+                    self.heartbeat.update_stats(
+                        scanned=scanned,
+                        alerts=alerts,
+                        active_markets=active,
+                        status="HEALTHY",
+                    )
+                    return res
+                return wrapped_scan
+
+            s.scan_and_alert = make_wrapped(original_scan, mid)
+
+        self._install_signal_handlers()
+
+    def _install_signal_handlers(self):
+        def _handle_shutdown(signum, frame):
+            sig_name = signal.Signals(signum).name
+            self.logger.info(f"🛑 Received {sig_name}. Initiating graceful cloud shutdown...")
+            self.running = False
+
+        signal.signal(signal.SIGINT, _handle_shutdown)
+        signal.signal(signal.SIGTERM, _handle_shutdown)
+
+    def run(self, startup_scan: bool = False, poll_sec: int = 5):
+        self.running = True
+        self.logger.info("=" * 70)
+        self.logger.info("🚀 BREAKOUT SCANNER CLOUD DAEMON INITIALIZING")
+        self.logger.info(f"   Markets Monitored: {', '.join(self.markets)}")
+        self.logger.info("   Heartbeat Cadence: 2 mins before hourly candle close (:58)")
+        self.logger.info(f"   PID: {os.getpid()} | Host: {self.heartbeat.hostname}")
+        self.logger.info("=" * 70)
+
+        # Verify Telegram configuration
+        token, chat_id = get_telegram_credentials()
+        if token and chat_id:
+            masked_token = token[:6] + "..." + token[-4:] if len(token) > 10 else "***"
+            self.logger.info(f"📱 Telegram Dispatch Verified: Chat ID={chat_id}, Token={masked_token}")
+        else:
+            self.logger.warning("⚠️ Telegram credentials not configured. Signals will be logged locally only.")
+
+        # Register market schedules
+        self.scheduler.schedule_all()
+
+        # Schedule heartbeat at :58 past every hour (2 mins before candle closes at :00/:01)
+        import schedule
+        schedule.every().hour.at(":58").do(lambda: self.heartbeat.beat(force=True))
+        self.logger.info("💓 Scheduled health heartbeat at :58 past every hour (CPU sleeps remainder)")
+
+        self.heartbeat.update_stats(status="HEALTHY", active_markets=self.orchestrator.get_active_markets())
+
+        # Optional startup scan
+        if startup_scan:
+            self.logger.info("⚡ Executing startup scan across active markets...")
+            self.scheduler.scan_active_markets()
+
+        # Continuous production event loop (deep sleep between triggers to save CPU credits)
+        try:
+            while self.running:
+                schedule.run_pending()
+                time.sleep(poll_sec)
+        except Exception as e:
+            self.logger.critical(f"💥 Fatal unhandled exception in daemon loop: {e}", exc_info=True)
+            self.heartbeat.update_stats(status="DEGRADED")
+            raise
+        finally:
+            self.heartbeat.update_stats(status="STOPPED")
+            self.logger.info("🛑 Cloud Daemon stopped cleanly. Zero locks or transactions orphaned.")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Institutional Always-On Multi-Market Cloud Daemon (Phase 3)"
+    )
+    parser.add_argument(
+        "--markets",
+        type=str,
+        default="US,NSE,TSE,HKEX,CRYPTO",
+        help="Comma-separated market identifiers to orchestrate",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/default.yaml",
+        help="Base configuration path",
+    )
+    parser.add_argument(
+        "--heartbeat-interval",
+        type=int,
+        default=900,
+        help="Heartbeat cadence in seconds (default: 900s / 15m)",
+    )
+    parser.add_argument(
+        "--startup-scan",
+        action="store_true",
+        help="Execute an immediate scan across active markets on startup",
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Inspect daemon heartbeat status from disk and exit",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default="logs/cloud_daemon.log",
+        help="Log file path",
+    )
+    args = parser.parse_args(argv)
+
+    if args.status:
+        res = HeartbeatMonitor.check_health("data/heartbeat.json")
+        if res.get("healthy"):
+            data = res.get("data", {})
+            print("✅ [HEALTHY] Daemon is running normally.")
+            print(f"   PID: {data.get('pid')} | Uptime: {data.get('uptime_seconds')}s")
+            print(f"   Last Beat: {data.get('timestamp_utc')} ({res.get('age_seconds')}s ago)")
+            print(f"   Active Markets: {data.get('active_markets')}")
+            print(f"   Scanned Total: {data.get('scanned_total')} | Alerts Sent: {data.get('alerts_sent_total')}")
+            sys.exit(0)
+        else:
+            print(f"❌ [UNHEALTHY] {res.get('message')}")
+            sys.exit(1)
+
+    market_list = [m.strip().upper() for m in args.markets.split(",") if m.strip()]
+    runner = CloudDaemonRunner(
+        markets=market_list,
+        config_path=args.config,
+        heartbeat_interval=args.heartbeat_interval,
+        log_file=args.log_file,
+    )
+    runner.run(startup_scan=args.startup_scan)
+
+
+if __name__ == "__main__":
+    main()

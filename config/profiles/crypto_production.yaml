@@ -1,0 +1,137 @@
+# 🏛️ Institutional Production Profile: Crypto 24/7 Perpetual / Spot
+# Profile Name: crypto_production
+profile_name: "Crypto 24/7 Production (Perpetuals & Spot)"
+market: "CRYPTO"
+currency: "USDT"
+
+trend:
+  sma_length: 50
+  use_trend_filter: true
+  use_slope_filter: false
+  slope_lookback_bars: 5
+
+base:
+  base_lookback: 24
+  tight_lookback: 6
+  max_base_range_pct: 15.0
+  max_tight_range_pct: 7.5
+  require_tightening: true
+  min_setup_bars: 6
+  max_setup_bars: 36
+  tightening_threshold: 0.70
+  min_box_density_pct: 70.0
+
+volume:
+  use_volume_contraction: true
+  volume_length: 24
+  contraction_ratio: 0.90
+  use_breakout_volume: true
+  breakout_multiplier: 1.30
+  vdu_threshold: 0.75
+  rvol_threshold: 1.25
+  use_hourly_volume_profile: false
+  hourly_profile_days: 14
+
+breakout:
+  buffer_pct: 0.15
+  close_location: 0.55
+  require_momentum_candle: true
+  min_body_pct: 45.0
+  use_open_confirmation: true
+  max_open_gap_pct: 0.75
+
+risk:
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 1.00
+  max_stop_pct: 6.00
+  use_structure_stop: true
+  structure_buffer_pct: 0.30
+  account_size: 50000.0
+  risk_per_trade_pct: 1.5
+  slippage_pct: 0.08
+  commission_pct: 0.06
+  use_cost_filter: true
+  max_friction_r: 0.20
+
+target:
+  target_lookback: 50
+  tp1_r: 1.2
+  tp2_r: 2.5
+
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.15
+  max_hold_days: 7
+  use_time_exit: true
+  use_failed_breakout_exit: true
+  failed_breakout_max_bars: 4
+
+signal_quality:
+  enabled: true
+  require_clv_confirmation: true
+  min_clv_threshold: 0.65
+  max_failed_breakouts_in_base: 3
+  close_location_weight: 15.0
+  vdu_slope_weight: 10.0
+  trigger_tightness_weight: 10.0
+  failed_breakout_penalty_weight: 10.0
+
+confluence_context:
+  enabled: true
+  htf_4h_weight: 15.0
+  market_regime_weight: 5.0
+  earnings_risk_weight: 0.0
+
+portfolio_guard:
+  enabled: true
+  account_equity: 50000.0
+  risk_per_trade_pct: 1.5
+  max_daily_risk_pct: 3.0
+  max_active_trades: 5
+  max_sector_allocation_pct: 35.0
+  max_position_size_pct: 25.0
+  max_trades_per_sector: 2
+  allow_fractional: true
+
+rejection_gate:
+  enabled: true
+  max_stop_pct: 6.0
+  max_friction_r: 0.20
+  min_rr_ratio: 1.2
+  earnings_buffer_days: 0
+  enforce_earnings_check: false
+  enforce_anti_chase: true
+  max_extension_pct: 1.5
+  max_failed_breakouts_in_base: 3
+
+confirmation_policy:
+  enabled: true
+  min_auto_entry_score: 85
+
+friction:
+  base_slippage_pct: 0.08
+  commission_pct: 0.06
+  use_dynamic_slippage: true
+  max_friction_r: 0.20
+
+safeguards:
+  enforce_stale_data: true
+  max_stale_data_seconds: 90
+  kill_switch_file: "data/KILL_SWITCH"
+  max_daily_loss_pct: 3.0
+  max_spread_pct: 0.8
+  min_liquidity_volume: 50000
+
+dynamic_universe:
+  enabled: true
+  target_size: 20
+  buffer_cutoff: 25
+  min_active_sessions: 20
+  lookback_days: 20
+  min_price:
+    crypto: 0.01
+  max_sector_concentration: 5
+  max_spread_pct: 8.0
+  max_avg_gap_pct: 4.0
+  metadata_dir: "data/universe"

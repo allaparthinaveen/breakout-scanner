@@ -1,9 +1,15 @@
 .venv/
+venv/
 __pycache__/
 .pytest_cache/
 .env
 data/
 logs/
-.env
 */backtest/*
 *backtest*
+git_key
+*_key*
+*.key
+.DS_Store
+*.pdf
+

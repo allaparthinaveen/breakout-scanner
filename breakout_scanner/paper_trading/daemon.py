@@ -18,6 +18,7 @@ from .models import (
     ExecutionVarianceRecord,
     PerformanceLedgerRecord,
 )
+from .audit import IncidentLedger, IncidentRecord
 from ..models import Setup, State
 from ..engine import BreakoutEngine
 from ..portfolio_guard import DailyRiskBudgetEngine
@@ -60,10 +61,33 @@ class PaperTradingDaemon:
         self.active_positions: Dict[str, Dict[str, Any]] = {}
         self.completed_trades: List[Dict[str, Any]] = []
         self.variance_records: List[ExecutionVarianceRecord] = []
+        self.incident_ledger_path = os.path.join(os.path.dirname(self.order_ledger_path), "incidents.jsonl")
+        self.incident_ledger = IncidentLedger(ledger_path=self.incident_ledger_path)
 
         self.total_scanned_count = 0
         self.total_actionable_count = 0
         self.total_rejected_count = 0
+
+    @property
+    def critical_defects_count(self) -> int:
+        return self.incident_ledger.critical_count
+
+    def record_incident(
+        self,
+        category: str,
+        message: str,
+        severity: str = "CRITICAL",
+        symbol: Optional[str] = None,
+        details: Optional[dict] = None
+    ) -> IncidentRecord:
+        """Records an execution, state desync, or data defect into the incident ledger."""
+        return self.incident_ledger.record_incident(
+            category=category,
+            message=message,
+            severity=severity,
+            symbol=symbol,
+            details=details
+        )
 
     def ingest_closed_candle(
         self,
