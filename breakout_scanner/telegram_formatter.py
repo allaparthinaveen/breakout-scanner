@@ -1,6 +1,7 @@
 import html
 from typing import List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import numpy as np
 from .models import Setup, State
 
@@ -77,14 +78,52 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool) -> str:
     return " | ".join(parts)
 
 
-def format_scan_report_html(setups: List[Setup]) -> str:
+def format_scan_report_html(
+    setups: List[Setup],
+    market: Optional[str] = None,
+    timestamp: Optional[datetime] = None,
+    timeframe: str = "1H",
+) -> str:
     """
     Full multi-symbol market scan report formatted for Telegram.
     Strictly includes only actionable trades (Section 2A and Section 2B).
     Excludes Section 1 (VCP Bases) to eliminate non-trade noise.
+    Enriched with timezone-aware scan timestamp (Market Local + IST/UTC).
     """
+    market_upper = market.upper() if market and market.upper() not in ("DEFAULT", "NONE") else None
+    title = f"📡 <b>{market_upper} MARKET SIGNALS</b>" if market_upper else "📡 <b>MARKET SCANNER SIGNALS</b>"
+
+    ts_utc = timestamp or datetime.now(timezone.utc)
+    if ts_utc.tzinfo is None:
+        ts_utc = ts_utc.replace(tzinfo=timezone.utc)
+
+    dt_ist = ts_utc.astimezone(ZoneInfo("Asia/Kolkata"))
+    ist_str = dt_ist.strftime("%d/%m/%Y %I:%M %p IST")
+
+    if market_upper == "US":
+        dt_mkt = ts_utc.astimezone(ZoneInfo("America/New_York"))
+        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
+        time_line = f"📅 <i>{mkt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+    elif market_upper == "NSE":
+        time_line = f"📅 <i>{ist_str} ({timeframe} Close)</i>"
+    elif market_upper == "CRYPTO":
+        utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
+        time_line = f"📅 <i>{utc_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+    elif market_upper in ("TSE", "TOKYO"):
+        dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
+        time_line = f"📅 <i>{mkt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+    elif market_upper in ("HKEX", "HK"):
+        dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Hong_Kong"))
+        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
+        time_line = f"📅 <i>{mkt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+    else:
+        utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
+        time_line = f"📅 <i>{ist_str} | {utc_str} ({timeframe} Close)</i>"
+
     lines = [
-        "📡 <b>MARKET SCANNER SIGNALS</b>",
+        title,
+        time_line,
         "━━━━━━━━━━━━━━━━━━━━",
     ]
 

@@ -429,6 +429,7 @@ class BreakoutEngine:
                             self.setup.retest_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
                 
                 # Check TP1
+                hit_tp1 = False
                 if self.setup.tp1 is not None and is_finite_num(self.setup.tp1):
                     hit_tp1 = (row['High'] >= self.setup.tp1) if active_dir == 1 else (row['Low'] <= self.setup.tp1)
                     if hit_tp1 and not self.setup.tp1_hit:
@@ -440,6 +441,7 @@ class BreakoutEngine:
                                 self.setup.stop = self.setup.entry * (1.0 - c_mgmt['breakeven_offset_pct']/100.0)
                             
                 # Check TP2
+                hit_tp2 = False
                 if self.setup.tp2 is not None and is_finite_num(self.setup.tp2):
                     hit_tp2 = (row['High'] >= self.setup.tp2) if active_dir == 1 else (row['Low'] <= self.setup.tp2)
                     if hit_tp2 and not self.setup.tp2_hit:

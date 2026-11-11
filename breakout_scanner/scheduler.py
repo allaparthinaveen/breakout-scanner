@@ -189,7 +189,12 @@ class CandleAlertDeduplicator:
                 pass
 
 
-from .telegram_formatter import format_instant_alert_html, format_price, format_actionable_slate_html
+from .telegram_formatter import (
+    format_instant_alert_html,
+    format_price,
+    format_actionable_slate_html,
+    format_scan_report_html,
+)
 from .slate import SlatePipeline, EffectiveConfigSummary, ActionableSlate
 from .market_session import (
     MarketSessionManager,
@@ -299,18 +304,39 @@ class SessionScheduler:
             return False
 
         url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-        payload = {
-            "chat_id": self.telegram_chat_id,
-            "text": message,
-            "parse_mode": "HTML"
-        }
-        try:
-            res = requests.post(url, json=payload, timeout=10)
-            res.raise_for_status()
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to dispatch Telegram message: {e}")
-            return False
+        
+        # Split message into chunks if larger than 4000 characters (Telegram 4096 character limit)
+        chunks = []
+        if len(message) <= 4000:
+            chunks = [message]
+        else:
+            current = []
+            curr_len = 0
+            for block in message.split("\n\n"):
+                if curr_len + len(block) + 2 > 3900 and current:
+                    chunks.append("\n\n".join(current))
+                    current = [block]
+                    curr_len = len(block)
+                else:
+                    current.append(block)
+                    curr_len += len(block) + 2
+            if current:
+                chunks.append("\n\n".join(current))
+
+        all_sent = True
+        for chunk in chunks:
+            payload = {
+                "chat_id": self.telegram_chat_id,
+                "text": chunk,
+                "parse_mode": "HTML"
+            }
+            try:
+                res = requests.post(url, json=payload, timeout=10)
+                res.raise_for_status()
+            except Exception as e:
+                self.logger.error(f"Failed to dispatch Telegram message: {e}")
+                all_sent = False
+        return all_sent
 
     def scan_and_alert(self, force: bool = False) -> dict:
         """
@@ -401,44 +427,108 @@ class SessionScheduler:
                 self.logger.warning(f"🛡️ [SAFEGUARDS REJECTED] {s.symbol} blocked by pre-trade validation gate.")
                 continue
 
-            signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
-            candle_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
-            signature = self.deduplicator.build_signature(s.symbol, signal_type, candle_time)
-            
-            if self.deduplicator.is_duplicate(signature):
-                duplicates_skipped += 1
-                self.logger.debug(f"[DEDUP] Already alerted {signature}, skipping.")
-            else:
-                alert_msg = format_instant_alert(s, timeframe="1H", allocation=t)
-                self.logger.info(f"🚨 FRESH SIGNAL DETECTED: {signature}")
-                self.logger.info("\n" + alert_msg)
-                
-                # Decoupled notification observer
-                sent = self.send_telegram_alert(alert_msg)
-                if sent:
-                    self.deduplicator.record_alert(signature, {
-                        "symbol": s.symbol,
-                        "type": signal_type,
-                        "entry": s.entry,
-                        "stop": s.stop,
-                        "shares": t.shares,
-                        "dollar_risk": t.dollar_risk,
-                        "grade": s.composite_grade,
-                        "score": s.composite_score
-                    })
-                    fresh_alerts_sent += 1
+            fresh_candidates.append(s)
+
+        # Active setups across entire scan (both Section 2A Fresh and Section 2B In Progress)
+        active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
+
+        # Determine notification mode (default is "scan_report" for complete Section 2A + 2B without filters)
+        notification_mode = self.cfg.get("notifications", {}).get("mode", "scan_report") if self.cfg else "scan_report"
+
+        if notification_mode == "scan_report":
+            if active_setups or force:
+                # Resolve candle time for deduplication
+                candle_times = [
+                    str(s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST")).strip().replace(" ", "_")
+                    for s in active_setups
+                ]
+                latest_candle = max(candle_times) if candle_times else "LATEST"
+                market_label = self.market_id or "MARKET"
+                report_signature = f"SCAN_REPORT:{market_label.upper()}:{latest_candle}"
+
+                sent = False
+                if self.deduplicator.is_duplicate(report_signature) and not force:
+                    duplicates_skipped += 1
+                    self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
                 else:
-                    self.logger.warning(f"⚠️ Telegram dispatch failed for {signature}, recorded locally.")
-                    self.deduplicator.record_alert(signature, {
+                    report_html = format_scan_report_html(setups, market=self.market_id)
+                    self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
+                    self.logger.info("\n" + report_html)
+                    sent = self.send_telegram_alert(report_html)
+                    if sent:
+                        self.deduplicator.record_alert(report_signature, {
+                            "market": market_label,
+                            "active_count": len(active_setups),
+                            "candle_time": latest_candle
+                        })
+                        fresh_alerts_sent += 1
+                    else:
+                        self.logger.warning(f"⚠️ Telegram dispatch failed for {report_signature}, recorded locally.")
+                        self.deduplicator.record_alert(report_signature, {
+                            "market": market_label,
+                            "active_count": len(active_setups),
+                            "delivery_failed": True
+                        })
+
+                # Record individual setup signatures in deduplication cache for state tracking
+                for s in active_setups:
+                    signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
+                    c_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
+                    sig = self.deduplicator.build_signature(s.symbol, signal_type, c_time)
+                    self.deduplicator.record_alert(sig, {
                         "symbol": s.symbol,
                         "type": signal_type,
                         "entry": s.entry,
                         "stop": s.stop,
-                        "shares": t.shares,
-                        "dollar_risk": t.dollar_risk,
-                        "delivery_failed": True
+                        "grade": s.composite_grade,
+                        "score": s.composite_score,
+                        "delivery_failed": not sent
                     })
-                fresh_candidates.append(s)
+            else:
+                self.logger.info(f"Scan complete across {len(symbols)} symbols. No active trades in Section 2A or 2B.")
+        else:
+            # Legacy/Instant single-trade card mode
+            for t in slate.selected_trades:
+                s = t.setup
+                if not s or s not in fresh_candidates:
+                    continue
+
+                signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
+                candle_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
+                signature = self.deduplicator.build_signature(s.symbol, signal_type, candle_time)
+
+                if self.deduplicator.is_duplicate(signature):
+                    duplicates_skipped += 1
+                    self.logger.debug(f"[DEDUP] Already alerted {signature}, skipping.")
+                else:
+                    alert_msg = format_instant_alert(s, timeframe="1H", allocation=t)
+                    self.logger.info(f"🚨 FRESH SIGNAL DETECTED: {signature}")
+                    self.logger.info("\n" + alert_msg)
+
+                    sent = self.send_telegram_alert(alert_msg)
+                    if sent:
+                        self.deduplicator.record_alert(signature, {
+                            "symbol": s.symbol,
+                            "type": signal_type,
+                            "entry": s.entry,
+                            "stop": s.stop,
+                            "shares": t.shares,
+                            "dollar_risk": t.dollar_risk,
+                            "grade": s.composite_grade,
+                            "score": s.composite_score
+                        })
+                        fresh_alerts_sent += 1
+                    else:
+                        self.logger.warning(f"⚠️ Telegram dispatch failed for {signature}, recorded locally.")
+                        self.deduplicator.record_alert(signature, {
+                            "symbol": s.symbol,
+                            "type": signal_type,
+                            "entry": s.entry,
+                            "stop": s.stop,
+                            "shares": t.shares,
+                            "dollar_risk": t.dollar_risk,
+                            "delivery_failed": True
+                        })
 
         elapsed = time.time() - start_time
         self.deduplicator.prune(max_age_days=7)

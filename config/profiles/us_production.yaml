@@ -107,7 +107,7 @@ rejection_gate:
 
 confirmation_policy:
   enabled: true
-  min_auto_entry_score: 85
+  min_auto_entry_score: 70
 
 friction:
   base_slippage_pct: 0.05
