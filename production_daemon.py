@@ -158,6 +158,9 @@ class CloudDaemonRunner:
         schedule.every().hour.at(":58").do(_hourly_heartbeat)
         self.logger.info("💓 Scheduled health heartbeat at :58 past every hour (CPU sleeps remainder)")
 
+        # Periodic pulse every 10 minutes so telemetry is continuously fresh in CLI during deep sleep
+        schedule.every(10).minutes.do(lambda: self.heartbeat.beat(force=True))
+
         active = self.orchestrator.get_active_markets()
         closed = [m for m in self.markets if m not in active]
         self.heartbeat.update_stats(

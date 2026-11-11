@@ -102,7 +102,7 @@ class HeartbeatMonitor:
             return False
 
     @classmethod
-    def check_health(cls, filepath: str = "data/heartbeat.json", max_stale_seconds: int = 1800) -> dict:
+    def check_health(cls, filepath: str = "data/heartbeat.json", max_stale_seconds: int = 4200) -> dict:
         """
         Inspects existing heartbeat file to determine daemon health.
         Used by CloudWatch alarms or health-check CLI tools.
