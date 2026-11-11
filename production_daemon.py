@@ -173,7 +173,7 @@ class CloudDaemonRunner:
         # Optional startup scan
         if startup_scan:
             self.logger.info("⚡ Executing startup scan across active markets...")
-            self.scheduler.scan_active_markets()
+            self.scheduler.scan_active_markets(force=True)
 
         # Continuous production event loop (deep sleep between triggers to save CPU credits)
         try:

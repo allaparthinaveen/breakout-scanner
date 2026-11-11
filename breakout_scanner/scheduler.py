@@ -587,11 +587,12 @@ class SessionScheduler:
 
         today = datetime.now()
         events = self.market_session.get_scheduled_events(today, timeframe=timeframe)
-        self.logger.info(f"📅 Setting up exchange-aligned schedule for {self.market_id} ({self.market_session.config.timezone}):")
+        market_tz = self.market_session.config.timezone
+        self.logger.info(f"📅 Setting up exchange-aligned schedule for {self.market_id} ({market_tz}):")
         for ev_type, ev_time in events:
             time_str = ev_time.strftime("%H:%M")
-            schedule.every().day.at(time_str).do(self.scan_and_alert)
-            self.logger.info(f"   ⏱️ Scheduled {ev_type} at {time_str} ({self.market_session.config.timezone})")
+            schedule.every().day.at(time_str, tz=market_tz).do(self.scan_and_alert)
+            self.logger.info(f"   ⏱️ Scheduled {ev_type} at {time_str} ({market_tz})")
 
     def start(self, run_immediately: bool = True, poll_sec: int = 1):
         """
@@ -654,13 +655,13 @@ class MultiMarketScheduler:
         for mid, sched in self.schedulers.items():
             sched.schedule_market_sessions(timeframe=timeframe)
 
-    def scan_active_markets(self) -> Dict[str, dict]:
+    def scan_active_markets(self, force: bool = False) -> Dict[str, dict]:
         """Runs scans across all currently open exchanges."""
         active = self.orchestrator.get_active_markets()
         results = {}
         for mid in active:
             if mid in self.schedulers:
-                results[mid] = self.schedulers[mid].scan_and_alert()
+                results[mid] = self.schedulers[mid].scan_and_alert(force=force)
         return results
 
     def start(self, poll_sec: int = 1):
