@@ -429,22 +429,26 @@ class BreakoutEngine:
                             self.setup.retest_time = str(row.name) if hasattr(row, 'name') and row.name is not None else str(row.get('Day', i))
                 
                 # Check TP1
-                hit_tp1 = (row['High'] >= self.setup.tp1) if active_dir == 1 else (row['Low'] <= self.setup.tp1)
-                if hit_tp1 and not self.setup.tp1_hit:
-                    self.setup.tp1_hit = True
-                    if c_mgmt['use_breakeven']:
-                        if active_dir == 1:
-                            self.setup.stop = self.setup.entry * (1.0 + c_mgmt['breakeven_offset_pct']/100.0)
-                        else:
-                            self.setup.stop = self.setup.entry * (1.0 - c_mgmt['breakeven_offset_pct']/100.0)
+                if self.setup.tp1 is not None and is_finite_num(self.setup.tp1):
+                    hit_tp1 = (row['High'] >= self.setup.tp1) if active_dir == 1 else (row['Low'] <= self.setup.tp1)
+                    if hit_tp1 and not self.setup.tp1_hit:
+                        self.setup.tp1_hit = True
+                        if c_mgmt.get('use_breakeven', False) and self.setup.entry is not None:
+                            if active_dir == 1:
+                                self.setup.stop = self.setup.entry * (1.0 + c_mgmt['breakeven_offset_pct']/100.0)
+                            else:
+                                self.setup.stop = self.setup.entry * (1.0 - c_mgmt['breakeven_offset_pct']/100.0)
                             
                 # Check TP2
-                hit_tp2 = (row['High'] >= self.setup.tp2) if active_dir == 1 else (row['Low'] <= self.setup.tp2)
-                if hit_tp2 and not self.setup.tp2_hit:
-                    self.setup.tp2_hit = True
+                if self.setup.tp2 is not None and is_finite_num(self.setup.tp2):
+                    hit_tp2 = (row['High'] >= self.setup.tp2) if active_dir == 1 else (row['Low'] <= self.setup.tp2)
+                    if hit_tp2 and not self.setup.tp2_hit:
+                        self.setup.tp2_hit = True
                 
                 # Check Exits
-                hit_stop = (row['Low'] <= self.setup.stop) if active_dir == 1 else (row['High'] >= self.setup.stop)
+                hit_stop = False
+                if self.setup.stop is not None and is_finite_num(self.setup.stop):
+                    hit_stop = (row['Low'] <= self.setup.stop) if active_dir == 1 else (row['High'] >= self.setup.stop)
                 hit_time = c_mgmt.get('use_time_exit', True) and (
                     self.setup.held_days >= c_mgmt.get('max_hold_days', 999) or
                     (c_mgmt.get('max_hold_bars') is not None and bars_in_trade >= c_mgmt['max_hold_bars'])
