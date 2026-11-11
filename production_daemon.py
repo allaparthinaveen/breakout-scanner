@@ -224,20 +224,7 @@ class CloudDaemonRunner:
         schedule.every(40).minutes.do(self.dispatch_telegram_heartbeat)
         self.logger.info("💓 Scheduled 40-minute Telegram Heartbeat notification")
 
-        # Schedule heartbeat at :58 past every hour (2 mins before candle closes at :00/:01)
-        def _hourly_heartbeat():
-            now_utc = pd.Timestamp.now(tz="UTC")
-            active = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=False)
-            closed = [m for m in self.markets if m not in active]
-            self.heartbeat.update_stats(
-                active_markets=active,
-                closed_markets=closed,
-                status="HEALTHY",
-            )
-        schedule.every().hour.at(":58").do(_hourly_heartbeat)
-        self.logger.info("💓 Scheduled health heartbeat at :58 past every hour (CPU sleeps remainder)")
-
-        # Periodic pulse every 10 minutes so telemetry is continuously fresh in CLI during deep sleep
+        # Periodic telemetry pulse every 10 minutes (keeps local disk telemetry fresh during deep sleep)
         schedule.every(10).minutes.do(lambda: self.heartbeat.beat(force=True))
 
         now_utc = pd.Timestamp.now(tz="UTC")
