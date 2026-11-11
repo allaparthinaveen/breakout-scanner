@@ -162,29 +162,82 @@ class MarketSessionManager:
         return cls(cfg)
 
     def to_market_tz(self, dt: Union[str, datetime, pd.Timestamp]) -> pd.Timestamp:
-        """Converts any timestamp to the market's local timezone."""
+        """
+        Converts any timestamp to the market's local timezone.
+        Safe against naive datetimes regardless of host machine location (Singapore, UTC, US, India).
+        """
         ts = pd.Timestamp(dt)
         if ts.tzinfo is None:
-            ts = ts.tz_localize(self.tz)
-        else:
-            ts = ts.tz_convert(self.tz)
-        return ts
+            local_tz = datetime.now().astimezone().tzinfo
+            ts = ts.tz_localize(local_tz)
+        return ts.tz_convert(self.tz)
 
     def is_trading_day(self, dt: Union[str, date, datetime, pd.Timestamp]) -> bool:
         """Checks if the given calendar date is an active exchange session."""
-        ts = pd.Timestamp(dt)
-        session_label = ts.strftime("%Y-%m-%d")
+        if isinstance(dt, str) and len(dt.strip()) == 10 and dt.count("-") == 2:
+            session_label = dt.strip()
+        elif isinstance(dt, date) and not isinstance(dt, datetime):
+            session_label = dt.strftime("%Y-%m-%d")
+        else:
+            ts = self.to_market_tz(dt)
+            session_label = ts.strftime("%Y-%m-%d")
         return bool(self.calendar.is_session(session_label))
 
-    def is_open(self, dt: Union[str, datetime, pd.Timestamp]) -> bool:
+    def is_open(self, dt: Optional[Union[str, datetime, pd.Timestamp]] = None) -> bool:
         """
         Returns True if the exchange is currently open (and not in lunch break).
+        Safe across all server locations (Singapore, UTC, US, India).
         """
-        ts = pd.Timestamp(dt)
-        if ts.tzinfo is None:
-            ts = ts.tz_localize(self.tz)
-        ts_utc = ts.tz_convert("UTC")
+        if dt is None:
+            ts_utc = pd.Timestamp.now(tz="UTC")
+        else:
+            ts = pd.Timestamp(dt)
+            if ts.tzinfo is None:
+                local_tz = datetime.now().astimezone().tzinfo
+                ts_utc = ts.tz_localize(local_tz).tz_convert("UTC")
+            else:
+                ts_utc = ts.tz_convert("UTC")
         return bool(self.calendar.is_open_on_minute(ts_utc))
+
+    def is_session_active_or_recent_close(
+        self,
+        dt: Optional[Union[str, datetime, pd.Timestamp]] = None,
+        grace_minutes: int = 15,
+    ) -> bool:
+        """
+        Returns True if:
+        1. The exchange is currently open right now, OR
+        2. The exchange closed within the last `grace_minutes` (e.g. 15 mins).
+        This guarantees the candle close scan at :01 immediately following market close
+        (e.g. 16:01 EST for US, or 15:31 IST for NSE) processes the final session candle!
+        """
+        if self.is_open(dt):
+            return True
+
+        if dt is None:
+            ts_utc = pd.Timestamp.now(tz="UTC")
+        else:
+            ts = pd.Timestamp(dt)
+            if ts.tzinfo is None:
+                local_tz = datetime.now().astimezone().tzinfo
+                ts_utc = ts.tz_localize(local_tz).tz_convert("UTC")
+            else:
+                ts_utc = ts.tz_convert("UTC")
+
+        session_label = self.to_market_tz(ts_utc).strftime("%Y-%m-%d")
+        if not self.is_trading_day(session_label):
+            return False
+
+        try:
+            close_utc = self.calendar.session_close(session_label)
+            if close_utc is not None:
+                diff_sec = (ts_utc - close_utc).total_seconds()
+                if 0 <= diff_sec <= (grace_minutes * 60):
+                    return True
+        except Exception:
+            pass
+
+        return False
 
     def is_lunch_break(self, dt: Union[str, datetime, pd.Timestamp]) -> bool:
         """
@@ -474,15 +527,28 @@ class MultiMarketOrchestrator:
             self.managers[upper] = MarketSessionManager.from_market_id(upper)
         return self.managers[upper]
 
-    def get_active_markets(self, dt: Optional[Union[str, datetime, pd.Timestamp]] = None) -> List[str]:
-        """Returns list of market IDs whose exchanges are currently open for trading."""
+    def get_active_markets(
+        self,
+        dt: Optional[Union[str, datetime, pd.Timestamp]] = None,
+        include_recent_close: bool = True,
+    ) -> List[str]:
+        """
+        Returns list of market IDs whose exchanges are currently open for trading.
+        If include_recent_close is True (default), also includes markets that closed
+        within the last 15 minutes to guarantee final candle scans are processed.
+        """
         check_dt = pd.Timestamp.now(tz="UTC") if dt is None else pd.Timestamp(dt)
         if check_dt.tzinfo is None:
-            check_dt = check_dt.tz_localize("UTC")
+            local_tz = datetime.now().astimezone().tzinfo
+            check_dt = check_dt.tz_localize(local_tz).tz_convert("UTC")
         active = []
         for mid, mgr in self.managers.items():
-            if mgr.is_open(check_dt):
-                active.append(mid)
+            if include_recent_close:
+                if mgr.is_session_active_or_recent_close(check_dt):
+                    active.append(mid)
+            else:
+                if mgr.is_open(check_dt):
+                    active.append(mid)
         return active
 
     def get_next_global_event(

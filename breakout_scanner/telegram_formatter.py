@@ -98,28 +98,30 @@ def format_scan_report_html(
         ts_utc = ts_utc.replace(tzinfo=timezone.utc)
 
     dt_ist = ts_utc.astimezone(ZoneInfo("Asia/Kolkata"))
+    dt_sgt = ts_utc.astimezone(ZoneInfo("Asia/Singapore"))
     ist_str = dt_ist.strftime("%d/%m/%Y %I:%M %p IST")
+    sgt_str = dt_sgt.strftime("%I:%M %p SGT")
 
     if market_upper == "US":
         dt_mkt = ts_utc.astimezone(ZoneInfo("America/New_York"))
         mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
-        time_line = f"📅 <i>{mkt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+        time_line = f"📅 <i>{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
     elif market_upper == "NSE":
-        time_line = f"📅 <i>{ist_str} ({timeframe} Close)</i>"
+        time_line = f"📅 <i>{ist_str} | {sgt_str} ({timeframe} Close)</i>"
     elif market_upper == "CRYPTO":
         utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
-        time_line = f"📅 <i>{utc_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+        time_line = f"📅 <i>{utc_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
     elif market_upper in ("TSE", "TOKYO"):
         dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Tokyo"))
         mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
-        time_line = f"📅 <i>{mkt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+        time_line = f"📅 <i>{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
     elif market_upper in ("HKEX", "HK"):
         dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Hong_Kong"))
         mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
-        time_line = f"📅 <i>{mkt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
+        time_line = f"📅 <i>{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
     else:
         utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
-        time_line = f"📅 <i>{ist_str} | {utc_str} ({timeframe} Close)</i>"
+        time_line = f"📅 <i>{ist_str} | {sgt_str} | {utc_str} ({timeframe} Close)</i>"
 
     lines = [
         title,

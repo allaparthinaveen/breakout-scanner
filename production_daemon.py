@@ -65,6 +65,7 @@ class CloudDaemonRunner:
         self.heartbeat_interval = heartbeat_interval
         self.logger = setup_logger(log_file)
         self.running = False
+        self.start_time = time.time()
 
         self.heartbeat = HeartbeatMonitor(
             filepath="data/heartbeat.json",
@@ -112,12 +113,83 @@ class CloudDaemonRunner:
         signal.signal(signal.SIGINT, _handle_shutdown)
         signal.signal(signal.SIGTERM, _handle_shutdown)
 
+    def dispatch_telegram_heartbeat(self) -> bool:
+        """
+        Dispatches a 40-minute live pulse to Telegram with multi-timezone clocks and market states.
+        """
+        import pandas as pd
+        import requests
+
+        now_utc = pd.Timestamp.now(tz="UTC")
+        now_sgt = now_utc.tz_convert("Asia/Singapore")
+        now_ist = now_utc.tz_convert("Asia/Kolkata")
+        now_est = now_utc.tz_convert("America/New_York")
+
+        active_markets = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=False)
+
+        market_status_lines = []
+        for m in self.markets:
+            if m == "CRYPTO":
+                market_status_lines.append("• <b>CRYPTO:</b> 🟢 OPEN (24/7 Continuous)")
+            elif m in active_markets:
+                market_status_lines.append(f"• <b>{m}:</b> 🟢 OPEN (Session Active)")
+            else:
+                market_status_lines.append(f"• <b>{m}:</b> 🔴 CLOSED (Off-Hours)")
+
+        uptime_sec = int(time.time() - self.start_time)
+        hrs = uptime_sec // 3600
+        mins = (uptime_sec % 3600) // 60
+
+        total_scanned = self.heartbeat.stats.get("scanned_total", 0)
+        total_alerts = self.heartbeat.stats.get("alerts_sent_total", 0)
+        total_symbols = sum(len(s.load_symbols()) for s in self.scheduler.schedulers.values())
+
+        msg = (
+            "💓 <b>BREAKOUT SCANNER • 40-MIN LIVE PULSE</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "⏱ <b>Global Multi-Timezone Clock:</b>\n"
+            f"🇸🇬 <b>Singapore (SGT):</b> <code>{now_sgt.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+            f"🇮🇳 <b>India (IST):</b> <code>{now_ist.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+            f"🇺🇸 <b>New York (EST/EDT):</b> <code>{now_est.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+            f"🌐 <b>UTC:</b> <code>{now_utc.strftime('%Y-%m-%d %H:%M:%S')}</code>\n\n"
+            "🏛 <b>Exchange Trading Status:</b>\n"
+            + "\n".join(market_status_lines) + "\n\n"
+            "📊 <b>Daemon Telemetry:</b>\n"
+            f"• <b>Host:</b> <code>{self.heartbeat.hostname}</code> (PID {os.getpid()})\n"
+            f"• <b>Status:</b> 🟢 HEALTHY\n"
+            f"• <b>Uptime:</b> {hrs}h {mins:02d}m\n"
+            f"• <b>Tickers Monitored:</b> {total_symbols} unique symbols\n"
+            f"• <b>Total Scanned:</b> {total_scanned}\n"
+            f"• <b>Signals Sent:</b> {total_alerts}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "⚡ <i>Scheduler active. Next hourly candle scan at :01 past the hour.</i>"
+        )
+
+        token, chat_id = get_telegram_credentials()
+        if not token or not chat_id:
+            self.logger.warning("⚠️ Cannot send Telegram heartbeat: credentials missing.")
+            return False
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        try:
+            res = requests.post(
+                url,
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+                timeout=15,
+            )
+            res.raise_for_status()
+            self.logger.info("💓 40-minute Telegram Heartbeat pulse successfully dispatched.")
+            return True
+        except Exception as e:
+            self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat: {e}")
+            return False
+
     def run(self, startup_scan: bool = False, poll_sec: int = 5):
         self.running = True
         self.logger.info("=" * 70)
         self.logger.info("🚀 BREAKOUT SCANNER CLOUD DAEMON INITIALIZING")
         self.logger.info(f"   Markets Monitored: {', '.join(self.markets)}")
-        self.logger.info("   Heartbeat Cadence: 2 mins before hourly candle close (:58)")
+        self.logger.info("   Heartbeat Cadence: 40-min Telegram pulse + hourly :01 candle scan")
         self.logger.info(f"   PID: {os.getpid()} | Host: {self.heartbeat.hostname}")
         self.logger.info("=" * 70)
 
@@ -130,13 +202,15 @@ class CloudDaemonRunner:
             self.logger.warning("⚠️ Telegram credentials not configured. Signals will be logged locally only.")
 
         import schedule
+        import pandas as pd
 
         # Register market schedules
         self.scheduler.schedule_all()
 
         # Scheduled hourly scan cadence across active markets at :01 past every hour (candle close)
         def _scan_open_markets():
-            active = self.orchestrator.get_active_markets()
+            now_utc = pd.Timestamp.now(tz="UTC")
+            active = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=True)
             if not active:
                 self.logger.info("💤 No active exchanges currently open. Deep sleeping...")
                 return {}
@@ -146,9 +220,14 @@ class CloudDaemonRunner:
         schedule.every().hour.at(":01").do(_scan_open_markets)
         self.logger.info("⏱️ Scheduled hourly candle close scanner at :01 past every hour")
 
+        # Schedule 40-minute Telegram Heartbeat pulse
+        schedule.every(40).minutes.do(self.dispatch_telegram_heartbeat)
+        self.logger.info("💓 Scheduled 40-minute Telegram Heartbeat notification")
+
         # Schedule heartbeat at :58 past every hour (2 mins before candle closes at :00/:01)
         def _hourly_heartbeat():
-            active = self.orchestrator.get_active_markets()
+            now_utc = pd.Timestamp.now(tz="UTC")
+            active = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=False)
             closed = [m for m in self.markets if m not in active]
             self.heartbeat.update_stats(
                 active_markets=active,
@@ -161,7 +240,8 @@ class CloudDaemonRunner:
         # Periodic pulse every 10 minutes so telemetry is continuously fresh in CLI during deep sleep
         schedule.every(10).minutes.do(lambda: self.heartbeat.beat(force=True))
 
-        active = self.orchestrator.get_active_markets()
+        now_utc = pd.Timestamp.now(tz="UTC")
+        active = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=False)
         closed = [m for m in self.markets if m not in active]
         self.heartbeat.update_stats(
             status="HEALTHY",
@@ -169,6 +249,11 @@ class CloudDaemonRunner:
             active_markets=active,
             closed_markets=closed,
         )
+
+        # Dispatch immediate startup heartbeat to Telegram
+        if token and chat_id:
+            self.logger.info("📡 Dispatching initial startup heartbeat to Telegram...")
+            self.dispatch_telegram_heartbeat()
 
         # Optional startup scan
         if startup_scan:

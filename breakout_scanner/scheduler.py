@@ -5,9 +5,10 @@ import logging
 import tempfile
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set, Any
 import requests
+import pandas as pd
 from dotenv import load_dotenv
 import schedule
 
@@ -350,7 +351,8 @@ class SessionScheduler:
 
         # Market Session Open Check (when enforce_market_hours is enabled)
         if self.enforce_market_hours and not force and self.market_session is not None:
-            if not self.market_session.is_open(datetime.now()):
+            now_utc = pd.Timestamp.now(tz="UTC")
+            if not self.market_session.is_session_active_or_recent_close(now_utc):
                 self.logger.info(
                     f"⏸️ [SESSION] Market {self.market_id} is currently CLOSED or in lunch break. Skipping live scan."
                 )
@@ -585,8 +587,9 @@ class SessionScheduler:
             self.schedule_hourly()
             return
 
-        today = datetime.now()
-        events = self.market_session.get_scheduled_events(today, timeframe=timeframe)
+        now_utc = pd.Timestamp.now(tz="UTC")
+        today_in_market = self.market_session.to_market_tz(now_utc).date()
+        events = self.market_session.get_scheduled_events(today_in_market, timeframe=timeframe)
         market_tz = self.market_session.config.timezone
         self.logger.info(f"📅 Setting up exchange-aligned schedule for {self.market_id} ({market_tz}):")
         for ev_type, ev_time in events:

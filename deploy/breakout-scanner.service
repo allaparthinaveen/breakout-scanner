@@ -14,12 +14,13 @@ TimeoutStopSec=30
 KillSignal=SIGTERM
 
 # Environment variables
+EnvironmentFile=-/home/ec2-user/breakout-scanner/.env
 Environment=PYTHONUNBUFFERED=1
 Environment=AWS_DEFAULT_REGION=ap-southeast-1
 
-# Standard output and error logging
-StandardOutput=append:/home/ec2-user/breakout-scanner/logs/systemd.log
-StandardError=append:/home/ec2-user/breakout-scanner/logs/systemd_err.log
+# Standard output and error logging (stream directly to journald so journalctl -f shows live output)
+StandardOutput=journal
+StandardError=journal
 
 # Resource containment
 CPUWeight=100
