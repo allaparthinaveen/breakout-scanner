@@ -88,11 +88,13 @@ def format_scan_report_html(
     timestamp: Optional[datetime] = None,
     timeframe: str = "1H",
     slate: Optional[Any] = None,
+    exit_events: Optional[List[Any]] = None,
 ) -> str:
     """
     Full multi-symbol market scan report formatted for Telegram.
     Strictly includes only actionable trades (Section 2A and Section 2B).
     Section 2A ONLY admits setups that are risk-approved and confirmed (P0-1 & P0-2).
+    Section 2C reports explicit trade exits and management events (P1-3).
     Excludes Section 1 (VCP Bases) to eliminate non-trade noise.
     Enriched with timezone-aware scan timestamp (Market Local + IST/UTC).
     """
@@ -201,8 +203,40 @@ def format_scan_report_html(
         for s, risk_blocked in progress_setups:
             lines.append(format_setup_telegram_line(s, is_fresh=False, risk_blocked=risk_blocked))
 
+    # 3. SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS (P1-3)
+    if exit_events:
+        lines.append("")
+        lines.append("🔔 <b>SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS</b>")
+        lines.append("────────────────────")
+        for ev in exit_events:
+            sym = html.escape(str(getattr(ev, "symbol", "")))
+            ev_type = str(getattr(ev, "event_type", "EXIT"))
+            exit_px = format_price(getattr(ev, "exit_price", 0.0))
+            entry_px = format_price(getattr(ev, "entry_price", 0.0))
+            pnl_pct = getattr(ev, "pnl_pct", 0.0)
+            realized = getattr(ev, "realized_pnl", 0.0)
+            sign = "+" if pnl_pct >= 0 else ""
+            dollar_sign = "+" if realized >= 0 else ""
+
+            if ev_type == "STOP_LOSS":
+                badge = "🔴 <b>[STOP LOSS HIT]</b>"
+            elif ev_type == "TP2_EXIT":
+                badge = "🎯 <b>[TP2 HIT — FULL EXIT]</b>"
+            elif ev_type == "TP1_SCALE":
+                badge = "🔄 <b>[TP1 HIT — SCALED 50% & TRAILED BE]</b>"
+            elif ev_type == "TIME_EXIT":
+                badge = "⏱️ <b>[TIME EXIT — MAX HOLD]</b>"
+            elif ev_type == "BREAKEVEN_STOP":
+                badge = "🛡️ <b>[BREAKEVEN STOP HIT]</b>"
+            else:
+                badge = f"⚠️ <b>[{ev_type}]</b>"
+
+            lines.append(
+                f"• <b>{sym}</b> | {badge} | Exit: <code>{exit_px}</code> | Entry: <code>{entry_px}</code> | "
+                f"P&L: <code>{sign}{pnl_pct:.2f}% ({dollar_sign}${realized:,.2f})</code>"
+            )
+
     lines.append("━━━━━━━━━━━━━━━━━━━━")
-    return "\n".join(lines)
     return "\n".join(lines)
 
 

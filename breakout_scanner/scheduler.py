@@ -399,8 +399,8 @@ class SessionScheduler:
         # 1H candles for timely execution
         setups = self.scanner.scan(symbols, period="60d", interval="1h")
 
-        # Persistent Portfolio State: Mark-to-market and exit check (P0-4)
-        self.portfolio_state.update_market_data(setups)
+        # Persistent Portfolio State: Mark-to-market and exit check (P0-4 & P1-3)
+        exit_events = self.portfolio_state.update_market_data(setups)
 
         # Re-check daily loss circuit breaker post-MTM update
         if not self.safeguards.check_daily_loss_limit(account_size, portfolio_state=self.portfolio_state):
@@ -440,12 +440,27 @@ class SessionScheduler:
                 except Exception:
                     pass
 
+            # P1-1: Fetch reliable quote or synthetic spread for execution price validation
+            quote = {}
+            if hasattr(self.provider, "get_ticker_quote"):
+                try:
+                    quote = self.provider.get_ticker_quote(
+                        s.symbol,
+                        fallback_price=s.current_price or s.entry,
+                        atr=getattr(s, "atr", None)
+                    )
+                except Exception:
+                    quote = {}
+
             # Production Safeguards Check 3: Pre-trade validation gate
             if not self.safeguards.pre_trade_validation(
                 s,
                 current_capital=account_size,
                 current_timestamp=candle_epoch,
-                timeframe_seconds=3600
+                timeframe_seconds=3600,
+                bid=quote.get("bid"),
+                ask=quote.get("ask"),
+                volume=quote.get("volume")
             ):
                 safeguards_rejected += 1
                 self.logger.warning(f"🛡️ [SAFEGUARDS REJECTED] {s.symbol} blocked by pre-trade validation gate.")
@@ -476,7 +491,7 @@ class SessionScheduler:
                 duplicates_skipped += 1
                 self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
             else:
-                report_html = format_scan_report_html(setups, market=self.market_id, slate=slate)
+                report_html = format_scan_report_html(setups, market=self.market_id, slate=slate, exit_events=exit_events)
                 self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
                 self.logger.info("\n" + report_html)
                 sent = self.send_telegram_alert(report_html)

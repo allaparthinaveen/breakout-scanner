@@ -271,6 +271,8 @@ def test_effective_config_summary_matrix():
 def test_telegram_delivery_failure_decoupled_from_state():
     """A Telegram network timeout must not raise exception or break deduplication."""
     scheduler = SessionScheduler(cfg_path="config/profiles/us_production.yaml")
+    scheduler.deduplicator.clear()
+    scheduler.portfolio_state.active_positions.clear()
     # Simulate failed Telegram delivery
     scheduler.send_telegram_alert = MagicMock(return_value=False)
 

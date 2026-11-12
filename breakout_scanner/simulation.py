@@ -294,6 +294,17 @@ def simulate_forward_trade(
             # Trail stop to Breakeven
             if use_breakeven:
                 current_stop = entry_fill * (1.0 + be_offset_pct * direction)
+                # P1-4 Conservative Same-Candle Invariant:
+                # If this same bar collapsed and closed back below breakeven stop, exit remainder immediately
+                hit_same_bar_be = (cur_close <= current_stop) if direction == 1 else (cur_close >= current_stop)
+                if hit_same_bar_be and use_partial_exits:
+                    exit_fill = current_stop * (1.0 - slippage_pct * direction)
+                    exit_price = exit_fill
+                    exit_reason = 'BREAKEVEN_STOP'
+                    exit_time = bar_time
+                    stopped_out = True
+                    stop_bar = idx
+                    break
 
             if not use_partial_exits:
                 # 100% position was closed at TP1

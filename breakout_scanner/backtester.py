@@ -397,6 +397,13 @@ class Backtester:
                                     if c_mgmt.get('use_breakeven', True):
                                         be_offset = c_mgmt.get('breakeven_offset_pct', 0.10) / 100.0
                                         active_trade['stop'] = active_trade['entry_price'] * (1.0 + be_offset)
+                                        # P1-4 Conservative Same-Candle Invariant:
+                                        # If candle collapsed and closed below the new breakeven stop, exit remainder at breakeven
+                                        if cur_close <= active_trade['stop']:
+                                            be_fill = active_trade['stop'] * (1.0 - slippage_pct)
+                                            capital = _close_active_trade(active_trade, be_fill, 'BREAKEVEN_STOP', bar_time, capital)
+                                            active_trade = None
+                                            state = State.IDLE
                                 
                                 # Check TP2 full exit on remaining shares
                                 if active_trade is not None and active_trade['tp1_hit'] and cur_high >= active_trade['tp2']:
@@ -470,6 +477,13 @@ class Backtester:
                                     if c_mgmt.get('use_breakeven', True):
                                         be_offset = c_mgmt.get('breakeven_offset_pct', 0.10) / 100.0
                                         active_trade['stop'] = active_trade['entry_price'] * (1.0 - be_offset)
+                                        # P1-4 Conservative Same-Candle Invariant:
+                                        # If candle collapsed and closed above the new breakeven stop, exit remainder at breakeven
+                                        if cur_close >= active_trade['stop']:
+                                            be_fill = active_trade['stop'] * (1.0 + slippage_pct)
+                                            capital = _close_active_trade(active_trade, be_fill, 'BREAKEVEN_STOP', bar_time, capital)
+                                            active_trade = None
+                                            state = State.IDLE
                                         
                                 # Check TP2 full exit on remaining shares
                                 if active_trade is not None and active_trade['tp1_hit'] and cur_low <= active_trade['tp2']:

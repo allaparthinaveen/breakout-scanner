@@ -177,3 +177,20 @@ class Setup:
             else:
                 return "LATE_CHASE"
         return "IDLE"
+
+
+@dataclass
+class TradeExitEvent:
+    """Explicit institutional trade management and exit notification event (P1-3)."""
+    symbol: str
+    event_type: str  # 'STOP_LOSS', 'TP1_SCALE', 'TP2_EXIT', 'TIME_EXIT', 'FAILED_BREAKOUT'
+    direction: int
+    entry_price: float
+    exit_price: float
+    pnl_pct: float
+    realized_pnl: float
+    shares: int
+    bars_held: int = 0
+    timestamp: str = ""
+    reason: str = ""
+

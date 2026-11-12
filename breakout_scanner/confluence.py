@@ -51,10 +51,13 @@ def is_finite(val) -> bool:
 def compute_4h_confluence(
     df: pd.DataFrame,
     direction: int = 1,
-    sma_len: int = 20
+    sma_len: int = 20,
+    market: Optional[str] = None,
+    drop_incomplete: bool = True
 ) -> Tuple[int, bool]:
     """
-    Synthesizes 4H candles from intraday (1H) bars and evaluates 4H trend structure.
+    Synthesizes 4H candles from intraday (1H) bars with session alignment (P1-2)
+    and evaluates 4H trend structure using completed bars to eliminate repainting.
     Returns (trend_4h, is_confirmed).
     - trend_4h: +1 (bullish), -1 (bearish), 0 (neutral)
     - is_confirmed: True if 4H trend directly aligns with trade direction.
@@ -63,15 +66,36 @@ def compute_4h_confluence(
         return 0, False
 
     try:
-        # If DatetimeIndex is present, use clean temporal resampling
+        # Determine session offset for alignment
+        mkt = str(market).upper() if market else ""
+        offset = None
+        if mkt in ("US", "HKEX", "HK"):
+            offset = "30min"  # Anchors 4H bins to 09:30 session open
+        elif mkt == "NSE":
+            offset = "15min"  # Anchors 4H bins to 09:15 session open
+
+        # If DatetimeIndex is present, use session-aware temporal resampling
         if isinstance(df.index, pd.DatetimeIndex):
-            df_4h = df.resample("4h").agg({
+            resample_kwargs: Dict[str, Any] = {"rule": "4h"}
+            if offset is not None:
+                resample_kwargs["offset"] = offset
+
+            agg_dict = {
                 "Open": "first",
                 "High": "max",
                 "Low": "min",
                 "Close": "last",
                 "Volume": "sum"
-            }).dropna()
+            }
+            df_4h = df.resample(**resample_kwargs).agg(agg_dict).dropna()
+
+            # P1-2: Completed Candle Filter
+            # If the newest 4H candle has fewer than 2 bars and we have enough history,
+            # drop the incomplete open bar to avoid premature lookahead/repainting
+            if drop_incomplete and len(df_4h) > (sma_len + 1):
+                counts = df["Close"].resample(**resample_kwargs).count().dropna()
+                if len(counts) > 0 and counts.iloc[-1] < 2:
+                    df_4h = df_4h.iloc[:-1]
         else:
             # Fallback: non-overlapping 4-bar rolling chunks
             chunks = len(df) // 4
@@ -242,8 +266,9 @@ def enrich_confluence_and_context(
 
     target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.trend >= 0 else -1)
 
-    # 1. 4H Structure Alignment
-    trend_4h, confirmed_4h = compute_4h_confluence(df, direction=target_dir)
+    # 1. 4H Structure Alignment (Session-aligned, P1-2)
+    market = cfg.get("market") if cfg else None
+    trend_4h, confirmed_4h = compute_4h_confluence(df, direction=target_dir, market=market)
     setup.htf_4h_trend = trend_4h
     setup.htf_4h_confirmed = confirmed_4h
 

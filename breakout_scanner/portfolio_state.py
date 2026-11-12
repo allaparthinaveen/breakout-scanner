@@ -17,7 +17,7 @@ from datetime import datetime, date, timezone
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 
-from .models import Setup, State
+from .models import Setup, State, TradeExitEvent
 from .portfolio_guard import PositionAllocation
 
 logger = logging.getLogger("portfolio_state")
@@ -179,14 +179,17 @@ class PortfolioStateManager:
         )
         return True
 
-    def update_market_data(self, setups: List[Setup]):
+    def update_market_data(self, setups: List[Setup]) -> List[TradeExitEvent]:
         """
-        Updates open positions against latest closed candle data:
+        Updates open positions against latest closed candle data (P1-3):
         1. Marks-to-market unrealized PnL
         2. Detects Stop Loss / Take Profit 2 exit breaches and realizes PnL
+        3. Detects Take Profit 1 scale-out and trails stop to breakeven
+        4. Generates explicit TradeExitEvent instances for operator/notification dispatch
         """
+        exit_events: List[TradeExitEvent] = []
         if not self.active_positions:
-            return
+            return exit_events
 
         setup_map = {s.symbol: s for s in setups}
         symbols_to_close = []
@@ -204,6 +207,7 @@ class PortfolioStateManager:
             direction = pos["direction"]
             entry = pos["entry_price"]
             stop = pos["stop_loss"]
+            tp1 = pos.get("take_profit_1")
             tp2 = pos.get("take_profit_2")
             shares = pos["shares"]
 
@@ -213,30 +217,79 @@ class PortfolioStateManager:
                 pnl_pct = (cp - entry) / entry * 100.0 if entry > 0 else 0.0
                 stopped_out = (cp <= stop)
                 target_reached = (tp2 is not None and cp >= tp2)
+                hit_tp1 = (tp1 is not None and cp >= tp1)
             else:
                 pnl = (entry - cp) * shares
                 pnl_pct = (entry - cp) / entry * 100.0 if entry > 0 else 0.0
                 stopped_out = (cp >= stop)
                 target_reached = (tp2 is not None and cp <= tp2)
+                hit_tp1 = (tp1 is not None and cp <= tp1)
 
             pos["unrealized_pnl"] = round(pnl, 2)
             pos["pnl_pct"] = round(pnl_pct, 2)
+            now_str = datetime.now(timezone.utc).isoformat()
 
             if stopped_out:
                 pos["status"] = "STOPPED_OUT"
                 pos["exit_price"] = cp
-                pos["closed_at"] = datetime.now(timezone.utc).isoformat()
+                pos["closed_at"] = now_str
                 pos["realized_pnl"] = round(pnl, 2)
                 self.realized_daily_pnl += pos["realized_pnl"]
                 symbols_to_close.append((sym, "STOP_LOSS", pos["realized_pnl"]))
+                exit_events.append(TradeExitEvent(
+                    symbol=sym,
+                    event_type="STOP_LOSS",
+                    direction=direction,
+                    entry_price=entry,
+                    exit_price=cp,
+                    pnl_pct=round(pnl_pct, 2),
+                    realized_pnl=round(pnl, 2),
+                    shares=shares,
+                    timestamp=now_str,
+                    reason="Stop Loss Triggered"
+                ))
             elif target_reached:
                 pos["status"] = "TARGET_HIT"
                 pos["exit_price"] = cp
-                pos["closed_at"] = datetime.now(timezone.utc).isoformat()
+                pos["closed_at"] = now_str
                 pos["realized_pnl"] = round(pnl, 2)
                 self.realized_daily_pnl += pos["realized_pnl"]
                 symbols_to_close.append((sym, "TAKE_PROFIT_2", pos["realized_pnl"]))
+                exit_events.append(TradeExitEvent(
+                    symbol=sym,
+                    event_type="TP2_EXIT",
+                    direction=direction,
+                    entry_price=entry,
+                    exit_price=cp,
+                    pnl_pct=round(pnl_pct, 2),
+                    realized_pnl=round(pnl, 2),
+                    shares=shares,
+                    timestamp=now_str,
+                    reason="Take Profit 2 Hit (Full Target Reached)"
+                ))
             else:
+                # Check TP1 scale out if not hit yet
+                if hit_tp1 and not pos.get("tp1_hit", False) and shares > 1:
+                    pos["tp1_hit"] = True
+                    half_shares = shares // 2
+                    partial_pnl = (cp - entry) * half_shares * direction
+                    pos["shares"] -= half_shares
+                    pos["realized_pnl"] = pos.get("realized_pnl", 0.0) + round(partial_pnl, 2)
+                    self.realized_daily_pnl += round(partial_pnl, 2)
+                    # Trail stop to breakeven
+                    pos["stop_loss"] = entry * (1.0 + 0.001 * direction)
+                    exit_events.append(TradeExitEvent(
+                        symbol=sym,
+                        event_type="TP1_SCALE",
+                        direction=direction,
+                        entry_price=entry,
+                        exit_price=cp,
+                        pnl_pct=round(pnl_pct, 2),
+                        realized_pnl=round(partial_pnl, 2),
+                        shares=half_shares,
+                        timestamp=now_str,
+                        reason="TP1 Scaled 50% & Stop Trailed to Breakeven"
+                    ))
                 total_unrealized += pnl
 
         for sym, reason, realized in symbols_to_close:
@@ -246,6 +299,7 @@ class PortfolioStateManager:
 
         self.unrealized_daily_pnl = round(total_unrealized, 2)
         self.save()
+        return exit_events
 
     def get_total_daily_pnl(self) -> float:
         """Returns total realized and unrealized net P&L for today's session."""
