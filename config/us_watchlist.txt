@@ -1,4 +1,4 @@
-# Master Consolidated US Watchlist (214 Unique Tickers)
+# Master Consolidated US Watchlist (215 Unique Tickers)
 AAPL
 ABBV
 ABNB
@@ -58,6 +58,7 @@ COST
 CRCL
 CRM
 CRWD
+CRWV
 CSCO
 CSX
 CTAS

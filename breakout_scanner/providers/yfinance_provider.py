@@ -1,3 +1,4 @@
+import os
 import logging
 import time
 import pandas as pd
@@ -18,6 +19,24 @@ class YFinanceProvider(MarketDataProvider):
         self.market_cache = {}
         self.market_cache_ts = {}
 
+        # 1. Expand OS file descriptors limit (prevents EMFILE 'unable to open database file' crashes)
+        try:
+            import resource
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+            target = min(65536, hard)
+            if soft < target:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+        except Exception:
+            pass
+
+        # 2. Direct yfinance cache to dedicated project directory
+        try:
+            cache_dir = os.path.abspath("data/cache/py-yfinance")
+            os.makedirs(cache_dir, exist_ok=True)
+            yf.set_tz_cache_location(cache_dir)
+        except Exception:
+            pass
+
     def candles(
         self,
         symbol: str,
@@ -27,6 +46,7 @@ class YFinanceProvider(MarketDataProvider):
     ) -> pd.DataFrame:
         """
         Fetch OHLCV candles from Yahoo Finance with retry backoff, robust data validation and cleaning.
+        Includes automatic SQLite database bypass to eliminate 'unable to open database file' errors.
         """
         enforce_closed = self.enforce_closed_candle if enforce_closed_candle is None else enforce_closed_candle
         backoff_delays = [0.5, 1.5, 3.0]
@@ -45,8 +65,23 @@ class YFinanceProvider(MarketDataProvider):
                     break
                 else:
                     logger.warning(f"Empty data received for {symbol} (attempt {attempt + 1}/{self.max_retries})")
+                    # If empty data received, bypass SQLite cache for next attempt to avoid lock/corruption
+                    try:
+                        import yfinance.cache as yc
+                        tz_cache = yc.get_tz_cache()
+                        if tz_cache is not None:
+                            tz_cache.dummy = True
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1}/{self.max_retries} failed to download candles for {symbol}: {e}")
+                try:
+                    import yfinance.cache as yc
+                    tz_cache = yc.get_tz_cache()
+                    if tz_cache is not None:
+                        tz_cache.dummy = True
+                except Exception:
+                    pass
 
             if attempt < self.max_retries - 1:
                 delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]

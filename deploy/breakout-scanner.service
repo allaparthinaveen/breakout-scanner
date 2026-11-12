@@ -25,6 +25,7 @@ StandardError=journal
 # Resource containment
 CPUWeight=100
 MemoryMax=1.5G
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
