@@ -168,7 +168,9 @@ class Setup:
         if self.state == State.CONTRACTION:
             return "WATCH"
         if self.state in (State.BUY, State.SELL):
-            if self.is_fresh_entry:
+            if getattr(self, "requires_confirmation", False):
+                return "AWAITING_CONFIRMATION"
+            elif self.is_fresh_entry:
                 return "CONFIRMED"
             elif self.is_tp1_reached:
                 return "TP1_REACHED"

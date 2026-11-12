@@ -314,6 +314,13 @@ class DailyRiskBudgetEngine:
                 suppressed_trades.append(alloc)
                 continue
 
+            # Phase 2/3 Follow-Through Confirmation Guard: Suppress unconfirmed trades
+            if s.state in (State.BUY, State.SELL) and getattr(s, "requires_confirmation", False):
+                alloc.status = "SUPPRESSED"
+                alloc.reason = f"AWAITING_CONFIRMATION: Score {getattr(s, 'composite_score', 0)} < 85 requires follow-through confirmation"
+                suppressed_trades.append(alloc)
+                continue
+
             # Phase 2 Anti-Chase Guard: Suppress trades extended past pivot tolerance
             if s.state in (State.BUY, State.SELL) and not s.is_fresh_entry:
                 alloc.status = "SUPPRESSED"

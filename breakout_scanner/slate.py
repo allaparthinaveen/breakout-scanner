@@ -361,6 +361,16 @@ class SlatePipeline:
                         allocation=alloc,
                     )
                 )
+            elif alloc.setup and alloc.setup.state in (State.BUY, State.SELL) and getattr(alloc.setup, "requires_confirmation", False):
+                suppressed_records.append(
+                    SuppressedRecord(
+                        symbol=alloc.symbol,
+                        suppression_code="AWAITING_CONFIRMATION",
+                        reason=f"AWAITING_CONFIRMATION: Score {getattr(alloc.setup, 'composite_score', 0)} < 85 requires follow-through confirmation",
+                        setup=alloc.setup,
+                        allocation=alloc,
+                    )
+                )
             else:
                 selected_allocations.append(alloc)
 

@@ -298,14 +298,41 @@ class MultiSymbolScanner:
         setup.composite_score = c_score
         setup.composite_grade = c_grade
 
-        # Phase 2/3: Tiered Follow-Through Confirmation Policy
+        # Phase 2/3: Tiered Follow-Through Confirmation Policy (P0-2)
         confirmation_cfg = self.cfg.get('confirmation_policy', {}) if self.cfg else {}
         min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 85))
-        setup.requires_confirmation = (c_score < min_auto_entry_score)
-        if setup.requires_confirmation:
-            setup.confirmation_status = "AWAITING_FOLLOW_THROUGH"
-        else:
+        
+        if setup.retest_confirmed:
+            setup.requires_confirmation = False
             setup.confirmation_status = "CONFIRMED"
+        elif c_score >= min_auto_entry_score:
+            setup.requires_confirmation = False
+            setup.confirmation_status = "CONFIRMED"
+        else:
+            # Score < 85: requires follow-through confirmation
+            # Check if breakout already occurred in prior closed bars and breached pivot
+            has_followed_through = False
+            if (
+                setup.state in (State.BUY, State.SELL)
+                and setup.bars_since_breakout is not None
+                and setup.bars_since_breakout >= 1
+                and setup.breakout_index is not None
+                and not df.empty
+            ):
+                subsequent_df = df.iloc[setup.breakout_index + 1:]
+                if not subsequent_df.empty:
+                    entry_lvl = setup.entry or setup.breakout_level
+                    if setup.direction == 1 and entry_lvl is not None:
+                        has_followed_through = bool(float(subsequent_df['High'].max()) > (entry_lvl * 1.0001))
+                    elif setup.direction == -1 and entry_lvl is not None:
+                        has_followed_through = bool(float(subsequent_df['Low'].min()) < (entry_lvl * 0.9999))
+
+            if has_followed_through:
+                setup.requires_confirmation = False
+                setup.confirmation_status = "CONFIRMED"
+            else:
+                setup.requires_confirmation = True
+                setup.confirmation_status = "AWAITING_FOLLOW_THROUGH"
 
         # Phase 1: Options Policy Tag
         setup.underlying_validated = False

@@ -72,16 +72,20 @@ signal_quality:
   require_clv_confirmation: true
   min_clv_threshold: 0.65
   max_failed_breakouts_in_base: 2
-  close_location_weight: 15.0
-  vdu_slope_weight: 10.0
-  trigger_tightness_weight: 10.0
-  failed_breakout_penalty_weight: 10.0
+  close_location_weight: 1.0
+  vdu_slope_weight: 0.8
+  trigger_tightness_weight: 0.6
+  failed_breakout_penalty_weight: 1.0
 
 confluence_context:
   enabled: true
-  htf_4h_weight: 10.0
-  market_regime_weight: 5.0
-  earnings_risk_weight: 5.0
+  htf_4h_weight: 1.0
+  market_regime_weight: 0.8
+  earnings_risk_weight: 0.8
+
+confirmation_policy:
+  enabled: true
+  min_auto_entry_score: 85
 
 portfolio_guard:
   enabled: true

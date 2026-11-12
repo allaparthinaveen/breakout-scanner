@@ -20,7 +20,7 @@ def format_price(val: Optional[float]) -> str:
         return f"{val:.5g}"
 
 
-def format_setup_telegram_line(s: Setup, is_fresh: bool) -> str:
+def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = False) -> str:
     """
     Formats a single active setup into a streamlined, high-signal Telegram line:
     • SYMBOL | DIR [ACTION] | CP | Entry | Stop | Risk | [HTF] | Grade | [Status (2B)] | Targets
@@ -66,7 +66,11 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool) -> str:
     if not is_fresh:
         pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
         pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
-        if s.is_tp1_reached:
+        if getattr(s, 'requires_confirmation', False):
+            status_badge = "[⏳ AWAITING CONFIRMATION]"
+        elif risk_blocked:
+            status_badge = "[🛡️ RISK DISQUALIFIED - DO NOT ENTER]"
+        elif s.is_tp1_reached:
             status_badge = f"[TP1 HIT: {pnl_val} - DO NOT ENTER]" if pnl_val else "[TP1 HIT - DO NOT ENTER]"
         else:
             status_badge = f"[EXTENDED: {pnl_val} - DO NOT CHASE]" if pnl_val else "[EXTENDED - DO NOT CHASE]"
@@ -83,10 +87,12 @@ def format_scan_report_html(
     market: Optional[str] = None,
     timestamp: Optional[datetime] = None,
     timeframe: str = "1H",
+    slate: Optional[Any] = None,
 ) -> str:
     """
     Full multi-symbol market scan report formatted for Telegram.
     Strictly includes only actionable trades (Section 2A and Section 2B).
+    Section 2A ONLY admits setups that are risk-approved and confirmed (P0-1 & P0-2).
     Excludes Section 1 (VCP Bases) to eliminate non-trade noise.
     Enriched with timezone-aware scan timestamp (Market Local + IST/UTC).
     """
@@ -130,8 +136,36 @@ def format_scan_report_html(
     ]
 
     active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
-    fresh_setups = [s for s in active_setups if s.is_fresh_entry]
-    progress_setups = [s for s in active_setups if not s.is_fresh_entry]
+
+    # Approved symbols from institutional ActionableSlate
+    approved_symbols = set()
+    if slate is not None and hasattr(slate, "selected_trades"):
+        approved_symbols = set(t.symbol for t in slate.selected_trades)
+
+    fresh_setups: List[Setup] = []
+    progress_setups: List[Tuple[Setup, bool]] = []  # (Setup, is_risk_blocked)
+
+    for s in active_setups:
+        # P0-1 Risk Filtering Gate:
+        # If slate is provided, setup must be in selected_trades (approved by rejection gate & portfolio guard)
+        # If slate not provided, evaluate basic rejection gate rules
+        if slate is not None and hasattr(slate, "selected_trades"):
+            is_risk_approved = (s.symbol in approved_symbols)
+        else:
+            is_risk_approved = (
+                not getattr(s, "earnings_warning", False)
+                and (s.risk_pct is None or s.risk_pct <= 5.0)
+                and (getattr(s, "friction_r", None) is None or s.friction_r <= 0.15)
+            )
+
+        is_confirmed = not getattr(s, "requires_confirmation", False)
+
+        # Section 2A Criteria: Fresh + Confirmed + Risk Approved
+        if s.is_fresh_entry and is_confirmed and is_risk_approved:
+            fresh_setups.append(s)
+        else:
+            # Everything else belongs to Section 2B (Trades In Progress / Awaiting / Blocked)
+            progress_setups.append((s, not is_risk_approved and s.is_fresh_entry))
 
     def safe_sort_active(s: Setup):
         score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
@@ -145,7 +179,7 @@ def format_scan_report_html(
         return (score, prox)
 
     fresh_setups.sort(key=safe_sort_active, reverse=True)
-    progress_setups.sort(key=safe_sort_active, reverse=True)
+    progress_setups.sort(key=lambda item: safe_sort_active(item[0]), reverse=True)
 
     # 1. SECTION 2A: FRESH ACTIONABLE ENTRIES
     lines.append("🟢 <b>SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")
@@ -164,10 +198,11 @@ def format_scan_report_html(
     if not progress_setups:
         lines.append("<i>(None)</i>")
     else:
-        for s in progress_setups:
-            lines.append(format_setup_telegram_line(s, is_fresh=False))
+        for s, risk_blocked in progress_setups:
+            lines.append(format_setup_telegram_line(s, is_fresh=False, risk_blocked=risk_blocked))
 
     lines.append("━━━━━━━━━━━━━━━━━━━━")
+    return "\n".join(lines)
     return "\n".join(lines)
 
 

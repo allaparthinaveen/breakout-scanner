@@ -239,6 +239,13 @@ def calculate_composite_score(
         w_tight = float(quality_cfg.get("trigger_tightness_weight", 0.0))
         w_failed = float(quality_cfg.get("failed_breakout_penalty_weight", 0.0))
 
+        # Auto-normalize weights if legacy/unscaled integer points were passed (> 2.0)
+        # e.g. 15.0 -> 1.5, 10.0 -> 1.0
+        if w_close > 2.0: w_close = w_close / 10.0
+        if w_vdu > 2.0: w_vdu = w_vdu / 10.0
+        if w_tight > 2.0: w_tight = w_tight / 10.0
+        if w_failed > 2.0: w_failed = w_failed / 10.0
+
         # 1. Breakout Candle Close Location (Wick Guard)
         if setup.state in (State.BUY, State.SELL):
             if getattr(setup, "candle_close_confirmed", False):
@@ -259,6 +266,9 @@ def calculate_composite_score(
         if failed_count > 0:
             quality_adj -= w_failed * min(2, failed_count) * 5.0
 
+        # Anti-saturation bounding: quality layer cannot add > +15 pts or penalize > -20 pts
+        quality_adj = max(-20.0, min(15.0, quality_adj))
+
     # ----------------------------------------------------
     # Phase 3: Confluence & Context Modifiers (Behind Config Weights)
     # ----------------------------------------------------
@@ -267,6 +277,11 @@ def calculate_composite_score(
         w_4h = float(context_cfg.get("htf_4h_weight", 0.0))
         w_regime = float(context_cfg.get("market_regime_weight", 0.0))
         w_earnings = float(context_cfg.get("earnings_risk_weight", 0.0))
+
+        # Auto-normalize weights if legacy/unscaled integer points were passed (> 2.0)
+        if w_4h > 2.0: w_4h = w_4h / 10.0
+        if w_regime > 2.0: w_regime = w_regime / 10.0
+        if w_earnings > 2.0: w_earnings = w_earnings / 10.0
 
         # 1. 4H Structure Alignment Bonus
         if getattr(setup, "htf_4h_confirmed", False):
@@ -282,6 +297,9 @@ def calculate_composite_score(
         # 3. Earnings Risk Warning Penalty
         if getattr(setup, "earnings_warning", False):
             context_adj -= w_earnings * 5.0
+
+        # Anti-saturation bounding: context layer cannot add > +10 pts or penalize > -20 pts
+        context_adj = max(-20.0, min(10.0, context_adj))
 
     final_sum = raw_sum + quality_adj + context_adj
     total_score = int(min(100, max(0, round(final_sum)))) if is_finite_num(final_sum) else 0

@@ -260,6 +260,12 @@ class SessionScheduler:
         if os.getenv("KILL_SWITCH", "").lower() in ("true", "1", "yes"):
             self.safeguards.engage_kill_switch("KILL_SWITCH environment variable is set")
 
+        # Persistent Portfolio State Engine (P0-4 & P0-5)
+        mkt_suffix = f"_{self.market_id.lower()}" if self.market_id else ""
+        state_path = f"data/portfolio_state{mkt_suffix}.json"
+        from .portfolio_state import PortfolioStateManager
+        self.portfolio_state = PortfolioStateManager(state_file=state_path)
+
         self.log_file = log_file
         self.logger = self._setup_logging()
         EffectiveConfigSummary.log_matrix(self.cfg, self.logger)
@@ -377,9 +383,9 @@ class SessionScheduler:
                 "candidates": []
             }
 
-        # Production Safeguards Check 2: Daily Loss Limit
+        # Production Safeguards Check 2: Daily Loss Limit (P0-5)
         account_size = float(self.cfg.get('risk', {}).get('account_size', 100000.0))
-        if not self.safeguards.check_daily_loss_limit(account_size):
+        if not self.safeguards.check_daily_loss_limit(account_size, portfolio_state=self.portfolio_state):
             self.logger.critical("🛑 [SAFEGUARDS] Daily loss limit breached. Circuit breaker tripped.")
             return {
                 "scanned": 0,
@@ -393,8 +399,24 @@ class SessionScheduler:
         # 1H candles for timely execution
         setups = self.scanner.scan(symbols, period="60d", interval="1h")
 
-        # Phase 1: Authoritative ActionableSlate evaluation
-        slate = self.pipeline.evaluate_setups(setups, total_scanned=len(symbols))
+        # Persistent Portfolio State: Mark-to-market and exit check (P0-4)
+        self.portfolio_state.update_market_data(setups)
+
+        # Re-check daily loss circuit breaker post-MTM update
+        if not self.safeguards.check_daily_loss_limit(account_size, portfolio_state=self.portfolio_state):
+            self.logger.critical("🛑 [SAFEGUARDS] Daily loss limit breached post-market update. Halting.")
+            return {
+                "scanned": len(setups),
+                "fresh_alerts": 0,
+                "duplicates_skipped": 0,
+                "safeguards_rejected": 0,
+                "status": "HALTED_BY_DAILY_LOSS",
+                "candidates": []
+            }
+
+        # Phase 1: Authoritative ActionableSlate evaluation with persistent open positions
+        open_positions = self.portfolio_state.get_open_positions()
+        slate = self.pipeline.evaluate_setups(setups, total_scanned=len(symbols), open_positions=open_positions)
         
         fresh_alerts_sent = 0
         duplicates_skipped = 0
@@ -454,7 +476,7 @@ class SessionScheduler:
                 duplicates_skipped += 1
                 self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
             else:
-                report_html = format_scan_report_html(setups, market=self.market_id)
+                report_html = format_scan_report_html(setups, market=self.market_id, slate=slate)
                 self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
                 self.logger.info("\n" + report_html)
                 sent = self.send_telegram_alert(report_html)
@@ -465,6 +487,10 @@ class SessionScheduler:
                         "candle_hour": candle_hour_key
                     })
                     fresh_alerts_sent += 1
+                    # Record fresh playable entries into persistent portfolio state (P0-4)
+                    for t in slate.selected_trades:
+                        if t.setup and t.setup.is_fresh_entry and not getattr(t.setup, "requires_confirmation", False):
+                            self.portfolio_state.record_entry(t)
                 else:
                     self.logger.warning(f"⚠️ Telegram dispatch failed for {report_signature}, recorded locally.")
                     self.deduplicator.record_alert(report_signature, {
@@ -508,6 +534,7 @@ class SessionScheduler:
 
                     sent = self.send_telegram_alert(alert_msg)
                     if sent:
+                        self.portfolio_state.record_entry(t)
                         self.deduplicator.record_alert(signature, {
                             "symbol": s.symbol,
                             "type": signal_type,

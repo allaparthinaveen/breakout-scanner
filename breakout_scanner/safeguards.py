@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from .models import Setup
 
 logger = logging.getLogger(__name__)
@@ -87,10 +87,18 @@ class ProductionSafeguards:
             return False
         return True
         
-    def check_daily_loss_limit(self, current_capital: float) -> bool:
+    def check_daily_loss_limit(self, current_capital: float, portfolio_state: Optional[Any] = None) -> bool:
         """
         Circuit breaker that trips if the daily loss exceeds the defined threshold.
+        Syncs with persistent portfolio state if provided.
         """
+        if portfolio_state is not None:
+            self.daily_pnl = portfolio_state.get_total_daily_pnl()
+            if portfolio_state.circuit_breaker_tripped:
+                if not self.kill_switch_active:
+                    self.engage_kill_switch(portfolio_state.circuit_breaker_reason or "Persistent Circuit Breaker Tripped")
+                return False
+
         max_loss_cash = current_capital * self.max_daily_loss
         if self.daily_pnl <= -max_loss_cash:
             if not self.kill_switch_active:
