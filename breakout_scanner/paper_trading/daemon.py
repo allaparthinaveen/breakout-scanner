@@ -112,57 +112,90 @@ class PaperTradingDaemon:
         # -------------------------------------------------------------
         if symbol in self.pending_orders:
             order = self.pending_orders.pop(symbol)
-            slip_pct = self.friction_engine.calculate_dynamic_slippage_pct(
-                cur_open, atr=order.metadata.get("atr")
-            ) / 100.0
+            p_dir = order.direction
+            p_stop = order.stop_loss
+            c_break = self.cfg.get('breakout', {})
+            
+            # Anti-gap / stop breach guard
+            gap_breach = (cur_open <= p_stop) if p_dir == 1 else (cur_open >= p_stop)
+            
+            # Anti-chase extension guard
+            is_extended = False
+            if c_break.get('use_extension_filter', True):
+                max_chase = float(c_break.get('max_chase_pct', 2.0))
+                p_atr = order.metadata.get('atr')
+                if p_dir == 1 and order.metadata.get('resistance'):
+                    p_res = order.metadata['resistance']
+                    dist_pct = (cur_open - p_res) / p_res * 100.0
+                    atr_limit = (0.75 * (p_atr / p_res * 100.0)) if (p_atr and p_atr > 0) else max_chase
+                    max_allowed = min(max_chase, max(1.0, atr_limit))
+                    if dist_pct > max_allowed:
+                        is_extended = True
+                elif p_dir == -1 and order.metadata.get('support'):
+                    p_sup = order.metadata['support']
+                    dist_pct = (p_sup - cur_open) / p_sup * 100.0
+                    atr_limit = (0.75 * (p_atr / p_sup * 100.0)) if (p_atr and p_atr > 0) else max_chase
+                    max_allowed = min(max_chase, max(1.0, atr_limit))
+                    if dist_pct > max_allowed:
+                        is_extended = True
 
-            if order.direction == 1:
-                fill_price = cur_open * (1.0 + slip_pct)
+            if gap_breach or is_extended:
+                order.status = "CANCELLED"
+                order.reason = "STOP_BREACH_ON_OPEN" if gap_breach else "EXTENDED_CHASE_ON_OPEN"
+                self._log_order(order)
             else:
-                fill_price = cur_open * (1.0 - slip_pct)
+                slip_pct = self.friction_engine.calculate_dynamic_slippage_pct(
+                    cur_open, atr=order.metadata.get("atr")
+                ) / 100.0
 
-            slippage_delta = fill_price - order.theoretical_price
-            order.status = "FILLED"
-            order.fill_price = round(fill_price, 4)
-            order.fill_timestamp = cur_time
-            order.slippage_delta = round(slippage_delta, 4)
+                if order.direction == 1:
+                    fill_price = cur_open * (1.0 + slip_pct)
+                else:
+                    fill_price = cur_open * (1.0 - slip_pct)
 
-            # Record Execution Variance Audit
-            per_share_risk = abs(order.theoretical_price - order.stop_loss)
-            slippage_r = abs(slippage_delta) / per_share_risk if per_share_risk > 1e-4 else 0.0
+                # Institutional TCA Execution Slippage: Fill Price vs Arrival Price (Open)
+                slippage_delta = fill_price - cur_open
+                order.status = "FILLED"
+                order.fill_price = round(fill_price, 4)
+                order.fill_timestamp = cur_time
+                order.slippage_delta = round(slippage_delta, 4)
 
-            variance = ExecutionVarianceRecord(
-                order_id=order.order_id,
-                symbol=symbol,
-                signal_timestamp=order.signal_timestamp,
-                theoretical_price=order.theoretical_price,
-                fill_timestamp=cur_time,
-                actual_fill_price=round(fill_price, 4),
-                slippage_abs=round(abs(slippage_delta), 4),
-                slippage_pct=round(abs(slippage_delta / order.theoretical_price) * 100.0, 3),
-                slippage_r=round(float(slippage_r), 3)
-            )
-            self.variance_records.append(variance)
-            self._log_order(order)
+                # Record Execution Variance Audit
+                per_share_risk = abs(order.theoretical_price - order.stop_loss)
+                slippage_r = abs(slippage_delta) / per_share_risk if per_share_risk > 1e-4 else 0.0
 
-            # Open Position
-            self.active_positions[symbol] = {
-                "symbol": symbol,
-                "direction": order.direction,
-                "shares_total": order.shares,
-                "shares_remaining": order.shares,
-                "entry_price": fill_price,
-                "current_stop": order.stop_loss,
-                "tp1": order.take_profit_1,
-                "tp2": order.take_profit_2,
-                "tp1_hit": False,
-                "open_time": cur_time,
-                "bars_held": 0,
-                "order_id": order.order_id,
-                "risk_cash": order.shares * per_share_risk,
-                "realized_pnl": 0.0,
-                "atr": order.metadata.get("atr")
-            }
+                variance = ExecutionVarianceRecord(
+                    order_id=order.order_id,
+                    symbol=symbol,
+                    signal_timestamp=order.signal_timestamp,
+                    theoretical_price=order.theoretical_price,
+                    fill_timestamp=cur_time,
+                    actual_fill_price=round(fill_price, 4),
+                    slippage_abs=round(abs(slippage_delta), 4),
+                    slippage_pct=round(abs(slippage_delta / cur_open) * 100.0, 3),
+                    slippage_r=round(float(slippage_r), 3)
+                )
+                self.variance_records.append(variance)
+                self._log_order(order)
+
+                # Open Position
+                self.active_positions[symbol] = {
+                    "symbol": symbol,
+                    "direction": order.direction,
+                    "shares_total": order.shares,
+                    "shares_remaining": order.shares,
+                    "entry_price": fill_price,
+                    "current_stop": order.stop_loss,
+                    "tp1": order.take_profit_1,
+                    "tp2": order.take_profit_2,
+                    "tp1_hit": False,
+                    "open_time": cur_time,
+                    "bars_held": 0,
+                    "order_id": order.order_id,
+                    "risk_cash": order.shares * per_share_risk,
+                    "realized_pnl": 0.0,
+                    "atr": order.metadata.get("atr")
+                }
 
         # -------------------------------------------------------------
         # 2. Manage Active Position (Stops, TP1 50% scale-out, TP2)
@@ -194,6 +227,15 @@ class PaperTradingDaemon:
                 pos["realized_pnl"] += tp1_pnl
                 # Trail stop to Breakeven
                 pos["current_stop"] = pos["entry_price"]
+                # P1-4 Conservative Same-Candle Invariant:
+                # If candle collapsed and closed below (long) / above (short) breakeven stop, exit immediately
+                collapsed = (cur_close <= pos["current_stop"]) if d == 1 else (cur_close >= pos["current_stop"])
+                if collapsed and pos["shares_remaining"] > 0:
+                    exit_fill = pos["current_stop"]
+                    exit_pnl = (exit_fill - pos["entry_price"]) * pos["shares_remaining"] * d
+                    total_trade_pnl = pos["realized_pnl"] + exit_pnl
+                    self._close_position(symbol, exit_fill, cur_time, "BREAKEVEN_STOP", total_trade_pnl, pos)
+                    return None
 
             # TP2 Terminal Exit
             hit_tp2 = (cur_high >= tp2) if d == 1 else (cur_low <= tp2)
@@ -236,7 +278,12 @@ class PaperTradingDaemon:
                             stop_loss=float(setup.stop),
                             take_profit_1=float(setup.tp1 or (setup.entry + setup.direction * abs(setup.entry - setup.stop))),
                             take_profit_2=float(setup.tp2 or (setup.entry + 2.0 * setup.direction * abs(setup.entry - setup.stop))),
-                            metadata={"composite_score": setup.composite_score, "atr": setup.atr}
+                            metadata={
+                                "composite_score": getattr(setup, "composite_score", 0),
+                                "atr": getattr(setup, "atr", None),
+                                "resistance": getattr(setup, "resistance", None),
+                                "support": getattr(setup, "support", None),
+                            }
                         )
                         self.pending_orders[symbol] = order
                         return order

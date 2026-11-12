@@ -9,14 +9,14 @@
 
 | Filter Configuration | Trades | Win Rate | Profit Factor | Realized $E(R)$ | Net P&L | Max DD % | Delta $E(R)$ |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1. Baseline (VCP + 20 EMA + Vol)** | 1231 | 47.4% | 0.96 | **-0.139R** | $-41,857.78 | 44.6% | Baseline |
-| **2. Baseline + CLV Candle Strength** | 1171 | 47.2% | 0.95 | **-0.135R** | $-43,030.91 | 44.8% | +0.004R |
-| **3. Baseline + VDU Volume Slope** | 1231 | 47.4% | 0.96 | **-0.139R** | $-41,857.78 | 44.6% | +0.000R |
-| **4. Baseline + HTF 1D/4H Alignment** | 1231 | 47.4% | 0.96 | **-0.139R** | $-41,857.78 | 44.6% | +0.000R |
-| **5. Baseline + Benchmark RS Slope** | 1231 | 47.4% | 0.96 | **-0.139R** | $-41,857.78 | 44.6% | +0.000R |
-| **6. Baseline + Market Regime Filter** | 1231 | 47.4% | 0.96 | **-0.139R** | $-41,857.78 | 44.6% | +0.000R |
-| **7. Baseline + Earnings Proximity Guard** | 1231 | 47.4% | 0.96 | **-0.139R** | $-41,857.78 | 44.6% | +0.000R |
-| **8. Full Confluence Engine (All On)** | 531 | 46.0% | 0.79 | **-0.256R** | $-37,403.90 | 37.9% | -0.117R |
+| **1. Baseline (VCP + 20 EMA + Vol)** | 982 | 48.8% | 1.04 | **-0.075R** | $-15,849.19 | 17.6% | Baseline |
+| **2. Baseline + CLV Candle Strength** | 940 | 48.3% | 1.01 | **-0.082R** | $-21,447.90 | 23.1% | -0.007R |
+| **3. Baseline + VDU Volume Slope** | 982 | 48.8% | 1.04 | **-0.075R** | $-15,849.19 | 17.6% | +0.000R |
+| **4. Baseline + HTF 1D/4H Alignment** | 982 | 48.8% | 1.04 | **-0.075R** | $-15,849.19 | 17.6% | +0.000R |
+| **5. Baseline + Benchmark RS Slope** | 982 | 48.8% | 1.04 | **-0.075R** | $-15,849.19 | 17.6% | +0.000R |
+| **6. Baseline + Market Regime Filter** | 982 | 48.8% | 1.04 | **-0.075R** | $-15,849.19 | 17.6% | +0.000R |
+| **7. Baseline + Earnings Proximity Guard** | 982 | 48.8% | 1.04 | **-0.075R** | $-15,849.19 | 17.6% | +0.000R |
+| **8. Full Confluence Engine (All On)** | 388 | 47.2% | 0.94 | **-0.169R** | $-14,339.15 | 15.4% | -0.094R |
 
 ---
 
@@ -24,9 +24,9 @@
 
 | Chronological Split | Partition Description | Trades | Win Rate | Profit Factor | Realized $E(R)$ | Max Drawdown |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **In-Sample Train** | 2021–2023 Feature Calibration | 744 | 47.6% | 0.99 | **-0.123R** | 25.3% |
-| **Walk-Forward OOS** | 2024 Out-of-Sample Validation | 289 | 46.0% | 0.85 | **-0.191R** | 17.9% |
-| **Untouched Holdout** | 2025–Present Zero-Contamination | 177 | 48.6% | 0.92 | **-0.141R** | 15.1% |
+| **In-Sample Train** | 2021–2023 Feature Calibration | 621 | 47.2% | 1.04 | **-0.075R** | 18.5% |
+| **Walk-Forward OOS** | 2024 Out-of-Sample Validation | 216 | 51.9% | 1.07 | **-0.064R** | 9.4% |
+| **Untouched Holdout** | 2025–Present Zero-Contamination | 130 | 52.3% | 1.04 | **-0.066R** | 7.2% |
 
 - **Anti-Overfitting Verdict:** ✅ PASSED (No Significant Overfitting) (OOS Degradation: **0.0%**, Target: $\le 20.0\%$)
 
@@ -36,10 +36,10 @@
 
 | Composite Tier | Conviction Grade | Trades | Win Rate | Profit Factor | Realized $E(R)$ | T1 Hit Rate |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Grade A+ (90-100)** | A+ | 9 | 88.9% | 8.82 | **+0.929R** | 55.6% |
-| **Grade A (80-89)** | A | 55 | 92.7% | 34.61 | **+0.996R** | 58.2% |
-| **Grade B (70-79)** | B | 142 | 22.5% | 0.21 | **-0.810R** | 12.7% |
-| **Grade C (< 70)** | C | 325 | 47.1% | 0.81 | **-0.259R** | 22.8% |
+| **Grade A+ (90-100)** | A+ | 7 | 85.7% | 15.92 | **+0.977R** | 57.1% |
+| **Grade A (80-89)** | A | 60 | 90.0% | 30.11 | **+0.823R** | 48.3% |
+| **Grade B (70-79)** | B | 112 | 25.9% | 0.28 | **-0.603R** | 17.0% |
+| **Grade C (< 70)** | C | 209 | 45.0% | 0.85 | **-0.259R** | 21.5% |
 
 ---
 
@@ -47,9 +47,9 @@
 
 | Market Regime | Trade Count | Win Rate | Profit Factor | Realized $E(R)$ | Max Drawdown |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Bull Expansion** | 265 | 44.1% | 0.75 | **-0.324R** | 20.9% |
-| **Sideways Chop** | 159 | 45.3% | 0.77 | **-0.226R** | 15.4% |
-| **Bear Breakdown** | 107 | 51.4% | 0.95 | **-0.133R** | 4.3% |
+| **Bull Expansion** | 194 | 45.4% | 0.91 | **-0.234R** | 13.6% |
+| **Sideways Chop** | 116 | 47.4% | 1.03 | **-0.116R** | 6.9% |
+| **Bear Breakdown** | 78 | 51.3% | 0.90 | **-0.084R** | 7.7% |
 
 ---
 

@@ -44,11 +44,16 @@ FIXTURE_DIR = os.path.join(
 
 
 def load_fixture(symbol: str, timeframe: str = "1h") -> Optional[pd.DataFrame]:
-    """Load an offline fixture CSV for a given symbol and timeframe."""
-    fname = os.path.join(FIXTURE_DIR, f"{symbol}_{timeframe}.csv")
-    if not os.path.exists(fname):
+    """Load an offline fixture (.pkl or .csv) for a given symbol and timeframe."""
+    pkl_name = os.path.join(FIXTURE_DIR, f"{symbol}_{timeframe}.pkl")
+    csv_name = os.path.join(FIXTURE_DIR, f"{symbol}_{timeframe}.csv")
+    df = None
+    if os.path.exists(pkl_name):
+        df = pd.read_pickle(pkl_name)
+    elif os.path.exists(csv_name):
+        df = pd.read_csv(csv_name, index_col=0, parse_dates=True)
+    if df is None:
         return None
-    df = pd.read_csv(fname, index_col=0, parse_dates=True)
     df.columns = [c.capitalize() for c in df.columns]
     for col in ("Open", "High", "Low", "Close", "Volume"):
         if col in df.columns:
@@ -58,15 +63,17 @@ def load_fixture(symbol: str, timeframe: str = "1h") -> Optional[pd.DataFrame]:
 
 
 def list_available_symbols(timeframe: str = "1h") -> List[str]:
-    """Return symbol names for which fixtures exist."""
+    """Return symbol names for which fixtures exist (.pkl or .csv)."""
     if not os.path.isdir(FIXTURE_DIR):
         return []
-    syms = []
-    suffix = f"_{timeframe}.csv"
+    syms = set()
     for fname in os.listdir(FIXTURE_DIR):
-        if fname.endswith(suffix):
-            syms.append(fname[: -len(suffix)])
-    return sorted(syms)
+        for ext in (f"_{timeframe}.pkl", f"_{timeframe}.csv"):
+            if fname.endswith(ext):
+                sym = fname[: -len(ext)]
+                if not sym.startswith("QQQ"):  # exclude index benchmark
+                    syms.add(sym)
+    return sorted(list(syms))
 
 
 # ─────────────────────────────────────────────

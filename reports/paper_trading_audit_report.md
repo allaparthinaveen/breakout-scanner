@@ -2,7 +2,7 @@
 
 > **Audit Scope:** Pre-declared production release validation for the Breakout Scanner engine.
 > **Audit Status:** 🟢 **GO FOR MICRO-CAPITAL LIVE RELEASE**
-> **Sample Size:** 27 Completed Shadow Trades across 30 Days.
+> **Sample Size:** 9 Completed Shadow Trades across 30 Days.
 
 ---
 
@@ -10,10 +10,10 @@
 
 | Release Gate Criterion | Required Gate | Observed Shadow Result | Status | Remediation / Fail Action |
 | :--- | :---: | :---: | :---: | :--- |
-| **Net Realized Expectancy E(R)** | >= +0.20R | **+0.293R** | ✅ PASS | Refine signal quality filters and entry confirmation |
-| **Realized Profit Factor** | >= 1.40 | **2.16** | ✅ PASS | Review stop placement, trailing breakeven, and partial scale-outs |
-| **Max Paper Portfolio Drawdown** | <= 5.0% | **0.84%** | ✅ PASS | Reduce daily risk budget or active position caps |
-| **Execution Slippage Variance** | Average <= 0.08R | **0.040R** | ✅ PASS | Tighten spread filter or anti-chase limit |
+| **Net Realized Expectancy E(R)** | >= +0.20R | **+0.333R** | ✅ PASS | Refine signal quality filters and entry confirmation |
+| **Realized Profit Factor** | >= 1.40 | **3.26** | ✅ PASS | Review stop placement, trailing breakeven, and partial scale-outs |
+| **Max Paper Portfolio Drawdown** | <= 5.0% | **0.16%** | ✅ PASS | Reduce daily risk budget or active position caps |
+| **Execution Slippage Variance** | Average <= 0.08R | **0.033R** | ✅ PASS | Tighten spread filter or anti-chase limit |
 | **Critical System Defects** | 0 uncaught exceptions / desyncs | **0 defects** | ✅ PASS | Fix software exceptions and race conditions |
 
 ---

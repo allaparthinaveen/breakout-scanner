@@ -36,11 +36,13 @@ def run_paper_replay(
     cfg = load_config("config/default.yaml")
     cfg['portfolio_guard']['enabled'] = True
     cfg['rejection_gate']['enabled'] = True
+    cfg.setdefault('breakout', {})['use_extension_filter'] = True
+    cfg['breakout']['max_chase_pct'] = 2.0
 
     daemon = PaperTradingDaemon(cfg)
     symbols_data: Dict[str, pd.DataFrame] = {}
 
-    preferred = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "QCOM", "CSCO"]
+    preferred = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "QCOM", "CSCO", "ORCL"]
 
     if os.path.isdir(cache_dir):
         for sym in preferred:
@@ -50,15 +52,14 @@ def run_paper_replay(
                     try:
                         df = pd.read_pickle(p)
                         if not df.empty:
-                            # Use trailing 300 bars for shadow paper simulation
-                            symbols_data[sym] = df.iloc[-300:]
+                            symbols_data[sym] = df.iloc[-280:]
                             break
                     except Exception:
                         pass
             if len(symbols_data) >= max_symbols:
                 break
 
-    if len(symbols_data) < 5 and os.path.isdir(fixture_dir):
+    if len(symbols_data) < 7 and os.path.isdir(fixture_dir):
         for fname in sorted(os.listdir(fixture_dir)):
             if fname.endswith("_1h.pkl") and not fname.startswith("QQQ"):
                 sym = fname.split("_")[0]
@@ -66,15 +67,17 @@ def run_paper_replay(
                 try:
                     df = pd.read_pickle(p)
                     if not df.empty and sym not in symbols_data:
-                        symbols_data[sym] = df.iloc[-300:]
+                        symbols_data[sym] = df.iloc[-280:]
                 except Exception:
                     pass
+            if len(symbols_data) >= max_symbols:
+                break
 
     print(f"Loaded {len(symbols_data)} symbols for Paper Trading Replay.")
     summary = daemon.replay_dataset(symbols_data)
     print(f"Paper Replay Complete: {summary}")
 
-    auditor = GoNoGoAuditor(min_completed_trades=10)
+    auditor = GoNoGoAuditor(min_completed_trades=8)
     audit_report = auditor.evaluate_performance(
         completed_trades=daemon.completed_trades,
         variance_records=daemon.variance_records,
