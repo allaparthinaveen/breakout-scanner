@@ -76,3 +76,24 @@ def test_cloud_daemon_heartbeat_dispatch():
     # It will either return True (if valid credentials) or False (if invalid), but not raise
     result = runner.dispatch_telegram_heartbeat()
     assert isinstance(result, bool)
+
+
+def test_hourly_scan_signature_changes_per_hour():
+    from breakout_scanner.scheduler import SessionScheduler
+    s = SessionScheduler(market_id="US")
+    
+    # Hour 1 (10:00 EST)
+    t1 = pd.Timestamp("2026-11-12 15:00:00", tz="UTC")
+    mkt_t1 = s.market_session.to_market_tz(t1)
+    sig1 = f"SCAN_REPORT:US:{mkt_t1.strftime('%Y-%m-%d_%H:00')}"
+
+    # Hour 2 (11:00 EST)
+    t2 = pd.Timestamp("2026-11-12 16:00:00", tz="UTC")
+    mkt_t2 = s.market_session.to_market_tz(t2)
+    sig2 = f"SCAN_REPORT:US:{mkt_t2.strftime('%Y-%m-%d_%H:00')}"
+
+    # Signatures must be distinct so Hour 2 is NEVER dropped as a duplicate!
+    assert sig1 == "SCAN_REPORT:US:2026-11-12_10:00"
+    assert sig2 == "SCAN_REPORT:US:2026-11-12_11:00"
+    assert sig1 != sig2
+

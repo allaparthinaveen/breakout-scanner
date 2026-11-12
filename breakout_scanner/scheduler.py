@@ -438,56 +438,55 @@ class SessionScheduler:
         notification_mode = self.cfg.get("notifications", {}).get("mode", "scan_report") if self.cfg else "scan_report"
 
         if notification_mode == "scan_report":
-            if active_setups or force:
-                # Resolve candle time for deduplication
-                candle_times = [
-                    str(s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST")).strip().replace(" ", "_")
-                    for s in active_setups
-                ]
-                latest_candle = max(candle_times) if candle_times else "LATEST"
-                market_label = self.market_id or "MARKET"
-                report_signature = f"SCAN_REPORT:{market_label.upper()}:{latest_candle}"
-
-                sent = False
-                if self.deduplicator.is_duplicate(report_signature) and not force:
-                    duplicates_skipped += 1
-                    self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
-                else:
-                    report_html = format_scan_report_html(setups, market=self.market_id)
-                    self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
-                    self.logger.info("\n" + report_html)
-                    sent = self.send_telegram_alert(report_html)
-                    if sent:
-                        self.deduplicator.record_alert(report_signature, {
-                            "market": market_label,
-                            "active_count": len(active_setups),
-                            "candle_time": latest_candle
-                        })
-                        fresh_alerts_sent += 1
-                    else:
-                        self.logger.warning(f"⚠️ Telegram dispatch failed for {report_signature}, recorded locally.")
-                        self.deduplicator.record_alert(report_signature, {
-                            "market": market_label,
-                            "active_count": len(active_setups),
-                            "delivery_failed": True
-                        })
-
-                # Record individual setup signatures in deduplication cache for state tracking
-                for s in active_setups:
-                    signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
-                    c_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
-                    sig = self.deduplicator.build_signature(s.symbol, signal_type, c_time)
-                    self.deduplicator.record_alert(sig, {
-                        "symbol": s.symbol,
-                        "type": signal_type,
-                        "entry": s.entry,
-                        "stop": s.stop,
-                        "grade": s.composite_grade,
-                        "score": s.composite_score,
-                        "delivery_failed": not sent
-                    })
+            # Anchor scan signature to the hourly candle boundary being evaluated (e.g. 2026-11-12_10:00)
+            now_utc = pd.Timestamp.now(tz="UTC")
+            if self.market_session is not None:
+                market_ts = self.market_session.to_market_tz(now_utc)
             else:
-                self.logger.info(f"Scan complete across {len(symbols)} symbols. No active trades in Section 2A or 2B.")
+                market_ts = now_utc
+
+            candle_hour_key = market_ts.strftime("%Y-%m-%d_%H:00")
+            market_label = self.market_id or "MARKET"
+            report_signature = f"SCAN_REPORT:{market_label.upper()}:{candle_hour_key}"
+
+            sent = False
+            if self.deduplicator.is_duplicate(report_signature) and not force:
+                duplicates_skipped += 1
+                self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
+            else:
+                report_html = format_scan_report_html(setups, market=self.market_id)
+                self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
+                self.logger.info("\n" + report_html)
+                sent = self.send_telegram_alert(report_html)
+                if sent:
+                    self.deduplicator.record_alert(report_signature, {
+                        "market": market_label,
+                        "active_count": len(active_setups),
+                        "candle_hour": candle_hour_key
+                    })
+                    fresh_alerts_sent += 1
+                else:
+                    self.logger.warning(f"⚠️ Telegram dispatch failed for {report_signature}, recorded locally.")
+                    self.deduplicator.record_alert(report_signature, {
+                        "market": market_label,
+                        "active_count": len(active_setups),
+                        "delivery_failed": True
+                    })
+
+            # Record individual setup signatures in deduplication cache for state tracking
+            for s in active_setups:
+                signal_type = "RETEST" if s.retest_confirmed else "BREAKOUT"
+                c_time = s.retest_time if s.retest_confirmed and s.retest_time else (s.breakout_time or "LATEST_CLOSE")
+                sig = self.deduplicator.build_signature(s.symbol, signal_type, c_time)
+                self.deduplicator.record_alert(sig, {
+                    "symbol": s.symbol,
+                    "type": signal_type,
+                    "entry": s.entry,
+                    "stop": s.stop,
+                    "grade": s.composite_grade,
+                    "score": s.composite_score,
+                    "delivery_failed": not sent
+                })
         else:
             # Legacy/Instant single-trade card mode
             for t in slate.selected_trades:
