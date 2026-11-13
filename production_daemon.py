@@ -145,19 +145,40 @@ class CloudDaemonRunner:
         total_alerts = self.heartbeat.stats.get("alerts_sent_total", 0)
         total_symbols = sum(len(s.load_symbols()) for s in self.scheduler.schedulers.values())
 
+        def status_emoji(status: str) -> str:
+            s = status.lower()
+            if "open" in s or "🟢" in status:
+                return "🟢"
+            if "pre" in s or "post" in s or "🟡" in status:
+                return "🟡"
+            if "closed" in s or "holiday" in s or "🔴" in status:
+                return "🔴"
+            return "🟢"
+
+        def fmt_int(n: int) -> str:
+            return f"{n:,}"
+
         msg = (
-            f"💓 <b>BS: Alive on</b> 🇸🇬 <b>(SGT):</b> <code>{now_sgt.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🇮🇳 <b>(IST):</b> <code>{now_ist.strftime('%H:%M:%S')}</code>  🇺🇸 <b>(EST/EDT):</b> <code>{now_est.strftime('%H:%M:%S')}</code>\n\n"
-            "🏛 <b>Exchange Trading Status:</b>\n"
-            f"{market_status_str}\n\n"
-            "📊 <b>Daemon Telemetry:</b>\n"
-            f"• <b>Host:</b> <code>{self.heartbeat.hostname}</code> (PID {os.getpid()})\n"
-            f"• <b>Status:</b> 🟢 HEALTHY • <b>Uptime:</b> {hrs}h {mins:02d}m\n"
-            f"• <b>Tickers Monitored:</b> {total_symbols} unique symbols\n"
-            f"• <b>Total Scanned:</b> {total_scanned} • <b>Signals Sent:</b> {total_alerts}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "⚡ <i>Scheduler active. Next hourly candle scan at :01 past the hour.</i>"
+            "💓 <b>BS ALIVE</b> · 🇸🇬 SGT\n"
+            f"<code>{now_sgt.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+            "\n"
+            "🌍 <b>World Clock</b>\n"
+            f"🇮🇳 IST <code>{now_ist.strftime('%H:%M:%S')}</code>"
+            f"  ·  🇺🇸 ET <code>{now_est.strftime('%H:%M:%S')}</code>\n"
+            "\n"
+            "🏛 <b>Exchange Status</b>\n"
+            f"{market_status_str}\n"
+            "\n"
+            "⚙️ <b>Daemon</b>\n"
+            f"• Host: <code>{self.heartbeat.hostname}</code>\n"
+            f"• PID: <code>{os.getpid()}</code>\n"
+            f"• Status: {status_emoji(market_status_str)} <b>Alive</b>\n"
+            f"• Uptime: <code>{hrs}h {mins:02d}m</code>\n"
+            f"• Symbols: <code>{fmt_int(total_symbols)}</code>\n"
+            f"• Scanned: <code>{fmt_int(total_scanned)}</code>\n"
+            f"• Alerts: <code>{fmt_int(total_alerts)}</code>\n"
+            "\n"
+            "⚡️ <i>Scheduler active</i>"
         )
 
         token, chat_id = get_telegram_credentials()
