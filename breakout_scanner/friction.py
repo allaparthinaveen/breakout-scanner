@@ -48,6 +48,8 @@ class MarketFrictionEngine:
         self.default_base_slippage_pct = float(friction_cfg.get("base_slippage_pct", risk_cfg.get("slippage_pct", 0.05)))
         self.default_commission_pct = float(friction_cfg.get("commission_pct", risk_cfg.get("commission_pct", 0.05)))
         self.max_friction_r = float(friction_cfg.get("max_friction_r", risk_cfg.get("max_friction_r", 0.15)))
+        self.use_dynamic_slippage = bool(friction_cfg.get("use_dynamic_slippage", True))
+        self.dynamic_slippage_factor = float(friction_cfg.get("dynamic_slippage_factor", 0.05))
 
     def detect_market(self, symbol: str) -> str:
         """Determines whether the symbol trades under NSE or US equity rules."""
@@ -62,13 +64,13 @@ class MarketFrictionEngine:
     def calculate_dynamic_slippage_pct(self, price: float, atr: Optional[float] = None) -> float:
         """
         Dynamic Volatility Slippage:
-        Slippage = max(Base Slippage %, 0.05 * (ATR14 / Price) * 100)
+        Slippage = max(Base Slippage %, dynamic_slippage_factor * (ATR14 / Price) * 100)
         """
         if price <= 0:
             return self.default_base_slippage_pct
 
-        if atr is not None and atr > 0:
-            vol_slip = 0.05 * (atr / price) * 100.0
+        if self.use_dynamic_slippage and atr is not None and atr > 0:
+            vol_slip = self.dynamic_slippage_factor * (atr / price) * 100.0
             return float(max(self.default_base_slippage_pct, vol_slip))
         return float(self.default_base_slippage_pct)
 

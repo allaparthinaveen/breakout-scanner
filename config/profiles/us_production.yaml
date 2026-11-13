@@ -4,6 +4,10 @@ profile_name: "US Equities Production (NYSE/Nasdaq)"
 market: "US"
 currency: "USD"
 
+timeframe:
+  interval: "1h"
+  period: "60d"
+
 trend:
   sma_length: 50
   use_trend_filter: true
@@ -39,6 +43,7 @@ breakout:
   min_body_pct: 40.0
   use_open_confirmation: true
   max_open_gap_pct: 0.50
+  allow_shorts: false
 
 risk:
   atr_length: 14
@@ -49,8 +54,8 @@ risk:
   structure_buffer_pct: 0.25
   account_size: 100000.0
   risk_per_trade_pct: 1.0
-  slippage_pct: 0.05
-  commission_pct: 0.05
+  slippage_pct: 0.02
+  commission_pct: 0.005
   use_cost_filter: true
   max_friction_r: 0.15
 
@@ -85,7 +90,7 @@ confluence_context:
 
 confirmation_policy:
   enabled: true
-  min_auto_entry_score: 85
+  min_auto_entry_score: 80
 
 portfolio_guard:
   enabled: true
@@ -109,14 +114,11 @@ rejection_gate:
   max_extension_pct: 1.0
   max_failed_breakouts_in_base: 2
 
-confirmation_policy:
-  enabled: true
-  min_auto_entry_score: 70
-
 friction:
-  base_slippage_pct: 0.05
-  commission_pct: 0.05
+  base_slippage_pct: 0.02
+  commission_pct: 0.005
   use_dynamic_slippage: true
+  dynamic_slippage_factor: 0.015
   max_friction_r: 0.15
 
 safeguards:

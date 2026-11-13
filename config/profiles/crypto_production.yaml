@@ -4,6 +4,10 @@ profile_name: "Crypto 24/7 Production (Perpetuals & Spot)"
 market: "CRYPTO"
 currency: "USDT"
 
+timeframe:
+  interval: "1h"
+  period: "60d"
+
 trend:
   sma_length: 50
   use_trend_filter: true
@@ -85,7 +89,7 @@ confluence_context:
 
 confirmation_policy:
   enabled: true
-  min_auto_entry_score: 85
+  min_auto_entry_score: 80
 
 portfolio_guard:
   enabled: true
@@ -108,10 +112,6 @@ rejection_gate:
   enforce_anti_chase: true
   max_extension_pct: 1.5
   max_failed_breakouts_in_base: 3
-
-confirmation_policy:
-  enabled: true
-  min_auto_entry_score: 70
 
 friction:
   base_slippage_pct: 0.08
