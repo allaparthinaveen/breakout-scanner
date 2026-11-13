@@ -335,6 +335,42 @@ class MarketSessionManager:
 
         return closes
 
+    def get_last_closed_candle(
+        self, dt: Optional[Union[str, datetime, pd.Timestamp]] = None, timeframe: str = "1h"
+    ) -> Optional[pd.Timestamp]:
+        """
+        Returns the most recent completed candle close timestamp prior to or at `dt`.
+        Safe across all market venues (US, NSE, TSE, HKEX, CRYPTO).
+        """
+        if dt is None:
+            ts_utc = pd.Timestamp.now(tz="UTC")
+        else:
+            ts = pd.Timestamp(dt)
+            if ts.tzinfo is None:
+                local_tz = datetime.now().astimezone().tzinfo
+                ts_utc = ts.tz_localize(local_tz).tz_convert("UTC")
+            else:
+                ts_utc = ts.tz_convert("UTC")
+
+        market_ts = self.to_market_tz(ts_utc)
+        session_label = market_ts.strftime("%Y-%m-%d")
+
+        closes = self.get_candle_close_schedule(session_label, timeframe=timeframe)
+        past_closes = [c for c in closes if c <= market_ts]
+        if past_closes:
+            return past_closes[-1]
+
+        # Check previous trading sessions if called before the first close today
+        for day_back in range(1, 5):
+            prev_label = (market_ts - timedelta(days=day_back)).strftime("%Y-%m-%d")
+            if self.is_trading_day(prev_label):
+                prev_closes = self.get_candle_close_schedule(prev_label, timeframe=timeframe)
+                if prev_closes:
+                    prev_past = [c for c in prev_closes if c <= market_ts]
+                    if prev_past:
+                        return prev_past[-1]
+        return None
+
     def get_pre_open_time(
         self, dt: Union[str, date, datetime, pd.Timestamp]
     ) -> Optional[pd.Timestamp]:

@@ -205,7 +205,7 @@ class CloudDaemonRunner:
         self.logger.info("=" * 70)
         self.logger.info("🚀 BREAKOUT SCANNER CLOUD DAEMON INITIALIZING")
         self.logger.info(f"   Markets Monitored: {', '.join(self.markets)}")
-        self.logger.info("   Heartbeat Cadence: 40-min Telegram pulse + hourly :01 candle scan")
+        self.logger.info("   Cadence: 40-min Telegram pulse + Exchange-aligned candle close scans")
         self.logger.info(f"   PID: {os.getpid()} | Host: {self.heartbeat.hostname}")
         self.logger.info("=" * 70)
 
@@ -220,21 +220,8 @@ class CloudDaemonRunner:
         import schedule
         import pandas as pd
 
-        # Register market schedules
+        # Register exchange-aligned candle close schedules
         self.scheduler.schedule_all()
-
-        # Scheduled hourly scan cadence across active markets at :01 past every hour (candle close)
-        def _scan_open_markets():
-            now_utc = pd.Timestamp.now(tz="UTC")
-            active = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=True)
-            if not active:
-                self.logger.info("💤 No active exchanges currently open. Deep sleeping...")
-                return {}
-            self.logger.info(f"⚡ Hourly candle close scan triggered for active markets: {active}")
-            return self.scheduler.scan_active_markets()
-
-        schedule.every().hour.at(":01").do(_scan_open_markets)
-        self.logger.info("⏱️ Scheduled hourly candle close scanner at :01 past every hour")
 
         # Schedule 40-minute Telegram Heartbeat pulse
         schedule.every(40).minutes.do(self.dispatch_telegram_heartbeat)

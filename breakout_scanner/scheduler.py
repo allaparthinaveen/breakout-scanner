@@ -475,23 +475,37 @@ class SessionScheduler:
         notification_mode = self.cfg.get("notifications", {}).get("mode", "scan_report") if self.cfg else "scan_report"
 
         if notification_mode == "scan_report":
-            # Anchor scan signature to the hourly candle boundary being evaluated (e.g. 2026-11-12_10:00)
+            # Anchor scan signature to the exact completed candle close boundary
             now_utc = pd.Timestamp.now(tz="UTC")
             if self.market_session is not None:
                 market_ts = self.market_session.to_market_tz(now_utc)
+                last_candle = self.market_session.get_last_closed_candle(now_utc, timeframe="1h")
+                if last_candle is not None:
+                    candle_slot_key = last_candle.strftime("%Y-%m-%d_%H:%M")
+                    report_ts = last_candle
+                else:
+                    candle_slot_key = market_ts.strftime("%Y-%m-%d_%H:%M")
+                    report_ts = market_ts
             else:
                 market_ts = now_utc
+                candle_slot_key = market_ts.strftime("%Y-%m-%d_%H:00")
+                report_ts = now_utc
 
-            candle_hour_key = market_ts.strftime("%Y-%m-%d_%H:00")
             market_label = self.market_id or "MARKET"
-            report_signature = f"SCAN_REPORT:{market_label.upper()}:{candle_hour_key}"
+            report_signature = f"SCAN_REPORT:{market_label.upper()}:{candle_slot_key}"
 
             sent = False
             if self.deduplicator.is_duplicate(report_signature) and not force:
                 duplicates_skipped += 1
                 self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
             else:
-                report_html = format_scan_report_html(setups, market=self.market_id, slate=slate, exit_events=exit_events)
+                report_html = format_scan_report_html(
+                    setups,
+                    market=self.market_id,
+                    timestamp=report_ts,
+                    slate=slate,
+                    exit_events=exit_events
+                )
                 self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
                 self.logger.info("\n" + report_html)
                 sent = self.send_telegram_alert(report_html)
@@ -499,7 +513,7 @@ class SessionScheduler:
                     self.deduplicator.record_alert(report_signature, {
                         "market": market_label,
                         "active_count": len(active_setups),
-                        "candle_hour": candle_hour_key
+                        "candle_slot": candle_slot_key
                     })
                     fresh_alerts_sent += 1
                     # Record fresh playable entries into persistent portfolio state (P0-4)
@@ -631,12 +645,22 @@ class SessionScheduler:
         now_utc = pd.Timestamp.now(tz="UTC")
         today_in_market = self.market_session.to_market_tz(now_utc).date()
         events = self.market_session.get_scheduled_events(today_in_market, timeframe=timeframe)
+        if not events:
+            # If weekend or holiday, resolve the upcoming trading day to register regular schedule
+            for offset in range(1, 8):
+                cand = today_in_market + timedelta(days=offset)
+                if self.market_session.is_trading_day(cand):
+                    events = self.market_session.get_scheduled_events(cand, timeframe=timeframe)
+                    if events:
+                        break
+
         market_tz = self.market_session.config.timezone
         self.logger.info(f"📅 Setting up exchange-aligned schedule for {self.market_id} ({market_tz}):")
         for ev_type, ev_time in events:
-            time_str = ev_time.strftime("%H:%M")
-            schedule.every().day.at(time_str, tz=market_tz).do(self.scan_and_alert)
-            self.logger.info(f"   ⏱️ Scheduled {ev_type} at {time_str} ({market_tz})")
+            if ev_type == "CANDLE_SCAN":
+                time_str = ev_time.strftime("%H:%M")
+                schedule.every().day.at(time_str, tz=market_tz).do(self.scan_and_alert)
+                self.logger.info(f"   ⏱️ Scheduled CANDLE_SCAN at {time_str} ({market_tz})")
 
     def start(self, run_immediately: bool = True, poll_sec: int = 1):
         """
