@@ -127,14 +127,15 @@ class CloudDaemonRunner:
 
         active_markets = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=False)
 
-        market_status_lines = []
+        status_badges = []
         for m in self.markets:
             if m == "CRYPTO":
-                market_status_lines.append("• <b>CRYPTO:</b> 🟢 OPEN (24/7 Continuous)")
+                status_badges.append("• <b>CRYPTO:</b> 🟢")
             elif m in active_markets:
-                market_status_lines.append(f"• <b>{m}:</b> 🟢 OPEN (Session Active)")
+                status_badges.append(f"• <b>{m}:</b> 🟢")
             else:
-                market_status_lines.append(f"• <b>{m}:</b> 🔴 CLOSED (Off-Hours)")
+                status_badges.append(f"• <b>{m}:</b> 🔴")
+        market_status_str = "  ".join(status_badges)
 
         uptime_sec = int(time.time() - self.start_time)
         hrs = uptime_sec // 3600
@@ -145,22 +146,16 @@ class CloudDaemonRunner:
         total_symbols = sum(len(s.load_symbols()) for s in self.scheduler.schedulers.values())
 
         msg = (
-            "💓 <b>BREAKOUT SCANNER • 40-MIN LIVE PULSE</b>\n"
+            f"💓 <b>BS: Alive on</b> 🇸🇬 <b>(SGT):</b> <code>{now_sgt.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "⏱ <b>Global Multi-Timezone Clock:</b>\n"
-            f"🇸🇬 <b>Singapore (SGT):</b> <code>{now_sgt.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-            f"🇮🇳 <b>India (IST):</b> <code>{now_ist.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-            f"🇺🇸 <b>New York (EST/EDT):</b> <code>{now_est.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-            f"🌐 <b>UTC:</b> <code>{now_utc.strftime('%Y-%m-%d %H:%M:%S')}</code>\n\n"
+            f"🇮🇳 <b>(IST):</b> <code>{now_ist.strftime('%H:%M:%S')}</code>  🇺🇸 <b>(EST/EDT):</b> <code>{now_est.strftime('%H:%M:%S')}</code>\n\n"
             "🏛 <b>Exchange Trading Status:</b>\n"
-            + "\n".join(market_status_lines) + "\n\n"
+            f"{market_status_str}\n\n"
             "📊 <b>Daemon Telemetry:</b>\n"
             f"• <b>Host:</b> <code>{self.heartbeat.hostname}</code> (PID {os.getpid()})\n"
-            f"• <b>Status:</b> 🟢 HEALTHY\n"
-            f"• <b>Uptime:</b> {hrs}h {mins:02d}m\n"
+            f"• <b>Status:</b> 🟢 HEALTHY • <b>Uptime:</b> {hrs}h {mins:02d}m\n"
             f"• <b>Tickers Monitored:</b> {total_symbols} unique symbols\n"
-            f"• <b>Total Scanned:</b> {total_scanned}\n"
-            f"• <b>Signals Sent:</b> {total_alerts}\n"
+            f"• <b>Total Scanned:</b> {total_scanned} • <b>Signals Sent:</b> {total_alerts}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             "⚡ <i>Scheduler active. Next hourly candle scan at :01 past the hour.</i>"
         )
