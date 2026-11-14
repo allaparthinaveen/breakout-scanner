@@ -409,10 +409,13 @@ def generate_actionable_slate(
     return engine.allocate_slate(candidates, open_positions=open_positions)
 
 
-def format_trade_slate_cli(slate: TradeSlate) -> str:
+def format_trade_slate_cli(slate: Any) -> str:
     """
-    Renders terminal ASCII output for the institutional TradeSlate.
+    Renders terminal ASCII output for the institutional TradeSlate or ActionableSlate.
     """
+    if hasattr(slate, "format_cli") and callable(slate.format_cli):
+        return slate.format_cli()
+
     lines = [
         "",
         "=======================================================",
@@ -424,10 +427,11 @@ def format_trade_slate_cli(slate: TradeSlate) -> str:
         "-------------------------------------------------------",
     ]
 
-    if not slate.actionable_trades:
+    actionable = getattr(slate, "actionable_trades", None) or getattr(slate, "selected_trades", [])
+    if not actionable:
         lines.append("  (No trades approved for capital allocation)")
     else:
-        for t in slate.actionable_trades:
+        for t in actionable:
             dir_str = "BUY" if t.direction == 1 else "SELL"
             lines.append(
                 f"  • \033[92m{dir_str} {t.shares:,} shares {t.symbol:8}\033[0m @ ${t.entry_price:.2f} "

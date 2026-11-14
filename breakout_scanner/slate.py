@@ -115,6 +115,10 @@ class ActionableSlate:
         return len(self.selected_trades) > 0
 
     @property
+    def actionable_trades(self) -> List[PositionAllocation]:
+        return self.selected_trades
+
+    @property
     def actionable_count(self) -> int:
         return len(self.selected_trades)
 

@@ -169,8 +169,8 @@ def scan_now():
         from breakout_scanner.portfolio_guard import format_trade_slate_cli
         pipeline = SlatePipeline(cfg=cfg, provider=provider)
         slate = pipeline.evaluate_setups(setups)
-        if args.slate or cfg.get('portfolio_guard', {}).get('enabled', False):
-            print(format_trade_slate_cli(slate))
+        if slate is not None and (args.slate or cfg.get('portfolio_guard', {}).get('enabled', False)):
+            print(slate.format_cli() if hasattr(slate, "format_cli") else format_trade_slate_cli(slate))
     except Exception as e:
         import logging
         logging.getLogger("scan_now").error(f"❌ Failed to run SlatePipeline: {e}", exc_info=True)
