@@ -52,9 +52,21 @@ def test_failing_provider_triggers_provisional_exemption():
         state=State.BUY,
         direction=1,
         entry=105.5,
+        current_price=105.5,
+        breakout_level=105.0,
+        resistance=105.0,
+        bars_since_breakout=1,
         stop=104.0,
         risk_pct=1.42,
         trend=1,
+        base_width_pct=3.5,
+        tightening_confirmed=True,
+        decay_ratio=0.5,
+        vdu_confirmed=True,
+        vdu_ratio=0.6,
+        rvol=2.5,
+        tp1=107.0,
+        tp2=108.5,
     )
 
     # Enrich bias with failing external provider
@@ -62,18 +74,24 @@ def test_failing_provider_triggers_provisional_exemption():
 
     assert setup.htf_data_status == "FAILED"
     assert setup.sector_data_status == "FAILED"
+    assert setup.regime_data_status == "FAILED"
     assert setup.provisional_data_incomplete is True
     assert setup.requires_confirmation is False
     assert setup.confirmation_status == "PROVISIONAL - DATA INCOMPLETE"
+
+    # Verify Terminal formatting includes PROVISIONAL badge
+    term_line = scanner.format_active_setup(setup, is_fresh=True)
+    assert "[PROVISIONAL]" in term_line
 
     # Verify Telegram formatting includes PROVISIONAL badge
     tg_line = format_setup_telegram_line(setup, is_fresh=True)
     assert "[⚠️ PROVISIONAL: DATA INCOMPLETE]" in tg_line
 
-    # Verify SlatePipeline does NOT suppress it for awaiting confirmation
+    # Verify SlatePipeline does NOT suppress it and actively approves it
     pipeline = SlatePipeline(cfg=cfg, provider=failing_provider)
     slate = pipeline.evaluate_setups([setup])
     assert setup.symbol not in [r.symbol for r in slate.suppressed_trades if r.suppression_code == "AWAITING_CONFIRMATION"]
+    assert setup.symbol in [alloc.symbol for alloc in slate.selected_trades]
 
 
 def test_flat_daily_trend_is_not_marked_as_failed():

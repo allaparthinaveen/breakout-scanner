@@ -196,17 +196,27 @@ def compute_market_regime(
         return "NORMAL", True
 
 
+_EARNINGS_CACHE: Dict[str, Tuple[Optional[int], bool, str]] = {}
+
+
 def check_earnings_proximity(
     symbol: str,
-    calendar_data: Optional[Any] = None
-) -> Tuple[Optional[int], bool]:
+    calendar_data: Optional[Any] = None,
+    return_status: bool = False,
+) -> Any:
     """
     Parses earnings calendar data for a symbol.
-    Returns (days_until_earnings, is_earnings_imminent).
+    Returns (days_until_earnings, is_earnings_imminent) or (days_until_earnings, is_earnings_imminent, data_status).
     is_earnings_imminent is True if earnings occur within 0 to 3 trading days.
+    data_status: "OK", "FAILED", "UNKNOWN".
     """
     if not symbol or is_non_equity_symbol(symbol):
-        return None, False
+        res = (None, False, "OK")
+        return res if return_status else (res[0], res[1])
+
+    if calendar_data is None and symbol in _EARNINGS_CACHE:
+        res = _EARNINGS_CACHE[symbol]
+        return res if return_status else (res[0], res[1])
 
     try:
         cal = calendar_data
@@ -214,6 +224,11 @@ def check_earnings_proximity(
             import yfinance as yf
             ticker = yf.Ticker(symbol)
             cal = getattr(ticker, "calendar", None)
+
+        if cal is None:
+            res = (None, False, "UNKNOWN")
+            _EARNINGS_CACHE[symbol] = res
+            return res if return_status else (res[0], res[1])
 
         dates = None
         if isinstance(cal, dict):
@@ -241,12 +256,18 @@ def check_earnings_proximity(
                 today = datetime.date.today()
                 days_until = (earning_date - today).days
                 is_imminent = (0 <= days_until <= 3)
-                return days_until, is_imminent
+                res = (days_until, is_imminent, "OK")
+                _EARNINGS_CACHE[symbol] = res
+                return res if return_status else (res[0], res[1])
 
     except Exception:
-        pass
+        res = (None, False, "FAILED")
+        _EARNINGS_CACHE[symbol] = res
+        return res if return_status else (res[0], res[1])
 
-    return None, False
+    res = (None, False, "UNKNOWN")
+    _EARNINGS_CACHE[symbol] = res
+    return res if return_status else (res[0], res[1])
 
 
 def enrich_confluence_and_context(
@@ -279,8 +300,9 @@ def enrich_confluence_and_context(
 
     # 3. Earnings Proximity (Equities only - skip non-equity macro instruments)
     if setup.symbol and not is_non_equity_symbol(setup.symbol):
-        days_until, imminent = check_earnings_proximity(setup.symbol)
+        days_until, imminent, earn_stat = check_earnings_proximity(setup.symbol, return_status=True)
         setup.days_to_earnings = days_until
+        setup.earnings_data_status = earn_stat
         if imminent:
             setup.earnings_warning = True
 

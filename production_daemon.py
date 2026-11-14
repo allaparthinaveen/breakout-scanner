@@ -233,18 +233,22 @@ class CloudDaemonRunner:
         schedule.every(40).minutes.do(self.dispatch_telegram_heartbeat)
         self.logger.info("💓 Scheduled 40-minute Telegram Heartbeat notification")
 
-        # Schedule nightly What-If outcome tracking at 00:15 UTC
+        # Schedule nightly What-If outcome tracking at 00:15 UTC (executed asynchronously in background thread)
         def run_nightly_outcome_tracking():
-            try:
-                from breakout_scanner.outcome_tracker import update_ledger_outcomes
-                self.logger.info("🌙 Running nightly What-If outcome tracking on forward-test ledger...")
-                res = update_ledger_outcomes()
-                self.logger.info(f"🌙 Nightly outcome tracking complete: {res.get('newly_evaluated', 0)} newly evaluated setups.")
-            except Exception as e:
-                self.logger.error(f"❌ Failed to run nightly outcome tracking: {e}")
+            def _async_worker():
+                try:
+                    from breakout_scanner.outcome_tracker import update_ledger_outcomes
+                    self.logger.info("🌙 Running nightly What-If outcome tracking on forward-test ledger in background thread...")
+                    res = update_ledger_outcomes()
+                    self.logger.info(f"🌙 Nightly outcome tracking complete: {res.get('newly_evaluated', 0)} newly evaluated setups.")
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to run nightly outcome tracking: {e}")
 
-        schedule.every().day.at("00:15").do(run_nightly_outcome_tracking)
-        self.logger.info("🌙 Scheduled nightly What-If outcome evaluation at 00:15 UTC")
+            import threading
+            threading.Thread(target=_async_worker, name="NightlyOutcomeTrackerThread", daemon=True).start()
+
+        schedule.every().day.at("00:15", "UTC").do(run_nightly_outcome_tracking)
+        self.logger.info("🌙 Scheduled nightly What-If outcome evaluation at 00:15 UTC (background async thread)")
 
         # Periodic telemetry pulse every 10 minutes (keeps local disk telemetry fresh during deep sleep)
         schedule.every(10).minutes.do(lambda: self.heartbeat.beat(force=True))

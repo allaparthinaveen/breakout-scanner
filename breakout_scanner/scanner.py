@@ -25,6 +25,11 @@ class MultiSymbolScanner:
         triggered periodically (e.g., every minute) as a fallback to websockets.
         """
         out = []
+        if hasattr(self.provider, "reset_circuit_breaker"):
+            self.provider.reset_circuit_breaker()
+        elif hasattr(self.provider, "consecutive_fetch_failures"):
+            self.provider.consecutive_fetch_failures = 0
+
         for symbol in symbols:
             try:
                 df = self.provider.candles(symbol, period, interval)
@@ -84,6 +89,13 @@ class MultiSymbolScanner:
                     if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
                         is_stale = True
                 if is_stale:
+                    cb_val = getattr(self.provider, "consecutive_fetch_failures", 0)
+                    if isinstance(cb_val, (int, float)) and cb_val >= 3:
+                        if cached_df is not None and not cached_df.empty:
+                            setup.htf_data_status = "STALE"
+                            return cached_df
+                        setup.htf_data_status = "FAILED"
+                        return pd.DataFrame()
                     try:
                         fresh_df = self.provider.candles(sym, period='1y', interval='1d')
                         if fresh_df is not None and not fresh_df.empty:
@@ -162,6 +174,13 @@ class MultiSymbolScanner:
                     if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
                         is_stale = True
                 if is_stale:
+                    cb_val = getattr(self.provider, "consecutive_fetch_failures", 0)
+                    if isinstance(cb_val, (int, float)) and cb_val >= 3:
+                        if cached_df is not None and not cached_df.empty:
+                            setup.sector_data_status = "STALE"
+                            return cached_df
+                        setup.sector_data_status = "FAILED"
+                        return pd.DataFrame()
                     try:
                         fresh_df = self.provider.candles(p_sym, period=p_per, interval=p_int)
                         if fresh_df is not None and not fresh_df.empty:
@@ -275,7 +294,7 @@ class MultiSymbolScanner:
                         score += 1
 
             else:
-                # US Equities: Market Regime via Benchmark (SPY / QQQ / Sector Proxy) + Analyst Fallback
+                # US Equities: Market Regime via Benchmark (SPY / QQQ / Sector Proxy)
                 spy_daily = get_cached_daily('SPY')
                 if spy_daily is None or spy_daily.empty:
                     spy_daily = get_cached_daily('QQQ')
@@ -291,16 +310,13 @@ class MultiSymbolScanner:
                     setup.regime_data_status = "OK"
                 else:
                     setup.regime_data_status = "FAILED"
+                    setup.provisional_data_incomplete = True
 
-                # Check for cached or mocked analyst rating
-                try:
-                    ticker = yf.Ticker(setup.symbol)
-                    if hasattr(ticker, 'info') and isinstance(ticker.info, dict):
-                        rec = ticker.info.get('recommendationKey', '')
-                        if rec in ['buy', 'strong_buy', 'outperform']:
-                            score += 1
-                except Exception:
-                    pass
+                if setup.regime_data_status == "OK":
+                    if target_dir == 1 and regime_bullish:
+                        score += 1
+                    elif target_dir == -1 and not regime_bullish:
+                        score += 1
 
         except Exception as e:
             logger.error(f"❌ [DataHealth] Unexpected error in enrich_bias for {setup.symbol}: {e}", exc_info=True)
@@ -370,6 +386,10 @@ class MultiSymbolScanner:
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
         fresh_setups = [s for s in active_setups if s.is_fresh_entry]
         progress_setups = [s for s in active_setups if not s.is_fresh_entry]
+
+        prov_count = sum(1 for s in setups if getattr(s, 'provisional_data_incomplete', False))
+        if prov_count > 0:
+            print(f"\n\033[93m⚠️  DATA DEGRADED: {prov_count}/{len(setups)} symbol(s) evaluated on provisional technicals (external data incomplete).\033[0m")
 
         def safe_sort_active(s: Setup):
             score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
@@ -513,6 +533,8 @@ class MultiSymbolScanner:
         grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
         
         parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
+        if getattr(s, "provisional_data_incomplete", False):
+            parts.append("\033[93m[PROVISIONAL]\033[0m")
         if risk_str:
             parts.append(risk_str)
         if frict_str:

@@ -152,6 +152,11 @@ def format_scan_report_html(
         "━━━━━━━━━━━━━━━━━━━━",
     ]
 
+    prov_count = sum(1 for s in setups if getattr(s, "provisional_data_incomplete", False))
+    if prov_count > 0:
+        lines.append(f"⚠️ <b>DATA DEGRADED:</b> {prov_count}/{len(setups)} symbol(s) evaluated on provisional technicals.")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+
     active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
 
     # Approved symbols from institutional ActionableSlate

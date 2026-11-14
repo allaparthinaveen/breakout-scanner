@@ -53,8 +53,8 @@ def send_telegram_message(message: str):
 
 from breakout_scanner.telegram_formatter import format_scan_report_html
 
-def build_report_string(setups):
-    return format_scan_report_html(setups)
+def build_report_string(setups, slate=None, market=None, timeframe="1h"):
+    return format_scan_report_html(setups, slate=slate, market=market, timeframe=timeframe)
 
 def scan_now():
     parser = argparse.ArgumentParser(description="Run breakout scanner on a watchlist")
@@ -162,33 +162,30 @@ def scan_now():
     # Print the CLI colored report
     scanner.report(setups)
 
-    # Phase 4: Actionable Trade Slate (if --slate is requested and not already printed by scanner.report)
-    if args.slate and not cfg.get('portfolio_guard', {}).get('enabled', False):
-        try:
-            from breakout_scanner.portfolio_guard import generate_actionable_slate, format_trade_slate_cli
-            slate = generate_actionable_slate(setups, config=cfg)
+    # Authoritative Institutional Actionable Trade Slate Pipeline
+    slate = None
+    try:
+        from breakout_scanner.slate import SlatePipeline
+        from breakout_scanner.portfolio_guard import format_trade_slate_cli
+        pipeline = SlatePipeline(cfg=cfg, provider=provider)
+        slate = pipeline.evaluate_setups(setups)
+        if args.slate or cfg.get('portfolio_guard', {}).get('enabled', False):
             print(format_trade_slate_cli(slate))
-        except Exception as e:
-            print(f"Trade Slate error: {e}")
+    except Exception as e:
+        import logging
+        logging.getLogger("scan_now").error(f"❌ Failed to run SlatePipeline: {e}", exc_info=True)
 
     # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
+    market_label = 'crypto' if 'crypto' in filename.lower() else ('nse' if 'nifty' in filename.lower() or 'nse' in filename.lower() else 'us')
     try:
         from breakout_scanner.telemetry import log_scan_metrics
-        market_label = 'crypto' if 'crypto' in filename.lower() else ('nse' if 'nifty' in filename.lower() or 'nse' in filename.lower() else 'us')
         log_scan_metrics(setups, market=market_label, timeframe=interval, config_name=os.path.basename(args.config))
     except Exception:
         pass
 
-    # Unified Forward-Test Audit Ledger (Records Approved, Suppressed, Rejected)
-    try:
-        from breakout_scanner.audit_ledger import record_forward_test_ledger
-        record_forward_test_ledger(setups, cfg, slate=slate if 'slate' in locals() else None)
-    except Exception:
-        pass
-    
     # Build HTML string and send via Telegram if enabled
     if not args.no_tg:
-        report_html = build_report_string(setups)
+        report_html = build_report_string(setups, slate=slate, market=market_label, timeframe=interval)
         send_telegram_message(report_html)
     else:
         print("\n🔕 Telegram notification skipped (--no-tg specified).")

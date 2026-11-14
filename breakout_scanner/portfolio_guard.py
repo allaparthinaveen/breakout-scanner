@@ -103,6 +103,11 @@ class PositionSizer:
         target_dollar_risk = self.account_equity * (self.risk_per_trade_pct / 100.0)
         max_capital_for_trade = self.account_equity * (self.max_position_size_pct / 100.0)
 
+        # 50% position risk haircut for provisional setups lacking external confirmation
+        if setup is not None and getattr(setup, "provisional_data_incomplete", False):
+            target_dollar_risk *= 0.5
+            max_capital_for_trade *= 0.5
+
         if self.allow_fractional:
             shares_by_risk = target_dollar_risk / per_share_risk
             shares_by_capital = max_capital_for_trade / entry

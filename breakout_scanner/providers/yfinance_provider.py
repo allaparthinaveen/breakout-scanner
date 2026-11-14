@@ -14,6 +14,8 @@ class YFinanceProvider(MarketDataProvider):
         self.enforce_closed_candle = enforce_closed_candle
         self.min_bars = min_bars
         self.max_retries = max_retries
+        self.consecutive_fetch_failures = 0
+        self.circuit_breaker_threshold = 3
         self.daily_cache = {}
         self.daily_cache_ts = {}
         self.market_cache = {}
@@ -37,6 +39,9 @@ class YFinanceProvider(MarketDataProvider):
         except Exception:
             pass
 
+    def reset_circuit_breaker(self):
+        self.consecutive_fetch_failures = 0
+
     def candles(
         self,
         symbol: str,
@@ -46,8 +51,16 @@ class YFinanceProvider(MarketDataProvider):
     ) -> pd.DataFrame:
         """
         Fetch OHLCV candles from Yahoo Finance with retry backoff, robust data validation and cleaning.
-        Includes automatic SQLite database bypass to eliminate 'unable to open database file' errors.
+        Includes automatic SQLite database bypass to eliminate 'unable to open database file' errors
+        and a 3-strike circuit breaker to protect against rate-limit blacklisting.
         """
+        if self.consecutive_fetch_failures >= self.circuit_breaker_threshold:
+            logger.warning(
+                f"⚠️ [CircuitBreaker] Active ({self.consecutive_fetch_failures} consecutive failures). "
+                f"Bypassing network download for {symbol}."
+            )
+            return pd.DataFrame(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+
         enforce_closed = self.enforce_closed_candle if enforce_closed_candle is None else enforce_closed_candle
         backoff_delays = [0.5, 1.5, 3.0]
         df = None
@@ -62,6 +75,7 @@ class YFinanceProvider(MarketDataProvider):
                     progress=False
                 )
                 if df is not None and not df.empty:
+                    self.consecutive_fetch_failures = 0
                     break
                 else:
                     logger.warning(f"Empty data received for {symbol} (attempt {attempt + 1}/{self.max_retries})")
@@ -88,8 +102,16 @@ class YFinanceProvider(MarketDataProvider):
                 time.sleep(delay)
 
         if df is None or df.empty:
+            self.consecutive_fetch_failures += 1
+            if self.consecutive_fetch_failures >= self.circuit_breaker_threshold:
+                logger.warning(
+                    f"⚠️ [CircuitBreaker] TRIPPED! Hit {self.consecutive_fetch_failures} consecutive Yahoo failures. "
+                    "Remaining fetches in this cycle will be marked provisional."
+                )
             logger.error(f"All {self.max_retries} attempts failed or returned empty data for {symbol}")
             return pd.DataFrame(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+
+        self.consecutive_fetch_failures = 0
 
         # Validate, deduplicate, and clean candles
         clean_df = validate_and_clean_candles(

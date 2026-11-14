@@ -364,6 +364,21 @@ class SlatePipeline:
             elif (
                 alloc.setup
                 and alloc.setup.state in (State.BUY, State.SELL)
+                and getattr(alloc.setup, "provisional_data_incomplete", False)
+                and (getattr(alloc.setup, "composite_score", 0) or 0) < 50
+            ):
+                suppressed_records.append(
+                    SuppressedRecord(
+                        symbol=alloc.symbol,
+                        suppression_code="PROVISIONAL_LOW_TECHNICAL_SCORE",
+                        reason=f"PROVISIONAL_LOW_TECHNICAL_SCORE: Technical score {getattr(alloc.setup, 'composite_score', 0)} < 50 below quality threshold",
+                        setup=alloc.setup,
+                        allocation=alloc,
+                    )
+                )
+            elif (
+                alloc.setup
+                and alloc.setup.state in (State.BUY, State.SELL)
                 and getattr(alloc.setup, "requires_confirmation", False)
                 and not getattr(alloc.setup, "provisional_data_incomplete", False)
             ):
@@ -431,8 +446,8 @@ class SlatePipeline:
         try:
             from .audit_ledger import record_forward_test_ledger
             record_forward_test_ledger(setups, self.cfg, slate=slate)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"❌ Failed to record forward-test audit ledger: {e}", exc_info=True)
 
         return slate
 

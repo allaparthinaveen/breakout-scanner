@@ -11,7 +11,7 @@
     "tightening_confirmed": true,
     "composite_score": 77,
     "composite_grade": "B",
-    "bias_score": 2
+    "bias_score": 1
   },
   "MSFT": {
     "state": "CONTRACTION",
@@ -25,7 +25,7 @@
     "tightening_confirmed": true,
     "composite_score": 77,
     "composite_grade": "B",
-    "bias_score": 2
+    "bias_score": 1
   },
   "NVDA": {
     "state": "CONTRACTION",
@@ -39,7 +39,7 @@
     "tightening_confirmed": false,
     "composite_score": 67,
     "composite_grade": "C",
-    "bias_score": 2
+    "bias_score": 1
   },
   "CSCO": {
     "state": "CONTRACTION",
@@ -53,7 +53,7 @@
     "tightening_confirmed": true,
     "composite_score": 85,
     "composite_grade": "A",
-    "bias_score": 3
+    "bias_score": 2
   },
   "ORCL": {
     "state": "CONTRACTION",
@@ -67,7 +67,7 @@
     "tightening_confirmed": false,
     "composite_score": 48,
     "composite_grade": "C",
-    "bias_score": 2
+    "bias_score": 1
   },
   "AMD": {
     "state": "CONTRACTION",
@@ -81,7 +81,7 @@
     "tightening_confirmed": true,
     "composite_score": 54,
     "composite_grade": "C",
-    "bias_score": 3
+    "bias_score": 2
   },
   "QCOM": {
     "state": "CONTRACTION",
@@ -95,6 +95,6 @@
     "tightening_confirmed": false,
     "composite_score": 72,
     "composite_grade": "B",
-    "bias_score": 1
+    "bias_score": 2
   }
 }
