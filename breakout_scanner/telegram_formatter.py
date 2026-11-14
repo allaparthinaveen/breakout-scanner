@@ -75,6 +75,8 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
         parts.append(htf)
     if grade_badge:
         parts.append(grade_badge)
+    if getattr(s, "provisional_data_incomplete", False):
+        parts.append("[⚠️ PROVISIONAL: DATA INCOMPLETE]")
 
     if not is_fresh:
         pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""

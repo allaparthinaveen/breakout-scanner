@@ -314,10 +314,15 @@ class DailyRiskBudgetEngine:
                 suppressed_trades.append(alloc)
                 continue
 
-            # Phase 2/3 Follow-Through Confirmation Guard: Suppress unconfirmed trades
-            if s.state in (State.BUY, State.SELL) and getattr(s, "requires_confirmation", False):
+            # Phase 2/3 Follow-Through Confirmation Guard: Suppress unconfirmed trades (Exempt PROVISIONAL data-incomplete setups)
+            if (
+                s.state in (State.BUY, State.SELL)
+                and getattr(s, "requires_confirmation", False)
+                and not getattr(s, "provisional_data_incomplete", False)
+            ):
+                min_score = int(self.cfg.get("confirmation_policy", {}).get("min_auto_entry_score", 70))
                 alloc.status = "SUPPRESSED"
-                alloc.reason = f"AWAITING_CONFIRMATION: Score {getattr(s, 'composite_score', 0)} < 85 requires follow-through confirmation"
+                alloc.reason = f"AWAITING_CONFIRMATION: Score {getattr(s, 'composite_score', 0)} < {min_score} requires follow-through confirmation"
                 suppressed_trades.append(alloc)
                 continue
 

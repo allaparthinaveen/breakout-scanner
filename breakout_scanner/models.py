@@ -69,6 +69,13 @@ class Setup:
     composite_grade: str = ""
     evidence_status: list[str] = field(default_factory=list)
 
+    # Data Health & Provenance Tracking (Milestone 1)
+    htf_data_status: str = "PENDING"       # "OK", "FAILED", "STALE", "PENDING"
+    sector_data_status: str = "PENDING"    # "OK", "FAILED", "STALE", "PENDING"
+    regime_data_status: str = "PENDING"    # "OK", "FAILED", "STALE", "PENDING"
+    provisional_data_incomplete: bool = False
+    is_above_daily_sma50: Optional[bool] = None
+
     # Phase 1: Robust Intraday Rules & Policy Tags
     friction_r: Optional[float] = None
     underlying_validated: bool = False

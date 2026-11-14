@@ -361,12 +361,18 @@ class SlatePipeline:
                         allocation=alloc,
                     )
                 )
-            elif alloc.setup and alloc.setup.state in (State.BUY, State.SELL) and getattr(alloc.setup, "requires_confirmation", False):
+            elif (
+                alloc.setup
+                and alloc.setup.state in (State.BUY, State.SELL)
+                and getattr(alloc.setup, "requires_confirmation", False)
+                and not getattr(alloc.setup, "provisional_data_incomplete", False)
+            ):
+                min_score = int(self.cfg.get("confirmation_policy", {}).get("min_auto_entry_score", 70))
                 suppressed_records.append(
                     SuppressedRecord(
                         symbol=alloc.symbol,
                         suppression_code="AWAITING_CONFIRMATION",
-                        reason=f"AWAITING_CONFIRMATION: Score {getattr(alloc.setup, 'composite_score', 0)} < 85 requires follow-through confirmation",
+                        reason=f"AWAITING_CONFIRMATION: Score {getattr(alloc.setup, 'composite_score', 0)} < {min_score} requires follow-through confirmation",
                         setup=alloc.setup,
                         allocation=alloc,
                     )

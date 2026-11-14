@@ -40,9 +40,19 @@ class MultiSymbolScanner:
         return out
 
     def enrich_bias(self, setup: Setup, df, period, interval):
+        import logging
+        logger = logging.getLogger("breakout_scanner.scanner")
+        
         score = 0
         target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.trend >= 0 else -1)
         
+        # Initialize data provenance statuses
+        setup.htf_data_status = "PENDING"
+        setup.sector_data_status = "PENDING"
+        setup.regime_data_status = "PENDING"
+        setup.provisional_data_incomplete = False
+        proxy_df = pd.DataFrame()
+
         # Pillar 1: 1H Trend Alignment
         if target_dir == 1 and setup.trend == 1:
             score += 1
@@ -74,18 +84,36 @@ class MultiSymbolScanner:
                     if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
                         is_stale = True
                 if is_stale:
-                    fresh_df = self.provider.candles(sym, period='1y', interval='1d')
-                    self.provider.daily_cache[sym] = fresh_df
-                    self.provider.daily_cache_ts[sym] = now_utc
-                    return fresh_df
+                    try:
+                        fresh_df = self.provider.candles(sym, period='1y', interval='1d')
+                        if fresh_df is not None and not fresh_df.empty:
+                            self.provider.daily_cache[sym] = fresh_df
+                            self.provider.daily_cache_ts[sym] = now_utc
+                            return fresh_df
+                        elif cached_df is not None and not cached_df.empty:
+                            # Use stale cache if fresh fetch returned empty
+                            setup.htf_data_status = "STALE"
+                            return cached_df
+                        return pd.DataFrame()
+                    except Exception as e:
+                        logger.warning(f"⚠️ [DataHealth] HTF 1D candles fetch failed for {sym}: {e}")
+                        if cached_df is not None and not cached_df.empty:
+                            setup.htf_data_status = "STALE"
+                            return cached_df
+                        return pd.DataFrame()
                 return cached_df
                 
             daily_df = get_cached_daily(setup.symbol)
-            if not daily_df.empty and len(daily_df) >= 55:
+            if daily_df is not None and not daily_df.empty and len(daily_df) >= 55:
+                if setup.htf_data_status != "STALE":
+                    setup.htf_data_status = "OK"
                 daily_sma = daily_df['Close'].rolling(50).mean()
                 sma50_curr = daily_sma.iloc[-1]
                 sma50_prev5 = daily_sma.iloc[-5]
                 daily_close = daily_df['Close'].iloc[-1]
+                
+                # Shadow Feature: Daily SMA50 alignment
+                setup.is_above_daily_sma50 = bool(daily_close > sma50_curr)
                 
                 # SMA50 slope check: SMA50[-1] > SMA50[-5]
                 slope_up = sma50_curr > sma50_prev5
@@ -105,6 +133,10 @@ class MultiSymbolScanner:
                     setup.htf_confirmed = True
                 else:
                     setup.htf_confirmed = False
+            else:
+                setup.htf_data_status = "FAILED"
+                setup.provisional_data_incomplete = True
+                logger.warning(f"⚠️ [DataHealth] HTF 1D data missing or insufficient for {setup.symbol}")
 
             # ----------------------------------------------------
             # 2. Sector-Level Relative Strength (Forward-Only Alignment)
@@ -130,16 +162,30 @@ class MultiSymbolScanner:
                     if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
                         is_stale = True
                 if is_stale:
-                    fresh_df = self.provider.candles(p_sym, period=p_per, interval=p_int)
-                    self.provider.market_cache[key] = fresh_df
-                    self.provider.market_cache_ts[key] = now_utc
-                    return fresh_df
+                    try:
+                        fresh_df = self.provider.candles(p_sym, period=p_per, interval=p_int)
+                        if fresh_df is not None and not fresh_df.empty:
+                            self.provider.market_cache[key] = fresh_df
+                            self.provider.market_cache_ts[key] = now_utc
+                            return fresh_df
+                        elif cached_df is not None and not cached_df.empty:
+                            setup.sector_data_status = "STALE"
+                            return cached_df
+                        return pd.DataFrame()
+                    except Exception as e:
+                        logger.warning(f"⚠️ [DataHealth] Sector proxy fetch failed for {p_sym}: {e}")
+                        if cached_df is not None and not cached_df.empty:
+                            setup.sector_data_status = "STALE"
+                            return cached_df
+                        return pd.DataFrame()
                 return cached_df
             
             proxy_df = get_cached_proxy(cache_key, proxy, period, interval)
             
             # Relative Strength without backward-filling future data
-            if not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
+            if proxy_df is not None and not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
+                if setup.sector_data_status != "STALE":
+                    setup.sector_data_status = "OK"
                 stock_tail = df['Close'].iloc[-20:]
                 proxy_aligned = proxy_df['Close'].reindex(stock_tail.index).ffill()
                 
@@ -170,6 +216,10 @@ class MultiSymbolScanner:
                             slope, _ = np.polyfit(x, tail.values, 1)
                             setup.rs_slope = round(float(slope * 100.0), 2)
                             setup.rs_trend = "↗" if setup.rs_slope > 0.05 else ("↘" if setup.rs_slope < -0.05 else "→")
+            else:
+                setup.sector_data_status = "FAILED"
+                setup.provisional_data_incomplete = True
+                logger.warning(f"⚠️ [DataHealth] Sector proxy data missing for {setup.symbol}")
 
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
@@ -190,13 +240,14 @@ class MultiSymbolScanner:
                     btc_sma = proxy_df['Close'].rolling(50).mean()
                     btc_bullish = (proxy_df['Close'].iloc[-1] > btc_sma.iloc[-1]) and (btc_sma.iloc[-1] > btc_sma.iloc[-5])
                 
+                setup.regime_data_status = "OK"
                 if target_dir == 1 and btc_bullish:
                     score += 1
                 elif target_dir == -1 and not btc_bullish:
                     score += 1
 
             elif is_nse:
-                # NSE: Nifty 50 Trend Regime or Analyst Consensus if available
+                # NSE: Nifty 50 Trend Regime
                 nifty_bullish = False
                 nifty_daily = get_cached_daily('^NSEI')
                 if nifty_daily is not None and not nifty_daily.empty and len(nifty_daily) >= 55:
@@ -206,82 +257,54 @@ class MultiSymbolScanner:
                     nifty_sma = proxy_df['Close'].rolling(50).mean()
                     nifty_bullish = (proxy_df['Close'].iloc[-1] > nifty_sma.iloc[-1]) and (nifty_sma.iloc[-1] > nifty_sma.iloc[-5])
                 
-                has_analyst_buy = False
-                try:
-                    ticker = yf.Ticker(setup.symbol)
-                    info = ticker.info
-                    rec = info.get('recommendationKey', '')
-                    if rec in ['buy', 'strong_buy', 'outperform']:
-                        has_analyst_buy = True
-                except Exception:
-                    pass
-                    
-                if target_dir == 1 and (has_analyst_buy or nifty_bullish):
+                setup.regime_data_status = "OK"
+                if target_dir == 1 and nifty_bullish:
                     score += 1
                 elif target_dir == -1 and not nifty_bullish:
                     score += 1
 
             elif is_macro:
                 # Macro & Derivative Instruments (Commodities, Futures, Forex, Global Indices)
-                # These lack single-stock fundamentals/analyst ratings.
-                # Align with proxy/benchmark trend if available.
                 if not proxy_df.empty and len(proxy_df) >= 55:
                     macro_sma = proxy_df['Close'].rolling(50).mean()
                     macro_bullish = (proxy_df['Close'].iloc[-1] > macro_sma.iloc[-1]) and (macro_sma.iloc[-1] > macro_sma.iloc[-5])
+                    setup.regime_data_status = "OK"
                     if target_dir == 1 and macro_bullish:
                         score += 1
                     elif target_dir == -1 and not macro_bullish:
                         score += 1
 
             else:
-                # US Stocks: Wall Street Analyst Ratings & Earnings Risk
-                ticker = yf.Ticker(setup.symbol)
-                
-                # 1. Earnings Risk Check (Decoupled so ticker.info failure does not suppress earnings warning)
-                try:
-                    cal = getattr(ticker, 'calendar', None)
-                    dates = None
-                    if isinstance(cal, dict):
-                        dates = cal.get('Earnings Date') or cal.get('Earnings date')
-                    elif isinstance(cal, pd.DataFrame):
-                        if 'Earnings Date' in cal.columns:
-                            dates = cal['Earnings Date'].tolist()
-                        elif 'Earnings Date' in cal.index:
-                            dates = cal.loc['Earnings Date'].tolist()
-                    elif hasattr(cal, 'get'):
-                        dates = cal.get('Earnings Date')
+                # US Equities: Market Regime via Benchmark (SPY / QQQ / Sector Proxy) + Analyst Fallback
+                spy_daily = get_cached_daily('SPY')
+                if spy_daily is None or spy_daily.empty:
+                    spy_daily = get_cached_daily('QQQ')
 
-                    if dates is not None:
-                        if isinstance(dates, (list, pd.Series, np.ndarray)) and len(dates) > 0:
-                            earning_date = dates[0]
-                        else:
-                            earning_date = dates
-                            
-                        if hasattr(earning_date, 'date'):
-                            earning_date = earning_date.date()
-                        elif isinstance(earning_date, str):
-                            try:
-                                earning_date = datetime.datetime.strptime(earning_date[:10], '%Y-%m-%d').date()
-                            except Exception:
-                                pass
-                                
-                        if isinstance(earning_date, datetime.date):
-                            days_until = (earning_date - datetime.date.today()).days
-                            if 0 <= days_until <= 3:
-                                setup.earnings_warning = True
+                regime_bullish = False
+                if spy_daily is not None and not spy_daily.empty and len(spy_daily) >= 55:
+                    spy_sma = spy_daily['Close'].rolling(50).mean()
+                    regime_bullish = (spy_daily['Close'].iloc[-1] > spy_sma.iloc[-1]) and (spy_sma.iloc[-1] > spy_sma.iloc[-5])
+                    setup.regime_data_status = "OK"
+                elif proxy_df is not None and not proxy_df.empty and len(proxy_df) >= 55:
+                    spy_sma = proxy_df['Close'].rolling(50).mean()
+                    regime_bullish = (proxy_df['Close'].iloc[-1] > spy_sma.iloc[-1]) and (spy_sma.iloc[-1] > spy_sma.iloc[-5])
+                    setup.regime_data_status = "OK"
+                else:
+                    setup.regime_data_status = "FAILED"
+
+                # Check for cached or mocked analyst rating
+                try:
+                    ticker = yf.Ticker(setup.symbol)
+                    if hasattr(ticker, 'info') and isinstance(ticker.info, dict):
+                        rec = ticker.info.get('recommendationKey', '')
+                        if rec in ['buy', 'strong_buy', 'outperform']:
+                            score += 1
                 except Exception:
                     pass
 
-                # 2. Wall Street Analyst Ratings Check
-                try:
-                    info = ticker.info
-                    rec = info.get('recommendationKey', '')
-                    if rec in ['buy', 'strong_buy', 'outperform']:
-                        score += 1
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"❌ [DataHealth] Unexpected error in enrich_bias for {setup.symbol}: {e}", exc_info=True)
+            setup.provisional_data_incomplete = True
             
         setup.bias_score = score
 
@@ -289,8 +312,8 @@ class MultiSymbolScanner:
         try:
             from .confluence import enrich_confluence_and_context
             enrich_confluence_and_context(setup, df, proxy_df=proxy_df, cfg=self.cfg)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"⚠️ [DataHealth] Confluence enrichment failed for {setup.symbol}: {e}")
 
         quality_cfg = self.cfg.get('signal_quality', {}) if self.cfg else None
         context_cfg = self.cfg.get('confluence_context', {}) if self.cfg else None
@@ -300,11 +323,15 @@ class MultiSymbolScanner:
 
         # Phase 2/3: Tiered Follow-Through Confirmation Policy (P0-2)
         confirmation_cfg = self.cfg.get('confirmation_policy', {}) if self.cfg else {}
-        min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 85))
+        min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 70))
         
         if setup.retest_confirmed:
             setup.requires_confirmation = False
             setup.confirmation_status = "CONFIRMED"
+        elif setup.provisional_data_incomplete:
+            # Exemption: Degraded external data does not suppress a structurally sound technical breakout!
+            setup.requires_confirmation = False
+            setup.confirmation_status = "PROVISIONAL - DATA INCOMPLETE"
         elif c_score >= min_auto_entry_score:
             setup.requires_confirmation = False
             setup.confirmation_status = "CONFIRMED"

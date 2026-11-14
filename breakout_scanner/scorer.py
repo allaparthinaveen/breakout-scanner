@@ -122,7 +122,13 @@ def calculate_composite_score(
             p3 += 0  # Opposing trend yields 0 pts
     else:
         p3 += 0  # Missing HTF evidence yields 0 pts
-        unconfirmed.append("Unconfirmed HTF")
+        htf_stat = getattr(setup, "htf_data_status", "")
+        if htf_stat == "FAILED":
+            unconfirmed.append("Unconfirmed HTF (Failed Fetch)")
+        elif htf_stat == "STALE":
+            unconfirmed.append("Unconfirmed HTF (Stale)")
+        elif htf_stat != "OK":
+            unconfirmed.append("Unconfirmed HTF")
 
     # Hourly (1H) Trend alignment (Max 8 pts)
     if is_finite_num(setup.trend) and setup.trend != 0:
@@ -159,7 +165,13 @@ def calculate_composite_score(
                 p4 += 2
     else:
         p4 += 0  # Missing sector evidence yields 0 pts
-        unconfirmed.append("Unconfirmed Sector")
+        sec_stat = getattr(setup, "sector_data_status", "")
+        if sec_stat == "FAILED":
+            unconfirmed.append("Unconfirmed Sector (Failed Fetch)")
+        elif sec_stat == "STALE":
+            unconfirmed.append("Unconfirmed Sector (Stale)")
+        elif sec_stat != "OK":
+            unconfirmed.append("Unconfirmed Sector")
 
     # RS Linear Regression Slope (Max 10 pts)
     if target_dir == 1:
