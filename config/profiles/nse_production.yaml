@@ -57,7 +57,7 @@ risk:
   slippage_pct: 0.03
   commission_pct: 0.10      # Includes STT (0.1% on delivery or 0.025% on intraday), GST, SEBI turnover fees
   use_cost_filter: true
-  max_friction_r: 0.18
+  max_friction_r: 0.20
 
 target:
   target_lookback: 50
@@ -106,7 +106,7 @@ portfolio_guard:
 rejection_gate:
   enabled: true
   max_stop_pct: 4.5
-  max_friction_r: 0.18
+  max_friction_r: 0.20
   min_rr_ratio: 1.0
   earnings_buffer_days: 3
   enforce_earnings_check: true
@@ -118,7 +118,7 @@ friction:
   base_slippage_pct: 0.03
   commission_pct: 0.10      # Indian statutory friction breakdown (STT + GST + Stamp Duty)
   use_dynamic_slippage: true
-  max_friction_r: 0.18
+  max_friction_r: 0.20
 
 safeguards:
   enforce_stale_data: true
