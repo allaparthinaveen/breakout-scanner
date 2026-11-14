@@ -247,7 +247,7 @@ class CloudDaemonRunner:
         )
 
         # Dispatch immediate startup heartbeat to Telegram
-        if token and chat_id:
+        if targets:
             self.logger.info("📡 Dispatching initial startup heartbeat to Telegram...")
             self.dispatch_telegram_heartbeat()
 
