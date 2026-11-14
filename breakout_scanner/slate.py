@@ -407,7 +407,7 @@ class SlatePipeline:
                 )
 
         now_str = datetime.now().isoformat()
-        return ActionableSlate(
+        slate = ActionableSlate(
             slate_id=str(uuid.uuid4())[:8],
             timestamp=now_str,
             profile_name=self.profile_name,
@@ -426,6 +426,15 @@ class SlatePipeline:
             is_illustrative_sizing=not self.portfolio_guard_enabled,
             effective_config_summary=EffectiveConfigSummary.generate_matrix(self.cfg),
         )
+
+        # Unified Audit Ledger Recording
+        try:
+            from .audit_ledger import record_forward_test_ledger
+            record_forward_test_ledger(setups, self.cfg, slate=slate)
+        except Exception:
+            pass
+
+        return slate
 
     def run_scan(
         self,

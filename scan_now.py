@@ -178,6 +178,13 @@ def scan_now():
         log_scan_metrics(setups, market=market_label, timeframe=interval, config_name=os.path.basename(args.config))
     except Exception:
         pass
+
+    # Unified Forward-Test Audit Ledger (Records Approved, Suppressed, Rejected)
+    try:
+        from breakout_scanner.audit_ledger import record_forward_test_ledger
+        record_forward_test_ledger(setups, cfg, slate=slate if 'slate' in locals() else None)
+    except Exception:
+        pass
     
     # Build HTML string and send via Telegram if enabled
     if not args.no_tg:
