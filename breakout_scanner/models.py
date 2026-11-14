@@ -105,6 +105,8 @@ class Setup:
 
     @property
     def is_tp1_reached(self) -> bool:
+        if getattr(self, "tp1_hit", False):
+            return True
         curr = self.current_price if self.current_price is not None else self.entry
         if curr is None or self.tp1 is None or self.entry is None:
             return False

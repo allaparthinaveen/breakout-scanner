@@ -32,8 +32,21 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
 
     cp_val = f"{s.current_price:.5g}" if s.current_price is not None else (f"{s.entry:.5g}" if s.entry is not None else "N/A")
     entry_val = f"{s.entry:.5g}" if s.entry is not None else "N/A"
-    stop_val = f"{s.stop:.5g}" if s.stop is not None else "N/A"
-    risk_val = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
+
+    # Detect Breakeven / Trailed Stop to avoid confusing inverse stop display
+    is_breakeven = False
+    if s.stop is not None and s.entry is not None:
+        if s.direction == 1 and s.stop >= s.entry:
+            is_breakeven = True
+        elif s.direction == -1 and s.stop <= s.entry:
+            is_breakeven = True
+
+    if is_breakeven:
+        stop_val = f"{s.stop:.5g} [🔒 BE]"
+        risk_val = "Risk: 0.00% (Protected)"
+    else:
+        stop_val = f"{s.stop:.5g}" if s.stop is not None else "N/A"
+        risk_val = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
 
     # Multi-TF HTF Badging
     if s.htf_confirmed and getattr(s, 'htf_4h_confirmed', False):
