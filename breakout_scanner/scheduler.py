@@ -341,7 +341,9 @@ class SessionScheduler:
                 }
                 try:
                     res = requests.post(url, json=payload, timeout=10)
-                    res.raise_for_status()
+                    if not res.ok:
+                        self.logger.error(f"Failed to dispatch Telegram message to {chat_id}: {res.status_code} {res.text}")
+                        all_sent = False
                 except Exception as e:
                     self.logger.error(f"Failed to dispatch Telegram message to {chat_id}: {e}")
                     all_sent = False

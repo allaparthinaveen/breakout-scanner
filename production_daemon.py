@@ -196,7 +196,9 @@ class CloudDaemonRunner:
                     json={"chat_id": cid, "text": msg, "parse_mode": "HTML"},
                     timeout=15,
                 )
-                res.raise_for_status()
+                if not res.ok:
+                    self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {res.status_code} {res.text}")
+                    all_sent = False
             except Exception as e:
                 self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {e}")
                 all_sent = False
