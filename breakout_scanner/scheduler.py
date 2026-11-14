@@ -204,7 +204,7 @@ from .market_session import (
     MultiMarketOrchestrator,
     STANDARD_MARKET_CONFIGS,
 )
-from .secrets import get_telegram_credentials
+from .secrets import get_telegram_credentials, get_telegram_targets
 
 
 def format_instant_alert(setup: Setup, timeframe: str = "1H", allocation: Optional[Any] = None) -> str:
@@ -256,6 +256,7 @@ class SessionScheduler:
         self.telegram_token = token
         self.telegram_chat_id = chat_id
         self.telegram_chat_ids = [cid.strip() for cid in (chat_id or "").replace(";", ",").split(",") if cid.strip()]
+        self.telegram_targets = get_telegram_targets()
 
         self.safeguards = ProductionSafeguards(self.cfg)
         if os.getenv("KILL_SWITCH", "").lower() in ("true", "1", "yes"):
@@ -307,12 +308,11 @@ class SessionScheduler:
         return symbols
 
     def send_telegram_alert(self, message: str) -> bool:
-        if not self.telegram_token or not self.telegram_chat_ids:
+        targets = self.telegram_targets if hasattr(self, "telegram_targets") and self.telegram_targets else get_telegram_targets()
+        if not targets:
             self.logger.warning("Telegram credentials missing in environment. Alert not sent to phone.")
             return False
 
-        url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-        
         # Split message into chunks if larger than 4000 characters (Telegram 4096 character limit)
         chunks = []
         if len(message) <= 4000:
@@ -332,7 +332,8 @@ class SessionScheduler:
                 chunks.append("\n\n".join(current))
 
         all_sent = True
-        for chat_id in self.telegram_chat_ids:
+        for token, chat_id in targets:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
             for chunk in chunks:
                 payload = {
                     "chat_id": chat_id,
@@ -342,7 +343,7 @@ class SessionScheduler:
                 try:
                     res = requests.post(url, json=payload, timeout=10)
                     if not res.ok:
-                        self.logger.error(f"Failed to dispatch Telegram message to {chat_id}: {res.status_code} {res.text}")
+                        self.logger.error(f"Failed to dispatch Telegram message to {chat_id} via bot {token[:8]}...: {res.status_code} {res.text}")
                         all_sent = False
                 except Exception as e:
                     self.logger.error(f"Failed to dispatch Telegram message to {chat_id}: {e}")

@@ -23,7 +23,7 @@ from logging.handlers import RotatingFileHandler
 from breakout_scanner.scheduler import MultiMarketScheduler, SessionScheduler
 from breakout_scanner.market_session import MultiMarketOrchestrator, STANDARD_MARKET_CONFIGS
 from breakout_scanner.heartbeat import HeartbeatMonitor
-from breakout_scanner.secrets import get_telegram_credentials
+from breakout_scanner.secrets import get_telegram_credentials, get_telegram_targets
 
 
 def setup_logger(log_file: str = "logs/cloud_daemon.log") -> logging.Logger:
@@ -181,15 +181,14 @@ class CloudDaemonRunner:
             "⚡️ <i>Scheduler active</i>"
         )
 
-        token, chat_id = get_telegram_credentials()
-        chat_ids = [cid.strip() for cid in (chat_id or "").replace(";", ",").split(",") if cid.strip()]
-        if not token or not chat_ids:
+        targets = get_telegram_targets()
+        if not targets:
             self.logger.warning("⚠️ Cannot send Telegram heartbeat: credentials missing.")
             return False
 
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
         all_sent = True
-        for cid in chat_ids:
+        for token, cid in targets:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
             try:
                 res = requests.post(
                     url,
@@ -197,7 +196,7 @@ class CloudDaemonRunner:
                     timeout=15,
                 )
                 if not res.ok:
-                    self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {res.status_code} {res.text}")
+                    self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid} via bot {token[:8]}...: {res.status_code} {res.text}")
                     all_sent = False
             except Exception as e:
                 self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {e}")
@@ -217,11 +216,10 @@ class CloudDaemonRunner:
         self.logger.info("=" * 70)
 
         # Verify Telegram configuration
-        token, chat_id = get_telegram_credentials()
-        chat_ids = [cid.strip() for cid in (chat_id or "").replace(";", ",").split(",") if cid.strip()]
-        if token and chat_ids:
-            masked_token = token[:6] + "..." + token[-4:] if len(token) > 10 else "***"
-            self.logger.info(f"📱 Telegram Dispatch Verified: {len(chat_ids)} Recipient(s) [{', '.join(chat_ids)}], Token={masked_token}")
+        targets = get_telegram_targets()
+        if targets:
+            summary = ", ".join([f"[Chat: {cid}, Bot: {tok[:6]}...]" for tok, cid in targets])
+            self.logger.info(f"📱 Telegram Dispatch Verified: {len(targets)} Target(s) -> {summary}")
         else:
             self.logger.warning("⚠️ Telegram credentials not configured. Signals will be logged locally only.")
 

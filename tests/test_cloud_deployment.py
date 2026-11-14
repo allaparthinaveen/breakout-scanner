@@ -18,6 +18,7 @@ from breakout_scanner.secrets import (
     get_secret,
     get_telegram_credentials,
     get_telegram_chat_ids,
+    get_telegram_targets,
 )
 from breakout_scanner.heartbeat import HeartbeatMonitor
 from production_daemon import CloudDaemonRunner, main as daemon_main
@@ -56,6 +57,35 @@ def test_telegram_chat_ids_multi_support():
 
     with patch.dict(os.environ, {"TG_CHAT_ID": "  "}, clear=True):
         assert get_telegram_chat_ids() == []
+
+
+def test_telegram_targets_multi_bot_support():
+    """Verifies multiple bot tokens paired with multiple chat IDs."""
+    # Case 1: Multiple paired tokens and chats (comma separated)
+    with patch.dict(os.environ, {
+        "TG_BOT_TOKEN": "bot_token_1, bot_token_2",
+        "TG_CHAT_ID": "chat_id_1, chat_id_2"
+    }, clear=True):
+        targets = get_telegram_targets()
+        assert targets == [("bot_token_1", "chat_id_1"), ("bot_token_2", "chat_id_2")]
+
+    # Case 2: Single token with multiple chats (broadcast)
+    with patch.dict(os.environ, {
+        "TG_BOT_TOKEN": "bot_token_common",
+        "TG_CHAT_ID": "chat_1, chat_2"
+    }, clear=True):
+        targets = get_telegram_targets()
+        assert targets == [("bot_token_common", "chat_1"), ("bot_token_common", "chat_2")]
+
+    # Case 3: Secondary indexed environment variables (_2)
+    with patch.dict(os.environ, {
+        "TG_BOT_TOKEN": "bot_1",
+        "TG_CHAT_ID": "chat_1",
+        "TG_BOT_TOKEN_2": "bot_2",
+        "TG_CHAT_ID_2": "chat_2"
+    }, clear=True):
+        targets = get_telegram_targets()
+        assert targets == [("bot_1", "chat_1"), ("bot_2", "chat_2")]
 
 
 def test_heartbeat_monitor_lifecycle(tmp_path):
