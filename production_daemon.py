@@ -182,23 +182,28 @@ class CloudDaemonRunner:
         )
 
         token, chat_id = get_telegram_credentials()
-        if not token or not chat_id:
+        chat_ids = [cid.strip() for cid in (chat_id or "").replace(";", ",").split(",") if cid.strip()]
+        if not token or not chat_ids:
             self.logger.warning("⚠️ Cannot send Telegram heartbeat: credentials missing.")
             return False
 
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        try:
-            res = requests.post(
-                url,
-                json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
-                timeout=15,
-            )
-            res.raise_for_status()
+        all_sent = True
+        for cid in chat_ids:
+            try:
+                res = requests.post(
+                    url,
+                    json={"chat_id": cid, "text": msg, "parse_mode": "HTML"},
+                    timeout=15,
+                )
+                res.raise_for_status()
+            except Exception as e:
+                self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {e}")
+                all_sent = False
+
+        if all_sent:
             self.logger.info("💓 40-minute Telegram Heartbeat pulse successfully dispatched.")
-            return True
-        except Exception as e:
-            self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat: {e}")
-            return False
+        return all_sent
 
     def run(self, startup_scan: bool = False, poll_sec: int = 5):
         self.running = True
@@ -211,9 +216,10 @@ class CloudDaemonRunner:
 
         # Verify Telegram configuration
         token, chat_id = get_telegram_credentials()
-        if token and chat_id:
+        chat_ids = [cid.strip() for cid in (chat_id or "").replace(";", ",").split(",") if cid.strip()]
+        if token and chat_ids:
             masked_token = token[:6] + "..." + token[-4:] if len(token) > 10 else "***"
-            self.logger.info(f"📱 Telegram Dispatch Verified: Chat ID={chat_id}, Token={masked_token}")
+            self.logger.info(f"📱 Telegram Dispatch Verified: {len(chat_ids)} Recipient(s) [{', '.join(chat_ids)}], Token={masked_token}")
         else:
             self.logger.warning("⚠️ Telegram credentials not configured. Signals will be logged locally only.")
 

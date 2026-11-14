@@ -7,7 +7,7 @@ Zero external AWS SSM dependencies, zero extra cloud cost.
 
 import os
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from dotenv import load_dotenv
 
 logger = logging.getLogger("secrets_manager")
@@ -48,3 +48,13 @@ def get_telegram_credentials() -> Tuple[Optional[str], Optional[str]]:
     token = get_secret("TG_BOT_TOKEN")
     chat_id = get_secret("TG_CHAT_ID")
     return token, chat_id
+
+
+def get_telegram_chat_ids() -> List[str]:
+    """
+    Resolves list of Telegram chat IDs from environment (supports comma/semicolon separation).
+    """
+    _, chat_id = get_telegram_credentials()
+    if not chat_id:
+        return []
+    return [cid.strip() for cid in chat_id.replace(";", ",").split(",") if cid.strip()]

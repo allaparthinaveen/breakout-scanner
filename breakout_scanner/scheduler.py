@@ -255,6 +255,7 @@ class SessionScheduler:
         token, chat_id = get_telegram_credentials()
         self.telegram_token = token
         self.telegram_chat_id = chat_id
+        self.telegram_chat_ids = [cid.strip() for cid in (chat_id or "").replace(";", ",").split(",") if cid.strip()]
 
         self.safeguards = ProductionSafeguards(self.cfg)
         if os.getenv("KILL_SWITCH", "").lower() in ("true", "1", "yes"):
@@ -306,7 +307,7 @@ class SessionScheduler:
         return symbols
 
     def send_telegram_alert(self, message: str) -> bool:
-        if not self.telegram_token or not self.telegram_chat_id:
+        if not self.telegram_token or not self.telegram_chat_ids:
             self.logger.warning("Telegram credentials missing in environment. Alert not sent to phone.")
             return False
 
@@ -331,18 +332,19 @@ class SessionScheduler:
                 chunks.append("\n\n".join(current))
 
         all_sent = True
-        for chunk in chunks:
-            payload = {
-                "chat_id": self.telegram_chat_id,
-                "text": chunk,
-                "parse_mode": "HTML"
-            }
-            try:
-                res = requests.post(url, json=payload, timeout=10)
-                res.raise_for_status()
-            except Exception as e:
-                self.logger.error(f"Failed to dispatch Telegram message: {e}")
-                all_sent = False
+        for chat_id in self.telegram_chat_ids:
+            for chunk in chunks:
+                payload = {
+                    "chat_id": chat_id,
+                    "text": chunk,
+                    "parse_mode": "HTML"
+                }
+                try:
+                    res = requests.post(url, json=payload, timeout=10)
+                    res.raise_for_status()
+                except Exception as e:
+                    self.logger.error(f"Failed to dispatch Telegram message to {chat_id}: {e}")
+                    all_sent = False
         return all_sent
 
     def scan_and_alert(self, force: bool = False) -> dict:

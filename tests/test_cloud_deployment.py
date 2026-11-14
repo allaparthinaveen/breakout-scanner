@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 from breakout_scanner.secrets import (
     get_secret,
     get_telegram_credentials,
+    get_telegram_chat_ids,
 )
 from breakout_scanner.heartbeat import HeartbeatMonitor
 from production_daemon import CloudDaemonRunner, main as daemon_main
@@ -44,6 +45,17 @@ def test_secrets_resolver_default_fallback():
         token, chat_id = get_telegram_credentials()
         assert token is None
         assert chat_id is None
+        assert get_telegram_chat_ids() == []
+
+
+def test_telegram_chat_ids_multi_support():
+    """Verifies that multiple chat IDs can be passed via comma or semicolon."""
+    with patch.dict(os.environ, {"TG_CHAT_ID": "11111, 22222; -10033333,44444"}, clear=True):
+        ids = get_telegram_chat_ids()
+        assert ids == ["11111", "22222", "-10033333", "44444"]
+
+    with patch.dict(os.environ, {"TG_CHAT_ID": "  "}, clear=True):
+        assert get_telegram_chat_ids() == []
 
 
 def test_heartbeat_monitor_lifecycle(tmp_path):
