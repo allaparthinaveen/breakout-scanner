@@ -1,5 +1,6 @@
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
 import pandas as pd
 import numpy as np
 from .engine import BreakoutEngine
@@ -7,6 +8,14 @@ from .prediction_chat import explain
 from .models import Setup, State
 from .sectors import get_sector_benchmark
 from .scorer import calculate_composite_score
+from .run_logger import (
+    generate_scan_id,
+    get_iso_timestamps,
+    get_exchange_date_str,
+    log_symbol_trace_batch,
+    log_scan_summary,
+    _STATE,
+)
 
 class MultiSymbolScanner:
     def __init__(self, provider, cfg):
@@ -21,10 +30,19 @@ class MultiSymbolScanner:
             self.engines[symbol] = BreakoutEngine(self.cfg, symbol)
         return self.engines[symbol]
 
-    def scan(self, symbols: List[str], period='60d', interval='1h') -> List[Setup]:
+    def scan(
+        self,
+        symbols: List[str],
+        period: str = '60d',
+        interval: str = '1h',
+        scan_id: Optional[str] = None,
+        market: Optional[str] = None,
+        scheduled_time: Optional[datetime] = None,
+        auto_flush: bool = True,
+    ) -> List[Setup]:
         """
-        Poll-based scan that maintains state. In a real system, this could be 
-        triggered periodically (e.g., every minute) as a fallback to websockets.
+        Poll-based scan that maintains state. Records per-symbol decision traces
+        and scan cycle metrics (§B, §C).
         """
         out = []
         self.consecutive_aux_failures = 0
@@ -45,41 +63,376 @@ class MultiSymbolScanner:
         consecutive_initial_failures = 0
         success_seen = False
 
+        market_id = (market or "US").upper()
+        scan_id = scan_id or generate_scan_id(market_id)
+        self.last_scan_id = scan_id
+        if hasattr(self.provider, "current_scan_id"):
+            self.provider.current_scan_id = scan_id
+
+        actual_start_dt = datetime.now(timezone.utc)
+        start_mono = time.time()
+        self.last_symbol_traces: List[Dict[str, Any]] = []
+        observed_bar_starts: List[str] = []
+        error_type_counts: Dict[str, int] = {}
+        stage_durations = {"fetch": 0.0, "engine": 0.0, "enrich": 0.0, "score": 0.0, "slate": 0.0}
+
         for idx, symbol in enumerate(symbols):
             if not success_seen and consecutive_initial_failures >= abort_k:
                 aborted = True
-                failed_symbols.extend(symbols[idx:])
+                remaining = symbols[idx:]
+                failed_symbols.extend(remaining)
+                for rem_sym in remaining:
+                    ts_u, ts_l = get_iso_timestamps(actual_start_dt, market=market_id)
+                    self.last_symbol_traces.append({
+                        "scan_id": scan_id,
+                        "symbol": rem_sym,
+                        "ts_utc": ts_u,
+                        "ts_local": ts_l,
+                        "market": market_id,
+                        "fetch": {
+                            "status": "SKIPPED",
+                            "error_type": "aborted",
+                            "error_message": "Scan aborted after consecutive initial empty frames",
+                            "attempts": 0,
+                            "latency_ms": 0.0,
+                            "bars_returned": 0,
+                            "first_bar_start": None,
+                            "last_bar_start": None,
+                            "last_bar_close_time": None,
+                            "last_bar_is_closed": False,
+                            "data_age_minutes": None,
+                            "duplicate_ts_count": 0,
+                            "nan_count": 0,
+                        },
+                        "engine": {
+                            "state_before": "IDLE",
+                            "state_after": "IDLE",
+                            "first_failed_gate": "skipped",
+                            "gate_details": None,
+                            "all_gates": {},
+                        },
+                        "enrich": {
+                            "htf_status": "NONE",
+                            "sector_status": "NONE",
+                            "regime_status": "NONE",
+                            "earnings_status": "NONE",
+                            "earnings_unverified": False,
+                            "provisional": False,
+                            "aux_fetch_failures_so_far": self.consecutive_aux_failures,
+                            "htf_trend_value": None,
+                            "sector_rs_value": None,
+                            "regime_bullish": None,
+                            "bias_score": 0,
+                            "components": {},
+                        },
+                        "score": {
+                            "composite_score": None,
+                            "grade": None,
+                            "pillar_scores": {},
+                            "modifiers": [],
+                        },
+                        "gates/slate": {
+                            "friction_r": None,
+                            "max_friction_r": float(self.cfg.get('risk', {}).get('max_friction_r', 0.15)) if self.cfg else 0.15,
+                            "friction_pass": None,
+                            "risk_pct": None,
+                            "rr": None,
+                            "status": "NONE",
+                            "code": None,
+                            "reason": None,
+                            "haircut_applied": False,
+                            "shares": 0,
+                            "dollar_risk": 0.0,
+                        },
+                        "timing_ms": {"fetch": 0.0, "engine": 0.0, "enrich": 0.0, "score": 0.0, "slate": 0.0},
+                    })
                 break
+
+            t_f0 = time.time()
+            fetch_err_cls = None
+            fetch_err_msg = None
+            df = None
 
             try:
                 df = self.provider.candles(symbol, period, interval)
-                if df is not None and not df.empty:
-                    success_seen = True
-                    consecutive_initial_failures = 0
-                    with_data += 1
-                    engine = self.get_engine(symbol)
-                    setup = engine.run(df)
-                    if setup.state in (State.CONTRACTION, State.BUY, State.SELL, State.FAILED):
-                        self.enrich_bias(setup, df, period, interval)
-                        
-                    out.append(setup)
-                else:
-                    failed_symbols.append(symbol)
-                    if not success_seen:
-                        consecutive_initial_failures += 1
-                        if consecutive_initial_failures >= abort_k:
-                            aborted = True
-                            failed_symbols.extend(symbols[idx + 1:])
-                            break
             except Exception as e:
+                fetch_err_cls = type(e).__name__
+                fetch_err_msg = str(e)
                 import logging
                 logging.getLogger("breakout_scanner.scanner").warning(f"Error scanning {symbol}: {e}")
+
+            fetch_ms = (time.time() - t_f0) * 1000.0
+            stage_durations["fetch"] += fetch_ms
+
+            ts_u, ts_l = get_iso_timestamps(datetime.now(timezone.utc), market=market_id)
+
+            if df is not None and not df.empty:
+                success_seen = True
+                consecutive_initial_failures = 0
+                with_data += 1
+
+                first_bar_str = str(df.index[0])
+                last_bar_str = str(df.index[-1])
+                observed_bar_starts.append(last_bar_str)
+
+                try:
+                    last_bar_dt = pd.to_datetime(last_bar_str)
+                    close_dt = last_bar_dt + pd.Timedelta(hours=1)
+                    last_bar_close_str = close_dt.isoformat()
+                    now_utc = datetime.now(timezone.utc)
+                    close_utc = close_dt.tz_localize(timezone.utc) if close_dt.tzinfo is None else close_dt.astimezone(timezone.utc)
+                    data_age_min = round((now_utc - close_utc).total_seconds() / 60.0, 1)
+                except Exception:
+                    last_bar_close_str = None
+                    data_age_min = None
+
+                dup_count = int(df.index.duplicated().sum()) if hasattr(df.index, "duplicated") else 0
+                nan_count = int(df.isna().sum().sum()) if hasattr(df, "isna") else 0
+
+                fetch_block = {
+                    "status": "OK",
+                    "error_type": None,
+                    "error_message": None,
+                    "attempts": 1,
+                    "latency_ms": round(fetch_ms, 2),
+                    "bars_returned": len(df),
+                    "first_bar_start": first_bar_str,
+                    "last_bar_start": last_bar_str,
+                    "last_bar_close_time": last_bar_close_str,
+                    "last_bar_is_closed": True,
+                    "data_age_minutes": data_age_min,
+                    "duplicate_ts_count": dup_count,
+                    "nan_count": nan_count,
+                }
+
+                t_e0 = time.time()
+                engine = self.get_engine(symbol)
+                setup = engine.run(df)
+                engine_ms = (time.time() - t_e0) * 1000.0
+                stage_durations["engine"] += engine_ms
+
+                t_en0 = time.time()
+                if setup.state in (State.CONTRACTION, State.BUY, State.SELL, State.FAILED):
+                    self.enrich_bias(setup, df, period, interval)
+                enrich_ms = (time.time() - t_en0) * 1000.0
+                stage_durations["enrich"] += enrich_ms
+
+                out.append(setup)
+
+                engine_block = getattr(setup, "engine_trace", None) or {
+                    "state_before": "IDLE",
+                    "state_after": setup.state.name if hasattr(setup.state, "name") else str(setup.state),
+                    "first_failed_gate": "none",
+                    "gate_details": None,
+                    "all_gates": {},
+                }
+
+                enrich_block = {
+                    "htf_status": setup.htf_data_status,
+                    "sector_status": setup.sector_data_status,
+                    "regime_status": setup.regime_data_status,
+                    "earnings_status": setup.earnings_data_status,
+                    "earnings_unverified": getattr(setup, "earnings_unverified", False),
+                    "provisional": getattr(setup, "provisional_data_incomplete", False),
+                    "aux_fetch_failures_so_far": self.consecutive_aux_failures,
+                    "htf_trend_value": getattr(setup, "htf_trend", None),
+                    "sector_rs_value": getattr(setup, "sector_rs_pct", None),
+                    "regime_bullish": getattr(setup, "market_regime_favorable", True),
+                    "bias_score": getattr(setup, "bias_score", 0),
+                    "components": getattr(setup, "bias_components", {}),
+                }
+
+                score_block = {
+                    "composite_score": getattr(setup, "composite_score", None),
+                    "grade": getattr(setup, "composite_grade", None),
+                    "pillar_scores": getattr(setup, "pillar_scores", {}),
+                    "modifiers": getattr(setup, "score_modifiers", []),
+                }
+
+                max_fric = float(self.cfg.get('risk', {}).get('max_friction_r', 0.15)) if self.cfg else 0.15
+                fric_r = getattr(setup, "friction_r", None)
+                fric_pass = (fric_r <= max_fric) if fric_r is not None else None
+                risk_p = getattr(setup, "risk_pct", None)
+                rr_val = round((setup.tp2 - setup.entry) / abs(setup.entry - setup.stop), 2) if (setup.entry and setup.stop and setup.tp2 and setup.entry != setup.stop) else None
+
+                slate_block = {
+                    "friction_r": fric_r,
+                    "max_friction_r": max_fric,
+                    "friction_pass": fric_pass,
+                    "risk_pct": risk_p,
+                    "rr": rr_val,
+                    "status": "APPROVED" if (setup.state in (State.BUY, State.SELL) and not setup.provisional_data_incomplete) else ("PROVISIONAL" if (setup.state in (State.BUY, State.SELL) and setup.provisional_data_incomplete) else "NONE"),
+                    "code": None,
+                    "reason": None,
+                    "haircut_applied": False,
+                    "shares": 0,
+                    "dollar_risk": 0.0,
+                }
+
+                self.last_symbol_traces.append({
+                    "scan_id": scan_id,
+                    "symbol": symbol,
+                    "ts_utc": ts_u,
+                    "ts_local": ts_l,
+                    "market": market_id,
+                    "fetch": fetch_block,
+                    "engine": engine_block,
+                    "enrich": enrich_block,
+                    "score": score_block,
+                    "gates/slate": slate_block,
+                    "timing_ms": {
+                        "fetch": round(fetch_ms, 2),
+                        "engine": round(engine_ms, 2),
+                        "enrich": round(enrich_ms, 2),
+                        "score": 0.0,
+                        "slate": 0.0,
+                    },
+                })
+
+            else:
                 failed_symbols.append(symbol)
+                err_type = "empty_frame"
+                if fetch_err_cls:
+                    err_type = "429" if ("429" in fetch_err_cls or "429" in str(fetch_err_msg)) else fetch_err_cls
+                error_type_counts[err_type] = error_type_counts.get(err_type, 0) + 1
+
+                fetch_block = {
+                    "status": "ERROR" if fetch_err_cls else "EMPTY",
+                    "error_type": err_type,
+                    "error_message": fetch_err_msg[:200] if fetch_err_msg else "DataFrame empty",
+                    "attempts": 1,
+                    "latency_ms": round(fetch_ms, 2),
+                    "bars_returned": 0,
+                    "first_bar_start": None,
+                    "last_bar_start": None,
+                    "last_bar_close_time": None,
+                    "last_bar_is_closed": False,
+                    "data_age_minutes": None,
+                    "duplicate_ts_count": 0,
+                    "nan_count": 0,
+                }
+
+                self.last_symbol_traces.append({
+                    "scan_id": scan_id,
+                    "symbol": symbol,
+                    "ts_utc": ts_u,
+                    "ts_local": ts_l,
+                    "market": market_id,
+                    "fetch": fetch_block,
+                    "engine": {
+                        "state_before": "IDLE",
+                        "state_after": "IDLE",
+                        "first_failed_gate": "empty_frame" if not fetch_err_cls else "fetch_error",
+                        "gate_details": None,
+                        "all_gates": {},
+                    },
+                    "enrich": {
+                        "htf_status": "NONE",
+                        "sector_status": "NONE",
+                        "regime_status": "NONE",
+                        "earnings_status": "NONE",
+                        "earnings_unverified": False,
+                        "provisional": False,
+                        "aux_fetch_failures_so_far": self.consecutive_aux_failures,
+                        "htf_trend_value": None,
+                        "sector_rs_value": None,
+                        "regime_bullish": None,
+                        "bias_score": 0,
+                        "components": {},
+                    },
+                    "score": {
+                        "composite_score": None,
+                        "grade": None,
+                        "pillar_scores": {},
+                        "modifiers": [],
+                    },
+                    "gates/slate": {
+                        "friction_r": None,
+                        "max_friction_r": float(self.cfg.get('risk', {}).get('max_friction_r', 0.15)) if self.cfg else 0.15,
+                        "friction_pass": None,
+                        "risk_pct": None,
+                        "rr": None,
+                        "status": "NONE",
+                        "code": None,
+                        "reason": None,
+                        "haircut_applied": False,
+                        "shares": 0,
+                        "dollar_risk": 0.0,
+                    },
+                    "timing_ms": {"fetch": round(fetch_ms, 2), "engine": 0.0, "enrich": 0.0, "score": 0.0, "slate": 0.0},
+                })
+
                 if not success_seen:
                     consecutive_initial_failures += 1
                     if consecutive_initial_failures >= abort_k:
                         aborted = True
-                        failed_symbols.extend(symbols[idx + 1:])
+                        remaining = symbols[idx + 1:]
+                        failed_symbols.extend(remaining)
+                        for rem_sym in remaining:
+                            ts_u, ts_l = get_iso_timestamps(actual_start_dt, market=market_id)
+                            self.last_symbol_traces.append({
+                                "scan_id": scan_id,
+                                "symbol": rem_sym,
+                                "ts_utc": ts_u,
+                                "ts_local": ts_l,
+                                "market": market_id,
+                                "fetch": {
+                                    "status": "SKIPPED",
+                                    "error_type": "aborted",
+                                    "error_message": "Scan aborted after consecutive initial empty frames",
+                                    "attempts": 0,
+                                    "latency_ms": 0.0,
+                                    "bars_returned": 0,
+                                    "first_bar_start": None,
+                                    "last_bar_start": None,
+                                    "last_bar_close_time": None,
+                                    "last_bar_is_closed": False,
+                                    "data_age_minutes": None,
+                                    "duplicate_ts_count": 0,
+                                    "nan_count": 0,
+                                },
+                                "engine": {
+                                    "state_before": "IDLE",
+                                    "state_after": "IDLE",
+                                    "first_failed_gate": "skipped",
+                                    "gate_details": None,
+                                    "all_gates": {},
+                                },
+                                "enrich": {
+                                    "htf_status": "NONE",
+                                    "sector_status": "NONE",
+                                    "regime_status": "NONE",
+                                    "earnings_status": "NONE",
+                                    "earnings_unverified": False,
+                                    "provisional": False,
+                                    "aux_fetch_failures_so_far": self.consecutive_aux_failures,
+                                    "htf_trend_value": None,
+                                    "sector_rs_value": None,
+                                    "regime_bullish": None,
+                                    "bias_score": 0,
+                                    "components": {},
+                                },
+                                "score": {
+                                    "composite_score": None,
+                                    "grade": None,
+                                    "pillar_scores": {},
+                                    "modifiers": [],
+                                },
+                                "gates/slate": {
+                                    "friction_r": None,
+                                    "max_friction_r": float(self.cfg.get('risk', {}).get('max_friction_r', 0.15)) if self.cfg else 0.15,
+                                    "friction_pass": None,
+                                    "risk_pct": None,
+                                    "rr": None,
+                                    "status": "NONE",
+                                    "code": None,
+                                    "reason": None,
+                                    "haircut_applied": False,
+                                    "shares": 0,
+                                    "dollar_risk": 0.0,
+                                },
+                                "timing_ms": {"fetch": 0.0, "engine": 0.0, "enrich": 0.0, "score": 0.0, "slate": 0.0},
+                            })
                         break
 
         self.last_scan_stats = {
@@ -88,8 +441,255 @@ class MultiSymbolScanner:
             "failed_symbols": failed_symbols,
             "aborted": aborted,
             "min_scan_completeness_pct": min_comp_pct,
+            "scan_id": scan_id,
+            "market": market_id,
+            "actual_start_dt": actual_start_dt,
+            "scheduled_time": scheduled_time,
+            "duration_s": round(time.time() - start_mono, 2),
+            "observed_bar_starts": observed_bar_starts,
+            "error_type_counts": error_type_counts,
+            "stage_durations": stage_durations,
         }
+
+        self._scan_flushed = False
+
+        if auto_flush:
+            self.flush_symbol_traces(
+                slate=None,
+                market=market_id,
+                scan_id=scan_id,
+                scheduled_time=scheduled_time,
+            )
+
         return out
+
+    def flush_symbol_traces(
+        self,
+        slate=None,
+        market: Optional[str] = None,
+        scan_id: Optional[str] = None,
+        scheduled_time: Optional[datetime] = None,
+        telegram_sent: bool = False,
+    ):
+        """
+        Finalizes per-symbol traces with slate allocations and writes them
+        in one buffered flush to symbol_trace.jsonl and scan_summary.jsonl (§B, §C).
+        """
+        if getattr(self, "_scan_flushed", False):
+            return
+
+        market_id = (market or getattr(self, "last_scan_stats", {}).get("market") or "US").upper()
+        sid = scan_id or getattr(self, "last_scan_id", None) or "scan"
+        stats = getattr(self, "last_scan_stats", {})
+        traces = getattr(self, "last_symbol_traces", [])
+
+        # Integrate slate results if provided
+        if slate is not None:
+            approved_map = {}
+            for t in getattr(slate, "selected_trades", []):
+                sym = t.setup.symbol if getattr(t, "setup", None) else None
+                if sym:
+                    approved_map[sym] = t
+
+            suppressed_map = {}
+            for s_rec in getattr(slate, "suppressed_trades", []):
+                suppressed_map[s_rec.symbol] = s_rec
+
+            rejected_map = {}
+            for r_rec in getattr(slate, "rejected_trades", []):
+                rejected_map[r_rec.symbol] = r_rec
+
+            for tr in traces:
+                sym = tr.get("symbol")
+                if sym in approved_map:
+                    t = approved_map[sym]
+                    tr["gates/slate"]["status"] = "PROVISIONAL" if getattr(t.setup, "provisional_data_incomplete", False) else "APPROVED"
+                    tr["gates/slate"]["code"] = "APPROVED_CANDIDATE"
+                    tr["gates/slate"]["reason"] = None
+                    tr["gates/slate"]["haircut_applied"] = getattr(t, "haircut_applied", False)
+                    tr["gates/slate"]["shares"] = getattr(t, "shares", 0)
+                    tr["gates/slate"]["dollar_risk"] = getattr(t, "dollar_risk", 0.0)
+                elif sym in suppressed_map:
+                    s_rec = suppressed_map[sym]
+                    tr["gates/slate"]["status"] = "SUPPRESSED"
+                    tr["gates/slate"]["code"] = getattr(s_rec, "suppression_code", "SUPPRESSED")
+                    tr["gates/slate"]["reason"] = getattr(s_rec, "reason", None)
+                    if getattr(s_rec, "allocation", None):
+                        tr["gates/slate"]["shares"] = s_rec.allocation.shares
+                        tr["gates/slate"]["dollar_risk"] = s_rec.allocation.dollar_risk
+                elif sym in rejected_map:
+                    r_rec = rejected_map[sym]
+                    tr["gates/slate"]["status"] = "REJECTED"
+                    tr["gates/slate"]["code"] = getattr(r_rec, "rejection_code", "REJECTED")
+                    tr["gates/slate"]["reason"] = getattr(r_rec, "reason", None)
+
+        # Flush symbol trace batch to logs/run/<date>/symbol_trace.jsonl
+        log_symbol_trace_batch(traces, market=market_id, scan_id=sid)
+
+        # Build scan summary (§C)
+        actual_start_dt = stats.get("actual_start_dt", datetime.now(timezone.utc))
+        actual_end_dt = datetime.now(timezone.utc)
+        sched_dt = scheduled_time or stats.get("scheduled_time") or actual_start_dt
+        if sched_dt.tzinfo is None:
+            sched_dt = sched_dt.replace(tzinfo=timezone.utc)
+
+        start_delay = max(0.0, round((actual_start_dt - sched_dt).total_seconds(), 2))
+        duration = stats.get("duration_s", round((actual_end_dt - actual_start_dt).total_seconds(), 2))
+
+        # Expected vs observed last bar start
+        observed_bar_starts = stats.get("observed_bar_starts", [])
+        most_common_bar = None
+        if observed_bar_starts:
+            from collections import Counter
+            most_common_bar = Counter(observed_bar_starts).most_common(1)[0][0]
+
+        expected_bar = None
+        stale_flag = "OK"
+        try:
+            from breakout_scanner.market_session import STANDARD_MARKET_CONFIGS, MarketSessionConfig
+            if market_id in STANDARD_MARKET_CONFIGS:
+                cfg_session = STANDARD_MARKET_CONFIGS[market_id]
+                from breakout_scanner.market_session import MarketSession
+                session = MarketSession(cfg_session)
+                last_closed = session.get_last_closed_candle(actual_start_dt, timeframe="1h")
+                if last_closed is not None:
+                    expected_bar = last_closed.isoformat()
+                    if most_common_bar and expected_bar and most_common_bar != expected_bar:
+                        stale_flag = "STALE_DATA"
+        except Exception:
+            pass
+
+        # Funnel Counts
+        total_syms = stats.get("total", len(traces))
+        with_data_cnt = stats.get("with_data", 0)
+        failed_syms = stats.get("failed_symbols", [])
+        completeness = round(with_data_cnt / total_syms * 100.0, 1) if total_syms > 0 else 0.0
+
+        cnt_trend_ok = 0
+        cnt_base_ok = 0
+        cnt_contraction = 0
+        cnt_breakout = 0
+        cnt_quality = 0
+        cnt_friction = 0
+        cnt_scored_gte_min = 0
+        cnt_approved = 0
+        suppressed_by_code: Dict[str, int] = {}
+        rejected_by_code: Dict[str, int] = {}
+        fresh_signals = 0
+        inprogress_signals = 0
+        provisional_cnt = 0
+        aux_htf_fails = 0
+        aux_sec_fails = 0
+        aux_reg_fails = 0
+
+        min_auto_score = float(self.cfg.get('signal_quality', {}).get('min_auto_entry_score', 70)) if self.cfg else 70.0
+
+        for tr in traces:
+            eng = tr.get("engine", {})
+            gates = eng.get("all_gates", {})
+            st_after = eng.get("state_after")
+            enrich = tr.get("enrich", {})
+            score_d = tr.get("score", {})
+            slate_d = tr.get("gates/slate", {})
+
+            if tr.get("fetch", {}).get("status") == "OK":
+                if gates.get("trend_sma50"):
+                    cnt_trend_ok += 1
+                if gates.get("base_range"):
+                    cnt_base_ok += 1
+                if st_after in ("CONTRACTION", "BUY", "SELL"):
+                    cnt_contraction += 1
+                if st_after in ("BUY", "SELL"):
+                    cnt_breakout += 1
+                    fresh_signals += 1
+
+                if enrich.get("provisional"):
+                    provisional_cnt += 1
+                if enrich.get("htf_status") in ("FAILED", "UNKNOWN"):
+                    aux_htf_fails += 1
+                if enrich.get("sector_status") in ("FAILED", "UNKNOWN"):
+                    aux_sec_fails += 1
+                if enrich.get("regime_status") in ("FAILED", "UNKNOWN"):
+                    aux_reg_fails += 1
+
+                c_score = score_d.get("composite_score")
+                if c_score is not None and c_score >= min_auto_score:
+                    cnt_scored_gte_min += 1
+                    cnt_quality += 1
+
+                if slate_d.get("friction_pass"):
+                    cnt_friction += 1
+
+                st_slate = slate_d.get("status")
+                if st_slate in ("APPROVED", "PROVISIONAL"):
+                    cnt_approved += 1
+                elif st_slate == "SUPPRESSED":
+                    code = slate_d.get("code") or "SUPPRESSED"
+                    suppressed_by_code[code] = suppressed_by_code.get(code, 0) + 1
+                elif st_slate == "REJECTED":
+                    code = slate_d.get("code") or "REJECTED"
+                    rejected_by_code[code] = rejected_by_code.get(code, 0) + 1
+
+        date_str = get_exchange_date_str(market=market_id, dt_utc=actual_start_dt)
+        scan_429, daily_429, total_attempts, total_retry_sleep_s = _STATE.get_scan_telemetry(sid, date_str)
+
+        rss_mb = 0.0
+        try:
+            import resource
+            max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            rss_mb = round(max_rss / (1024 * 1024), 2) if sys.platform == "darwin" else round(max_rss / 1024, 2)
+        except Exception:
+            pass
+
+        summary_row = {
+            "scan_id": sid,
+            "market": market_id,
+            "scheduled_time_utc": sched_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "actual_start_utc": actual_start_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "actual_end_utc": actual_end_dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "start_delay_seconds": start_delay,
+            "duration_s": duration,
+            "expected_last_closed_bar_start": expected_bar,
+            "observed_last_bar_start": most_common_bar,
+            "stale_data_flag": stale_flag,
+            "symbols_total": total_syms,
+            "symbols_with_data": with_data_cnt,
+            "symbols_failed": len(failed_syms),
+            "failed_symbols_top10": failed_syms[:10],
+            "completeness_pct": completeness,
+            "aborted": stats.get("aborted", False),
+            "error_type_counts": stats.get("error_type_counts", {}),
+            "total_attempts": total_attempts,
+            "total_retry_sleep_s": total_retry_sleep_s,
+            "aux_failures": {
+                "htf": aux_htf_fails,
+                "sector": aux_sec_fails,
+                "regime": aux_reg_fails,
+            },
+            "provisional_count": provisional_cnt,
+            "funnel_counts": {
+                "with_data": with_data_cnt,
+                "trend_ok": cnt_trend_ok,
+                "base_ok": cnt_base_ok,
+                "contraction": cnt_contraction,
+                "breakout": cnt_breakout,
+                "passed_quality": cnt_quality,
+                "passed_friction": cnt_friction,
+                "scored_gte_min_auto": cnt_scored_gte_min,
+                "approved": cnt_approved,
+                "suppressed_by_code": suppressed_by_code,
+                "rejected_by_code": rejected_by_code,
+            },
+            "signals_fresh": fresh_signals,
+            "signals_in_progress": inprogress_signals,
+            "telegram_sent": telegram_sent,
+            "per_stage_durations_ms": stats.get("stage_durations", {}),
+            "process_rss_mb": rss_mb,
+        }
+
+        log_scan_summary(summary_row, market=market_id, dt=actual_start_dt)
+        self._scan_flushed = True
+        self.last_scan_summary = summary_row
 
     def enrich_bias(self, setup: Setup, df, period, interval):
         import logging

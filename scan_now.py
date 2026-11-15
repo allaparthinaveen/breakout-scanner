@@ -9,14 +9,16 @@ from breakout_scanner.models import State
 
 load_dotenv()
 
-def send_telegram_message(message: str):
+def send_telegram_message(message: str, scan_id: str = None, market: str = None) -> bool:
     token = os.getenv("TG_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TG_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         print("\n⚠️ Telegram credentials not found in .env file. Skipping Telegram notification.")
-        return
+        return False
         
     url = f"https://api.telegram.org/bot{token}/sendMessage"
+    from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+    import time
     
     # Split message into chunks if larger than 4000 characters
     chunks = []
@@ -36,20 +38,47 @@ def send_telegram_message(message: str):
         if current:
             chunks.append("\n\n".join(current))
 
+    all_ok = True
     for chunk in chunks:
         payload = {
             "chat_id": chat_id,
             "text": chunk,
             "parse_mode": "HTML"
         }
+        t0 = time.time()
         try:
             response = requests.post(url, json=payload, timeout=10)
+            lat_ms = (time.time() - t0) * 1000.0
+            log_telegram_send(
+                bot_label=mask_token(token),
+                chat_label=mask_chat_id(chat_id),
+                message_type="signal",
+                chunk_count=len(chunks),
+                http_status=response.status_code,
+                latency_ms=lat_ms,
+                scan_id=scan_id,
+                market=market,
+            )
             response.raise_for_status()
         except Exception as e:
+            lat_ms = (time.time() - t0) * 1000.0
             print(f"\n❌ Failed to send Telegram message: {e}")
-            return
+            log_telegram_send(
+                bot_label=mask_token(token),
+                chat_label=mask_chat_id(chat_id),
+                message_type="signal",
+                chunk_count=len(chunks),
+                http_status=getattr(getattr(e, "response", None), "status_code", None),
+                latency_ms=lat_ms,
+                error_text=str(e),
+                scan_id=scan_id,
+                market=market,
+            )
+            all_ok = False
+            return False
             
     print("\n📱 Successfully sent report to Telegram!")
+    return all_ok
 
 from breakout_scanner.telegram_formatter import format_scan_report_html
 
@@ -153,11 +182,24 @@ def scan_now():
         print("  • NEVER use underlying stop distance directly as option contract stop.")
     print("=" * 65)
     
+    market_label = 'crypto' if 'crypto' in filename.lower() else ('nse' if 'nifty' in filename.lower() or 'nse' in filename.lower() else 'us')
+    
+    from breakout_scanner.run_logger import generate_scan_id, log_startup_snapshot
+    scan_id = generate_scan_id(market_label)
+    log_startup_snapshot(
+        market=market_label,
+        config_path=args.config,
+        cfg=cfg,
+        watchlist_file=filename,
+        symbols=symbols,
+        component="cli",
+    )
+
     from breakout_scanner.scanner import MultiSymbolScanner
     scanner = MultiSymbolScanner(provider, cfg)
     
     # Run scanner and grab results
-    setups = scanner.scan(symbols, period=period, interval=interval)
+    setups = scanner.scan(symbols, period=period, interval=interval, scan_id=scan_id, market=market_label, auto_flush=False)
     
     # Print the CLI colored report
     scanner.report(setups)
@@ -176,7 +218,6 @@ def scan_now():
         logging.getLogger("scan_now").error(f"❌ Failed to run SlatePipeline: {e}", exc_info=True)
 
     # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
-    market_label = 'crypto' if 'crypto' in filename.lower() else ('nse' if 'nifty' in filename.lower() or 'nse' in filename.lower() else 'us')
     try:
         from breakout_scanner.telemetry import log_scan_metrics
         log_scan_metrics(setups, market=market_label, timeframe=interval, config_name=os.path.basename(args.config))
@@ -184,12 +225,16 @@ def scan_now():
         pass
 
     # Build HTML string and send via Telegram if enabled
+    tg_sent = False
     if not args.no_tg:
         scan_stats = getattr(scanner, "last_scan_stats", None)
         report_html = build_report_string(setups, slate=slate, market=market_label, timeframe=interval, scan_stats=scan_stats)
-        send_telegram_message(report_html)
+        tg_sent = send_telegram_message(report_html, scan_id=scan_id, market=market_label)
     else:
         print("\n🔕 Telegram notification skipped (--no-tg specified).")
+
+    # Flush per-symbol decision traces with slate allocations and scan summary
+    scanner.flush_symbol_traces(slate=slate, market=market_label, scan_id=scan_id, telegram_sent=tg_sent)
             
     print("Scan complete.")
 

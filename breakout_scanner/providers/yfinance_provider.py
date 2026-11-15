@@ -59,6 +59,7 @@ class YFinanceProvider(MarketDataProvider):
         df = None
 
         for attempt in range(self.max_retries):
+            t0 = time.time()
             try:
                 df = yf.download(
                     symbol,
@@ -67,11 +68,40 @@ class YFinanceProvider(MarketDataProvider):
                     auto_adjust=False,
                     progress=False
                 )
+                lat_ms = (time.time() - t0) * 1000.0
                 if df is not None and not df.empty:
                     self.consecutive_fetch_failures = 0
+                    try:
+                        from breakout_scanner.run_logger import log_yf_call
+                        log_yf_call(
+                            symbol=symbol,
+                            interval=interval,
+                            period=period,
+                            attempt=attempt + 1,
+                            latency_ms=lat_ms,
+                            outcome="OK",
+                            rows_returned=len(df),
+                            scan_id=getattr(self, "current_scan_id", None),
+                        )
+                    except Exception:
+                        pass
                     break
                 else:
                     logger.warning(f"Empty data received for {symbol} (attempt {attempt + 1}/{self.max_retries})")
+                    try:
+                        from breakout_scanner.run_logger import log_yf_call
+                        log_yf_call(
+                            symbol=symbol,
+                            interval=interval,
+                            period=period,
+                            attempt=attempt + 1,
+                            latency_ms=lat_ms,
+                            outcome="EMPTY",
+                            rows_returned=0,
+                            scan_id=getattr(self, "current_scan_id", None),
+                        )
+                    except Exception:
+                        pass
                     # If empty data received, bypass SQLite cache for next attempt to avoid lock/corruption
                     try:
                         import yfinance.cache as yc
@@ -81,7 +111,23 @@ class YFinanceProvider(MarketDataProvider):
                     except Exception:
                         pass
             except Exception as e:
+                lat_ms = (time.time() - t0) * 1000.0
                 logger.warning(f"Attempt {attempt + 1}/{self.max_retries} failed to download candles for {symbol}: {e}")
+                try:
+                    from breakout_scanner.run_logger import log_yf_call
+                    log_yf_call(
+                        symbol=symbol,
+                        interval=interval,
+                        period=period,
+                        attempt=attempt + 1,
+                        latency_ms=lat_ms,
+                        outcome="ERROR",
+                        error_class=type(e).__name__,
+                        error_message=str(e),
+                        scan_id=getattr(self, "current_scan_id", None),
+                    )
+                except Exception:
+                    pass
                 try:
                     import yfinance.cache as yc
                     tz_cache = yc.get_tz_cache()
@@ -92,6 +138,16 @@ class YFinanceProvider(MarketDataProvider):
 
             if attempt < self.max_retries - 1:
                 delay = backoff_delays[min(attempt, len(backoff_delays) - 1)]
+                try:
+                    from breakout_scanner.run_logger import log_yf_retry_sleep
+                    log_yf_retry_sleep(
+                        symbol=symbol,
+                        sleep_seconds=delay,
+                        attempt=attempt + 1,
+                        scan_id=getattr(self, "current_scan_id", None),
+                    )
+                except Exception:
+                    pass
                 time.sleep(delay)
 
         if df is None or df.empty:
@@ -125,6 +181,7 @@ class YFinanceProvider(MarketDataProvider):
         last_price = fallback_price
         volume = None
 
+        t0 = time.time()
         try:
             ticker = yf.Ticker(symbol)
             fi = getattr(ticker, "fast_info", None)
@@ -133,8 +190,36 @@ class YFinanceProvider(MarketDataProvider):
                 bid = getattr(fi, "bid", None)
                 ask = getattr(fi, "ask", None)
                 volume = getattr(fi, "last_volume", None) or getattr(fi, "regular_market_volume", None)
-        except Exception:
-            pass
+            try:
+                from breakout_scanner.run_logger import log_yf_call
+                log_yf_call(
+                    symbol=symbol,
+                    interval="quote",
+                    period="",
+                    attempt=1,
+                    latency_ms=(time.time() - t0) * 1000.0,
+                    outcome="OK",
+                    rows_returned=1 if last_price else 0,
+                    scan_id=getattr(self, "current_scan_id", None),
+                )
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                from breakout_scanner.run_logger import log_yf_call
+                log_yf_call(
+                    symbol=symbol,
+                    interval="quote",
+                    period="",
+                    attempt=1,
+                    latency_ms=(time.time() - t0) * 1000.0,
+                    outcome="ERROR",
+                    error_class=type(e).__name__,
+                    error_message=str(e),
+                    scan_id=getattr(self, "current_scan_id", None),
+                )
+            except Exception:
+                pass
 
         if last_price is None and fallback_price is not None:
             last_price = fallback_price

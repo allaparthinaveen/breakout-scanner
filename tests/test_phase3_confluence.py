@@ -81,7 +81,7 @@ def test_market_regime_bull_vs_high_vol_selloff():
 
 def test_earnings_proximity_check():
     """Verify calculation of days until earnings and imminent flag."""
-    today = datetime.date.today()
+    today = datetime.datetime.now(datetime.timezone.utc).date()
 
     # Imminent earnings in 2 days
     cal_imminent = {"Earnings Date": [(today + datetime.timedelta(days=2))]}

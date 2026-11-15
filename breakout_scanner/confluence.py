@@ -7,6 +7,7 @@ Pure quantitative context functions evaluating:
 3. Earnings Proximity Calendar Analysis
 """
 
+import time
 import datetime
 from typing import Tuple, Optional, Dict, Any
 import numpy as np
@@ -252,8 +253,38 @@ def check_earnings_proximity(
         cal = calendar_data
         if cal is None:
             import yfinance as yf
-            ticker = yf.Ticker(symbol)
-            cal = getattr(ticker, "calendar", None)
+            t0 = time.time()
+            try:
+                ticker = yf.Ticker(symbol)
+                cal = getattr(ticker, "calendar", None)
+                try:
+                    from breakout_scanner.run_logger import log_yf_call
+                    log_yf_call(
+                        symbol=symbol,
+                        interval="calendar",
+                        period="",
+                        attempt=1,
+                        latency_ms=(time.time() - t0) * 1000.0,
+                        outcome="OK" if cal is not None else "EMPTY",
+                        rows_returned=len(cal) if hasattr(cal, "__len__") else (1 if cal else 0),
+                    )
+                except Exception:
+                    pass
+            except Exception as e:
+                try:
+                    from breakout_scanner.run_logger import log_yf_call
+                    log_yf_call(
+                        symbol=symbol,
+                        interval="calendar",
+                        period="",
+                        attempt=1,
+                        latency_ms=(time.time() - t0) * 1000.0,
+                        outcome="ERROR",
+                        error_class=type(e).__name__,
+                        error_message=str(e),
+                    )
+                except Exception:
+                    pass
 
         if cal is None:
             _EARNINGS_CACHE[symbol] = {

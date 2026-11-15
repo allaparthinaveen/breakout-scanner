@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 
 class State(str, Enum):
     IDLE = 'IDLE'
@@ -107,6 +107,7 @@ class Setup:
 
     # Phase 4: Risk & Portfolio Guard
     position_allocation: Optional[Any] = None
+    engine_trace: Optional[Dict[str, Any]] = None
 
     @property
     def breakout_score(self) -> int:

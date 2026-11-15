@@ -22,6 +22,7 @@ from .config import load_config
 from .providers.yfinance_provider import YFinanceProvider
 from .scanner import MultiSymbolScanner
 from .safeguards import ProductionSafeguards
+from .run_logger import log_event, generate_scan_id, log_telegram_send, mask_token, mask_chat_id
 
 load_dotenv()
 
@@ -340,12 +341,43 @@ class SessionScheduler:
                     "text": chunk,
                     "parse_mode": "HTML"
                 }
+                t0 = time.time()
                 try:
                     res = requests.post(url, json=payload, timeout=10)
+                    lat_ms = (time.time() - t0) * 1000.0
+                    try:
+                        from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+                        log_telegram_send(
+                            bot_label=mask_token(token),
+                            chat_label=mask_chat_id(chat_id),
+                            message_type="signal" if ("SCAN_REPORT" in message or "SECTION" in message) else "alert",
+                            chunk_count=len(chunks),
+                            http_status=res.status_code,
+                            latency_ms=lat_ms,
+                            error_text=res.text if not res.ok else None,
+                            market=self.market_id,
+                        )
+                    except Exception:
+                        pass
                     if not res.ok:
                         self.logger.error(f"Failed to dispatch Telegram message to {chat_id} via bot {token[:8]}...: {res.status_code} {res.text}")
                         all_sent = False
                 except Exception as e:
+                    lat_ms = (time.time() - t0) * 1000.0
+                    try:
+                        from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+                        log_telegram_send(
+                            bot_label=mask_token(token),
+                            chat_label=mask_chat_id(chat_id),
+                            message_type="alert",
+                            chunk_count=len(chunks),
+                            http_status=getattr(getattr(e, "response", None), "status_code", None),
+                            latency_ms=lat_ms,
+                            error_text=str(e),
+                            market=self.market_id,
+                        )
+                    except Exception:
+                        pass
                     self.logger.error(f"Failed to dispatch Telegram message to {chat_id}: {e}")
                     all_sent = False
         return all_sent
@@ -358,15 +390,42 @@ class SessionScheduler:
         """
         symbols = self.load_symbols()
         start_time = time.time()
+        now_dt = datetime.now(timezone.utc)
+        sched_anchor = now_dt.replace(second=0, microsecond=0)
+        drift_s = round(abs((now_dt - sched_anchor).total_seconds()), 2)
+
+        scan_id = generate_scan_id(self.market_id)
+
+        try:
+            log_event(
+                event="job_fire",
+                market=self.market_id,
+                scan_id=scan_id,
+                job_name=f"candle_scan_{self.market_id}",
+                scheduled_time=sched_anchor.isoformat(),
+                actual_time=now_dt.isoformat(),
+                drift_seconds=drift_s,
+            )
+        except Exception:
+            pass
+
         self.logger.info(f"⚡ Starting candle close scan across {len(symbols)} symbols...")
 
         # Market Session Open Check (when enforce_market_hours is enabled)
         if self.enforce_market_hours and not force and self.market_session is not None:
             now_utc = pd.Timestamp.now(tz="UTC")
             if not self.market_session.is_session_active_or_recent_close(now_utc):
-                self.logger.info(
-                    f"⏸️ [SESSION] Market {self.market_id} is currently CLOSED or in lunch break. Skipping live scan."
-                )
+                reason_msg = f"Market {self.market_id} is currently CLOSED or in lunch break. Skipping live scan."
+                self.logger.info(f"⏸️ [SESSION] {reason_msg}")
+                try:
+                    log_event(
+                        event="job_skipped",
+                        market=self.market_id,
+                        scan_id=scan_id,
+                        reason=reason_msg,
+                    )
+                except Exception:
+                    pass
                 return {
                     "scanned": 0,
                     "fresh_alerts": 0,
@@ -378,7 +437,17 @@ class SessionScheduler:
 
         # Production Safeguards Check 1: Kill Switch
         if self.safeguards.kill_switch_active:
-            self.logger.critical("🛑 [SAFEGUARDS] Global Kill Switch is ACTIVE. Halting scan and alert pipeline.")
+            reason_msg = "Global Kill Switch is ACTIVE. Halting scan and alert pipeline."
+            self.logger.critical(f"🛑 [SAFEGUARDS] {reason_msg}")
+            try:
+                log_event(
+                    event="job_skipped",
+                    market=self.market_id,
+                    scan_id=scan_id,
+                    reason=reason_msg,
+                )
+            except Exception:
+                pass
             return {
                 "scanned": 0,
                 "fresh_alerts": 0,
@@ -391,7 +460,17 @@ class SessionScheduler:
         # Production Safeguards Check 2: Daily Loss Limit (P0-5)
         account_size = float(self.cfg.get('risk', {}).get('account_size', 100000.0))
         if not self.safeguards.check_daily_loss_limit(account_size, portfolio_state=self.portfolio_state):
-            self.logger.critical("🛑 [SAFEGUARDS] Daily loss limit breached. Circuit breaker tripped.")
+            reason_msg = "Daily loss limit breached. Circuit breaker tripped."
+            self.logger.critical(f"🛑 [SAFEGUARDS] {reason_msg}")
+            try:
+                log_event(
+                    event="job_skipped",
+                    market=self.market_id,
+                    scan_id=scan_id,
+                    reason=reason_msg,
+                )
+            except Exception:
+                pass
             return {
                 "scanned": 0,
                 "fresh_alerts": 0,
@@ -402,7 +481,7 @@ class SessionScheduler:
             }
 
         # 1H candles for timely execution
-        setups = self.scanner.scan(symbols, period="60d", interval="1h")
+        setups = self.scanner.scan(symbols, period="60d", interval="1h", scan_id=scan_id, market=self.market_id, auto_flush=False)
 
         # Persistent Portfolio State: Mark-to-market and exit check (P0-4 & P1-3)
         exit_events = self.portfolio_state.update_market_data(setups)
@@ -612,6 +691,18 @@ class SessionScheduler:
             f"Evaluated {len(symbols)} symbols | Slate Actionable: {len(slate.selected_trades)} | "
             f"Fresh Alerts: {fresh_alerts_sent} | Deduplicated Skipped: {duplicates_skipped}"
         )
+
+        # Flush per-symbol traces with slate allocations and scan summary (§B, §C)
+        try:
+            self.scanner.flush_symbol_traces(
+                slate=slate,
+                market=self.market_id,
+                scan_id=scan_id,
+                scheduled_time=sched_anchor,
+                telegram_sent=bool(fresh_alerts_sent > 0),
+            )
+        except Exception:
+            pass
 
         # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
         try:

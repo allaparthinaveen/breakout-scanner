@@ -184,21 +184,107 @@ class CloudDaemonRunner:
         all_sent = True
         for token, cid in targets:
             url = f"https://api.telegram.org/bot{token}/sendMessage"
+            t0 = time.time()
             try:
                 res = requests.post(
                     url,
                     json={"chat_id": cid, "text": msg, "parse_mode": "HTML"},
                     timeout=15,
                 )
+                lat_ms = (time.time() - t0) * 1000.0
+                try:
+                    from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+                    log_telegram_send(
+                        bot_label=mask_token(token),
+                        chat_label=mask_chat_id(cid),
+                        message_type="heartbeat",
+                        chunk_count=1,
+                        http_status=res.status_code,
+                        latency_ms=lat_ms,
+                        error_text=res.text if not res.ok else None,
+                        market="ALL",
+                    )
+                except Exception:
+                    pass
                 if not res.ok:
                     self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid} via bot {token[:8]}...: {res.status_code} {res.text}")
                     all_sent = False
             except Exception as e:
+                lat_ms = (time.time() - t0) * 1000.0
+                try:
+                    from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+                    log_telegram_send(
+                        bot_label=mask_token(token),
+                        chat_label=mask_chat_id(cid),
+                        message_type="heartbeat",
+                        chunk_count=1,
+                        http_status=getattr(getattr(e, "response", None), "status_code", None),
+                        latency_ms=lat_ms,
+                        error_text=str(e),
+                        market="ALL",
+                    )
+                except Exception:
+                    pass
                 self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {e}")
                 all_sent = False
 
         if all_sent:
             self.logger.info("💓 40-minute Telegram Heartbeat pulse successfully dispatched.")
+
+        # Heartbeat Telemetry Logging (§E)
+        try:
+            from breakout_scanner.run_logger import log_event, _STATE
+            rss_mb = 0.0
+            open_fds = 0
+            disk_free_gb = 0.0
+            logs_size_bytes = 0
+            try:
+                import resource
+                max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                rss_mb = round(max_rss / (1024 * 1024), 2) if sys.platform == "darwin" else round(max_rss / 1024, 2)
+            except Exception:
+                pass
+
+            try:
+                import shutil
+                total, used, free = shutil.disk_usage(".")
+                disk_free_gb = round(free / (1024 ** 3), 2)
+            except Exception:
+                pass
+
+            try:
+                if os.path.exists("logs"):
+                    logs_size_bytes = sum(
+                        os.path.getsize(os.path.join(dirpath, f))
+                        for dirpath, dirnames, filenames in os.walk("logs")
+                        for f in filenames
+                    )
+            except Exception:
+                pass
+
+            try:
+                if sys.platform != "win32" and os.path.exists("/dev/fd"):
+                    open_fds = len(os.listdir("/dev/fd"))
+            except Exception:
+                pass
+
+            log_event(
+                event="heartbeat_telemetry",
+                market="ALL",
+                component="daemon",
+                level="INFO",
+                message=f"40-min heartbeat: {uptime_sec}s uptime, {rss_mb} MB RSS, {disk_free_gb} GB disk free",
+                uptime_seconds=uptime_sec,
+                last_successful_scan_time=_STATE.last_successful_scans,
+                consecutive_failed_scans=_STATE.consecutive_failed_scans,
+                memory_mb=rss_mb,
+                open_file_count=open_fds,
+                disk_free_gb=disk_free_gb,
+                log_directory_size_bytes=logs_size_bytes,
+            )
+        except Exception:
+            pass
+
         return all_sent
 
     def run(self, startup_scan: bool = False, poll_sec: int = 5):
@@ -224,6 +310,22 @@ class CloudDaemonRunner:
         # Register exchange-aligned candle close schedules
         self.scheduler.schedule_all()
 
+        # Startup Snapshot (§A)
+        try:
+            from breakout_scanner.run_logger import log_startup_snapshot, rotate_and_clean_logs
+            retention_days = int(self.scheduler.base_cfg.get("logging", {}).get("retention_days", 14))
+            rotate_and_clean_logs(base_dir="logs/run", retention_days=retention_days)
+            log_startup_snapshot(
+                market=",".join(self.markets),
+                config_path=self.config_path,
+                cfg=self.scheduler.base_cfg,
+                component="daemon",
+                schedule_jobs=schedule.jobs,
+                market_session=getattr(self.scheduler.schedulers.get("US", self.scheduler.schedulers.get("NSE", None)), "market_session", None),
+            )
+        except Exception as e:
+            self.logger.warning(f"Failed to write startup snapshot: {e}")
+
         # Schedule 40-minute Telegram Heartbeat pulse
         schedule.every(40).minutes.do(self.dispatch_telegram_heartbeat)
         self.logger.info("💓 Scheduled 40-minute Telegram Heartbeat notification")
@@ -233,11 +335,45 @@ class CloudDaemonRunner:
             def _async_worker():
                 try:
                     from breakout_scanner.outcome_tracker import update_ledger_outcomes
+                    from breakout_scanner.run_logger import log_event
+                    t_ot0 = time.time()
+                    try:
+                        log_event(event="outcome_tracker_start", market="ALL", component="outcome_tracker", message="Nightly outcome tracking started")
+                    except Exception:
+                        pass
                     self.logger.info("🌙 Running nightly What-If outcome tracking on forward-test ledger in background thread...")
                     res = update_ledger_outcomes()
+                    dur_s = round(time.time() - t_ot0, 2)
                     self.logger.info(f"🌙 Nightly outcome tracking complete: {res.get('newly_evaluated', 0)} newly evaluated setups.")
+                    try:
+                        log_event(
+                            event="outcome_tracker_end",
+                            market="ALL",
+                            component="outcome_tracker",
+                            message=f"Nightly outcome tracking completed in {dur_s}s",
+                            records_read=res.get("records_read", 0),
+                            newly_evaluated=res.get("newly_evaluated", 0),
+                            expired=res.get("expired", 0),
+                            per_symbol_fetch_failures=res.get("per_symbol_fetch_failures", {}),
+                            duration_seconds=dur_s,
+                        )
+                    except Exception:
+                        pass
                 except Exception as e:
-                    self.logger.error(f"❌ Failed to run nightly outcome tracking: {e}")
+                    self.logger.error(f"❌ Failed to run nightly outcome tracking: {e}", exc_info=True)
+                    try:
+                        from breakout_scanner.run_logger import log_event
+                        import traceback
+                        log_event(
+                            event="outcome_tracker_error",
+                            market="ALL",
+                            level="ERROR",
+                            component="outcome_tracker",
+                            message=f"Outcome tracker exception: {e}",
+                            error_trace=traceback.format_exc()[:300],
+                        )
+                    except Exception:
+                        pass
 
             import threading
             threading.Thread(target=_async_worker, name="NightlyOutcomeTrackerThread", daemon=True).start()
@@ -251,6 +387,7 @@ class CloudDaemonRunner:
         now_utc = pd.Timestamp.now(tz="UTC")
         active = self.orchestrator.get_active_markets(dt=now_utc, include_recent_close=False)
         closed = [m for m in self.markets if m not in active]
+        self.previous_active_markets = set(active)
         self.heartbeat.update_stats(
             status="HEALTHY",
             configured_markets=self.markets,
@@ -270,11 +407,57 @@ class CloudDaemonRunner:
 
         # Continuous production event loop (deep sleep between triggers to save CPU credits)
         try:
+            from breakout_scanner.run_logger import _STATE, log_event
             while self.running:
+                gap = _STATE.check_daemon_gap(threshold_sec=120.0)
+                if gap:
+                    self.logger.warning(f"⚠️ [DAEMON_GAP] Main loop tick gap detected: {gap}s")
+                    try:
+                        log_event(
+                            event="daemon_gap",
+                            market="ALL",
+                            level="WARNING",
+                            component="daemon",
+                            message=f"Main loop stalled/slept for {gap}s (> 120s threshold)",
+                            gap_seconds=gap,
+                        )
+                    except Exception:
+                        pass
+
+                # Session transitions check
+                try:
+                    now_check = pd.Timestamp.now(tz="UTC")
+                    curr_active = set(self.orchestrator.get_active_markets(dt=now_check, include_recent_close=False))
+                    opened = curr_active - self.previous_active_markets
+                    closed_now = self.previous_active_markets - curr_active
+                    for op_m in opened:
+                        log_event(event="session_open", market=op_m, component="market_session", message=f"Market session opened for {op_m}")
+                    for cl_m in closed_now:
+                        log_event(event="session_close", market=cl_m, component="market_session", message=f"Market session closed for {cl_m}")
+                    self.previous_active_markets = curr_active
+                except Exception:
+                    pass
+
                 schedule.run_pending()
                 time.sleep(poll_sec)
         except Exception as e:
+            import traceback
+            tb_str = traceback.format_exc()
             self.logger.critical(f"💥 Fatal unhandled exception in daemon loop: {e}", exc_info=True)
+            try:
+                from breakout_scanner.run_logger import log_event
+                log_event(
+                    event="daemon_exception",
+                    market="ALL",
+                    level="CRITICAL",
+                    component="daemon",
+                    message=f"Fatal exception in daemon loop: {e}",
+                    error_trace=tb_str[:300],
+                )
+            except Exception:
+                pass
+            self.heartbeat.update_stats(status="DEGRADED")
+            raise
             self.heartbeat.update_stats(status="DEGRADED")
             raise
         finally:

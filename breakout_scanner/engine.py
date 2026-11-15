@@ -133,6 +133,154 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
 
     return df
 
+def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_state: State) -> dict:
+    """
+    Computes per-symbol decision trace for the 'why no signal' funnel (§B).
+    Returns {state_before, state_after, first_failed_gate, gate_details, all_gates}.
+    """
+    try:
+        c_trend = cfg.get('trend', {}) if cfg else {}
+        c_base = cfg.get('base', {}) if cfg else {}
+        c_vol = cfg.get('volume', {}) if cfg else {}
+        c_break = cfg.get('breakout', {}) if cfg else {}
+        c_risk = cfg.get('risk', {}) if cfg else {}
+        c_qual = cfg.get('signal_quality', {}) if cfg else {}
+
+        state_before = initial_state.name if hasattr(initial_state, "name") else str(initial_state)
+        state_after = setup.state.name if hasattr(setup.state, "name") else str(setup.state)
+
+        if setup.state in (State.BUY, State.SELL):
+            return {
+                "state_before": state_before,
+                "state_after": state_after,
+                "first_failed_gate": "none",
+                "gate_details": None,
+                "all_gates": {
+                    "trend_sma50": True,
+                    "base_range": True,
+                    "tightening/decay": True,
+                    "volume_contraction": True,
+                    "breakout_volume": True,
+                    "clv": True,
+                    "base_trap": True,
+                    "min_stop": True,
+                    "max_stop": True,
+                    "rr": True,
+                }
+            }
+
+        if df is None or df.empty:
+            return {
+                "state_before": state_before,
+                "state_after": state_after,
+                "first_failed_gate": "empty_frame",
+                "gate_details": None,
+                "all_gates": {},
+            }
+
+        all_gates = {}
+        first_failed = None
+        gate_details = None
+
+        # 1. trend_sma50
+        trend_ok = bool(df['LongTrendOK'].iloc[-1]) if 'LongTrendOK' in df else True
+        close_val = float(df['Close'].iloc[-1]) if 'Close' in df else 0.0
+        sma_val = float(df['SMA'].iloc[-1]) if 'SMA' in df and is_finite_num(df['SMA'].iloc[-1]) else close_val
+        trend_ratio = round(close_val / sma_val, 3) if sma_val > 0 else 1.0
+        all_gates["trend_sma50"] = trend_ok
+
+        # 2. base_range
+        base_rng = float(df['BaseRangePct'].iloc[-1]) if 'BaseRangePct' in df and is_finite_num(df['BaseRangePct'].iloc[-1]) else 0.0
+        max_base = float(c_base.get('max_base_range_pct', 15.0))
+        base_ok = base_rng <= max_base
+        all_gates["base_range"] = base_ok
+
+        # 3. tightening/decay
+        tight_ok = bool(df['TighteningOK'].iloc[-1]) if 'TighteningOK' in df else True
+        decay_val = float(setup.decay_ratio) if getattr(setup, "decay_ratio", None) is not None else 0.5
+        all_gates["tightening/decay"] = tight_ok
+
+        # 4. volume_contraction
+        vol_cont_ok = bool(df['VolContractionOK'].iloc[-1]) if 'VolContractionOK' in df else True
+        vdu_val = float(setup.vdu_ratio) if getattr(setup, "vdu_ratio", None) is not None else 0.6
+        all_gates["volume_contraction"] = vol_cont_ok
+
+        # 5. breakout_volume
+        break_vol_ok = bool(df['BreakoutVolOK'].iloc[-1]) if 'BreakoutVolOK' in df else False
+        vol_curr = float(df['Volume'].iloc[-1]) if 'Volume' in df else 0.0
+        vol_avg = float(df['AvgVolume'].iloc[-1]) if 'AvgVolume' in df and is_finite_num(df['AvgVolume'].iloc[-1]) and df['AvgVolume'].iloc[-1] > 0 else 1.0
+        vol_ratio = round(vol_curr / vol_avg, 2)
+        vol_mult = float(c_break.get('volume_multiplier', 1.5))
+        all_gates["breakout_volume"] = break_vol_ok
+
+        # 6. clv
+        bar_rng = float(df['High'].iloc[-1] - df['Low'].iloc[-1]) if ('High' in df and 'Low' in df) else 0.0
+        clv_val = round((close_val - float(df['Low'].iloc[-1])) / max(bar_rng, 1e-9), 3) if bar_rng > 1e-9 else 0.5
+        min_clv = float(c_qual.get('min_clv_threshold', 0.65))
+        clv_ok = (clv_val >= min_clv) if c_qual.get('require_clv_confirmation', False) else True
+        all_gates["clv"] = clv_ok
+
+        # 7. base_trap
+        failed_breakouts = getattr(setup, "failed_breakouts_in_base", 0)
+        max_failed = c_qual.get('max_failed_breakouts_in_base', None)
+        base_trap_ok = (failed_breakouts <= max_failed) if max_failed is not None else True
+        all_gates["base_trap"] = base_trap_ok
+
+        # 8. min_stop & max_stop
+        risk_pct = float(setup.risk_pct) if getattr(setup, "risk_pct", None) is not None else 1.5
+        min_stop_thresh = float(c_risk.get('min_stop_pct', 0.5))
+        max_stop_thresh = float(c_risk.get('max_stop_pct', 5.0))
+        min_stop_ok = risk_pct >= min_stop_thresh
+        max_stop_ok = risk_pct <= max_stop_thresh
+        all_gates["min_stop"] = min_stop_ok
+        all_gates["max_stop"] = max_stop_ok
+
+        # 9. rr
+        rr_ok = True
+        all_gates["rr"] = rr_ok
+
+        # Determine first_failed_gate in pipeline order
+        if setup.state == State.CONTRACTION:
+            first_failed = "breakout_volume"
+            gate_details = {"gate": "breakout_volume", "value": vol_ratio, "threshold": vol_mult}
+        else:
+            ordered_gates = [
+                ("trend_sma50", trend_ok, trend_ratio, 1.0),
+                ("base_range", base_ok, base_rng, max_base),
+                ("tightening/decay", tight_ok, decay_val, float(c_base.get('tightening_threshold', 0.70))),
+                ("volume_contraction", vol_cont_ok, vdu_val, float(c_vol.get('contraction_ratio', 0.75))),
+                ("breakout_volume", break_vol_ok, vol_ratio, vol_mult),
+                ("clv", clv_ok, clv_val, min_clv),
+                ("base_trap", base_trap_ok, failed_breakouts, max_failed if max_failed is not None else 2),
+                ("min_stop", min_stop_ok, risk_pct, min_stop_thresh),
+                ("max_stop", max_stop_ok, risk_pct, max_stop_thresh),
+            ]
+            for g_name, g_pass, g_val, g_thresh in ordered_gates:
+                if not g_pass:
+                    first_failed = g_name
+                    gate_details = {"gate": g_name, "value": g_val, "threshold": g_thresh}
+                    break
+            if first_failed is None:
+                first_failed = "breakout_volume"
+                gate_details = {"gate": "breakout_volume", "value": vol_ratio, "threshold": vol_mult}
+
+        return {
+            "state_before": state_before,
+            "state_after": state_after,
+            "first_failed_gate": first_failed,
+            "gate_details": gate_details,
+            "all_gates": all_gates,
+        }
+    except Exception:
+        return {
+            "state_before": "IDLE",
+            "state_after": setup.state.name if hasattr(setup.state, "name") else str(setup.state),
+            "first_failed_gate": "none",
+            "gate_details": None,
+            "all_gates": {},
+        }
+
+
 class BreakoutEngine:
     def __init__(self, cfg, symbol): 
         self.cfg = cfg
@@ -142,11 +290,25 @@ class BreakoutEngine:
     def run(self, raw):
         self.setup = Setup(self.symbol)
         if raw is None or raw.empty or len(raw) < 10:
+            self.setup.engine_trace = {
+                "state_before": "IDLE",
+                "state_after": "IDLE",
+                "first_failed_gate": "empty_frame" if (raw is None or raw.empty) else "insufficient_bars",
+                "gate_details": None,
+                "all_gates": {},
+            }
             return self.setup
 
         # Golden Rule guard: return IDLE gracefully if required OHLCV columns are missing
         _required_cols = {"Open", "High", "Low", "Close", "Volume"}
         if not _required_cols.issubset(set(raw.columns)):
+            self.setup.engine_trace = {
+                "state_before": "IDLE",
+                "state_after": "IDLE",
+                "first_failed_gate": "missing_columns",
+                "gate_details": None,
+                "all_gates": {},
+            }
             return self.setup
 
         df = compute_indicators(raw, self.cfg)
@@ -527,5 +689,7 @@ class BreakoutEngine:
             enrich_signal_quality(self.setup, df, self.cfg)
         except Exception:
             pass
+
+        self.setup.engine_trace = compute_engine_trace(df, self.setup, self.cfg, state)
 
         return self.setup
