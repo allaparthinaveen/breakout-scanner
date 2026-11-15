@@ -408,13 +408,35 @@
       .cover-meta { gap: 20px; }
       .cover-meta-item .num { font-size: 1.4rem; }
     }
+
+    /* ===================== NOV 2026 EDITION ADDITIONS ===================== */
+    .code-block {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; overflow-x: auto; font-family: 'Consolas','SFMono-Regular',Menlo,monospace;
+      font-size: 12.5px; line-height: 1.55; white-space: pre; color: var(--text); margin: 10px 0;
+    }
+    details.cfg { margin: 14px 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg2); }
+    details.cfg > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; color: var(--blue); }
+    details.cfg > .code-block { margin: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); }
+    .chart-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 10px 6px; margin: 14px 0; }
+    .chart-box svg { width: 100%; height: auto; display: block; }
+    .chart-title { font-weight: 600; font-size: 14px; margin: 0 6px 6px; }
+    .chart-note { color: var(--muted); font-size: 12px; margin: 4px 6px 8px; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); vertical-align: middle; }
+    .tag-new { color: var(--green); border-color: var(--green); }
+    .tag-warn { color: var(--yellow); border-color: var(--yellow); }
+    @media print {
+      .code-block { background: #f6f8fa; color: #24292f; border-color: #d0d7de; white-space: pre-wrap; }
+      details.cfg { background: #fff; border-color: #d0d7de; }
+      .chart-box { background: #fff; border-color: #d0d7de; }
+    }
   </style>
 </head>
 <body>
 
 <!-- ================================================================ COVER -->
 <div class="cover" id="top">
-  <div class="cover-badge">📡 Official Documentation v2.0</div>
+  <div class="cover-badge">📡 Official Documentation v2.1 · Nov 2026</div>
   <h1>Breakout Scanner<br>Complete Trading Guide</h1>
   <p class="cover-subtitle">
     From total beginner to confident trader — every feature, every signal, every decision explained.
@@ -436,6 +458,7 @@
 
 <!-- ================================================================ TOC -->
 <div class="toc-page" id="toc">
+  <div style="margin:0 0 18px"><a href="#whatsnew" style="color:var(--blue)">🆕 What's new in v2.1</a></div>
   <div class="toc-title">📋 Table of Contents</div>
 
   <div class="toc-section"><a href="#s1"><span>1. What is the Breakout Scanner?</span><span class="dots"></span><span class="toc-num">§1</span></a></div>
@@ -451,6 +474,7 @@
   <div class="toc-section toc-sub"><a href="#s3-swing">Classic Swing (5–10 days)</a></div>
   <div class="toc-section toc-sub"><a href="#s3-options">Options Trader</a></div>
   <div class="toc-section toc-sub"><a href="#s3-bidir">Bidirectional (Buy &amp; Sell)</a></div>
+  <div class="toc-section toc-sub"><a href="#s3-prod">Production profiles (US &amp; NSE) 🆕</a></div>
 
   <div class="toc-section"><a href="#s4"><span>4. Watchlists &amp; Markets</span><span class="dots"></span><span class="toc-num">§4</span></a></div>
   <div class="toc-section toc-sub"><a href="#s4-wl">Pre-built watchlists</a></div>
@@ -484,10 +508,27 @@
   <div class="toc-section"><a href="#s12"><span>12. What to Do and What NOT to Do</span><span class="dots"></span><span class="toc-num">§12</span></a></div>
 
   <div class="toc-section"><a href="#s13"><span>13. Frequently Asked Questions</span><span class="dots"></span><span class="toc-num">§13</span></a></div>
+  <div class="toc-section"><a href="#s14"><span>14. Data Health &amp; Provisional Signals 🆕</span><span class="dots"></span><span class="toc-num">§14</span></a></div>
+  <div class="toc-section"><a href="#s15"><span>15. Audit Ledger &amp; What-If Tracker 🆕</span><span class="dots"></span><span class="toc-num">§15</span></a></div>
+  <div class="toc-section"><a href="#s16"><span>16. What the Backtests Actually Say 🆕</span><span class="dots"></span><span class="toc-num">§16</span></a></div>
+  <div class="toc-section"><a href="#s17"><span>17. Forward-Test Playbook &amp; Production Configs 🆕</span><span class="dots"></span><span class="toc-num">§17</span></a></div>
 </div>
 
 <!-- ================================================================ MAIN CONTENT -->
 <div class="container">
+
+<div class="card card-blue" id="whatsnew" style="margin-bottom: 28px;">
+  <h3 style="color: var(--blue); margin-top: 0;">🆕 What's New — November 2026 Edition (v2.1)</h3>
+  <ul style="font-size: 14px; line-height: 2; margin-left: 20px;">
+    <li><strong>Hardened production profiles</strong> for US and NSE: realistic trading costs, explicit timeframe, long-only, a single confirmation policy → <a href="#s3-prod">§3</a>, <a href="#s17">§17</a></li>
+    <li><strong>Data-health tracking:</strong> every setup now records whether its Yahoo data arrived (OK / STALE / FAILED) and shows a <code>⚠️ PROVISIONAL</code> badge when it did not → <a href="#s14">§14</a></li>
+    <li><strong>Forward-test audit ledger + nightly What-If tracker</strong> → <a href="#s15">§15</a></li>
+    <li><strong>Honest backtest numbers</strong> with confidence intervals, cost stress and drawdown ranges → <a href="#s16">§16</a></li>
+    <li><strong>Forward-test playbook:</strong> deploy checklist, daily routine (Singapore time), go / no-go rules, full YAML files → <a href="#s17">§17</a></li>
+    <li><strong>Corrections:</strong> what the "3/3 bias" really counts, which grades auto-enter, the "no signals today" FAQ, and the old "scan before the open" advice.</li>
+  </ul>
+</div>
+
 
 <!-- ============================== SECTION 1 ============================== -->
 <div class="section" id="s1">
@@ -704,6 +745,46 @@
         <li><strong>Implied Volatility:</strong> IV Percentile below 50% — avoid buying expensive IV</li>
         <li><strong>NEVER</strong> use the stock's stop distance as your option stop. Your max risk = 100% of the premium paid</li>
       </ul>
+    </div>
+  </div>
+
+  <h3 id="s3-prod">🏭 Production Profiles — US &amp; NSE <span class="tag tag-new">NEW</span></h3>
+  <p>The two <strong>production profiles</strong> in <code>config/profiles/</code> are hardened versions of the Intraday Swing profile. They are meant for <strong>forward testing first</strong> and real money only after that (see <a href="#s17">§17</a>). The full files are printed in <a href="#s17-yaml">§17</a>.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Setting</th><th>Before</th><th>US now</th><th>NSE now</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>timeframe</code></td><td>Not set — silently fell back to 1h / 60d inside <code>scan_now.py</code></td><td><code>1h / 60d</code></td><td><code>1h / 60d</code></td><td>No hidden defaults</td></tr>
+        <tr><td><code>breakout.allow_shorts</code></td><td>Missing → <strong>shorts were ON</strong></td><td><code>false</code></td><td><code>false</code></td><td>US 1H backtests: shorts ≈ −0.19R. NSE cash equities cannot be carried short on delivery</td></tr>
+        <tr><td><code>risk.slippage_pct</code></td><td>0.05% per fill</td><td><code>0.02%</code></td><td><code>0.03%</code></td><td>Liquid large caps fill much closer to the quote</td></tr>
+        <tr><td><code>risk.commission_pct</code></td><td>0.05% (US) / 0.10% (NSE)</td><td><code>0.005%</code></td><td><code>0.10%</code> (kept)</td><td>US large-cap commissions are tiny. NSE 0.10% matches delivery STT (0.1% per side) plus brokerage, GST and stamp duty</td></tr>
+        <tr><td><code>max_friction_r</code> (3 places)</td><td>0.15R</td><td><code>0.15R</code></td><td><code>0.20R</code></td><td>NSE real costs are higher, so the gate needs a slightly wider allowance</td></tr>
+        <tr><td><code>confirmation_policy</code></td><td>Defined <strong>twice</strong> (85, then 70 — YAML silently kept the last)</td><td>One block, <code>70</code></td><td>One block, <code>70</code></td><td>What actually ran was 70; now the file says so</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">💡</div>
+    <div>
+      <strong>Why the cost setting mattered so much.</strong> The old US costs (0.05% slippage + 0.05% commission on each side) add up to 0.20% round trip. The friction gate allows at most 0.15R of cost, so the stop had to be <strong>at least 1.33% away</strong> for a trade to pass. But tight bases on liquid stocks naturally have 0.75–1.0% stops — so the scanner was rejecting its <em>best, tightest</em> setups. On the 9 Nasdaq names in the cached data: <strong>204 trades (profit factor 0.92) → 383 trades (profit factor 1.11)</strong>, and AAPL / MSFT / CSCO went from 6 trades each to about 42. In backtests the tightest stops (&lt;1%) were also the best bucket (+0.22R per trade).
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    <div class="callout-icon">⚠️</div>
+    <div>
+      <strong>NSE profile is untested.</strong> The cost changes come from arithmetic on Indian statutory charges, not from a backtest — no NSE price data was available when this edition was written. Paper-trade it before trusting it. <code>crypto_production.yaml</code> was not reviewed or changed in this edition.
+    </div>
+  </div>
+
+  <div class="terminal" style="margin: 12px 0;">
+    <div class="terminal-body">
+<span class="t-comment"># US production (Nasdaq-50 watchlist)</span><br>
+<span class="t-cmd">python3 scan_now.py</span> <span class="t-flag">--watchlist</span> <span class="t-val">config/nasdaq_50_watchlist.txt</span> <span class="t-flag">--config</span> <span class="t-val">config/profiles/us_production.yaml</span><br><br>
+<span class="t-comment"># NSE production (Nifty-50 watchlist)</span><br>
+<span class="t-cmd">python3 scan_now.py</span> <span class="t-flag">--watchlist</span> <span class="t-val">config/nifty_50_watchlist.txt</span> <span class="t-flag">--config</span> <span class="t-val">config/profiles/nse_production.yaml</span> <span class="t-flag">--market</span> <span class="t-val">nse</span>
     </div>
   </div>
 </div>
@@ -950,6 +1031,22 @@ SOL-USD
     <h4 style="color: var(--green); margin-top: 0;">📱 During Market Hours — Check Telegram</h4>
     <p style="margin: 0; font-size: 13px; color: var(--muted)">After running the scan, just watch your Telegram. The scanner has already told you what to buy, at what price, with your stop and targets. No need to stare at charts.</p>
   </div>
+
+  <div class="card card-purple">
+    <h4 style="color: var(--purple); margin-top: 0;">🏭 Production Run &amp; Nightly Tracker <span class="tag tag-new">NEW</span></h4>
+    <div class="terminal" style="margin: 12px 0;">
+      <div class="terminal-body">
+<span class="t-comment"># Dry run (no Telegram) with the US production profile</span><br>
+<span class="t-cmd">python3 scan_now.py</span> <span class="t-flag">--no-tg</span> <span class="t-flag">--watchlist</span> <span class="t-val">config/nasdaq_50_watchlist.txt</span> <span class="t-flag">--config</span> <span class="t-val">config/profiles/us_production.yaml</span><br><br>
+<span class="t-comment"># Evaluate what happened after logged signals (also runs nightly in the daemon)</span><br>
+<span class="t-cmd">python3 -m breakout_scanner.outcome_tracker</span>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 13px; color: var(--muted)">
+      Signals form when an <strong>hourly candle closes</strong> and the scanner only sees closed candles. Yahoo's US 1h candles start at :30 (9:30, 10:30 … 15:30 ET), so scan shortly after each candle closes during the session. A single pre-market scan only shows the previous session's last candle. In backtests there was <strong>no reliable time-of-day edge</strong>, so there is no "magic hour".
+    </p>
+  </div>
+
 </div>
 
 <!-- ============================== SECTION 6 ============================== -->
@@ -1038,7 +1135,9 @@ SOL-USD
         <tr><td><strong>Width %</strong></td><td><code>W: 3.2%</code></td><td>How tight the consolidation base is. Lower = better coil. Below 4% is excellent</td></tr>
         <tr><td><strong>Coil 🗜️</strong></td><td><code>🗜️ 0.4x</code></td><td>Decay ratio — how much volatility has contracted. 0.4x = each wave is 40% of the previous. Lower = tighter coil</td></tr>
         <tr><td><strong>VDU 💧</strong></td><td><code>💧 0.6x</code></td><td>Volume Dry-Up — volume is 60% of average during base. Institutional accumulation — quiet before the storm</td></tr>
-        <tr><td><strong>Bias</strong></td><td><code>Strong Upside Bias (3/3)</code></td><td>How many of 3 macro filters align: 1H trend + Daily trend + Sector/Analyst support. 3/3 is strongest</td></tr>
+        <tr><td><strong>Bias</strong></td><td><code>Strong Upside Bias (3/3)</code></td><td>How many of 3 simple filters agree: <strong>(1)</strong> 1H trend, <strong>(2)</strong> sector relative strength vs its benchmark, <strong>(3)</strong> analyst rating (US stocks, from Yahoo) or index regime (NSE / crypto). Section 1 only lists bases with 3/3. <em>Note:</em> the daily trend is <strong>not</strong> part of this number — it feeds the score instead (§7). If Yahoo is throttled, filters 2 and 3 can silently drop out (§14).</td></tr>
+        <tr><td><strong>⚠️ PROVISIONAL</strong></td><td><code>[⚠️ PROVISIONAL: DATA INCOMPLETE]</code></td><td>Daily or sector data could not be fetched, so the score is missing pillars. The setup is <em>not</em> blocked by the score — treat it as a technical-only signal and read §14 before acting</td></tr>
+        <tr><td><strong>⏳ AWAITING CONFIRMATION</strong></td><td><code>[⏳ AWAITING CONFIRMATION]</code></td><td>Score is below the auto-entry threshold (70 in production profiles). Enter only after a later candle trades above the signal price</td></tr>
       </tbody>
     </table>
   </div>
@@ -1111,19 +1210,34 @@ SOL-USD
       <div class="grade-letter">A</div>
       <div class="grade-range">80–89 points</div>
       <div class="grade-label">High Conviction</div>
-      <p style="font-size: 12px; color: var(--muted); margin-top: 8px;">Strong setup on most pillars. Tradeable without additional confirmation. Auto-entry eligible (no need to wait for next bar).</p>
+      <p style="font-size: 12px; color: var(--muted); margin-top: 8px;">Strong setup on most pillars. Tradeable without additional confirmation. Auto-entry eligible under every profile.</p>
     </div>
     <div class="grade-box grade-b">
       <div class="grade-letter">B</div>
       <div class="grade-range">70–79 points</div>
       <div class="grade-label">Playable Standard</div>
-      <p style="font-size: 12px; color: var(--muted); margin-top: 8px;">Good setup but may lack one confirmation. The scanner requires the next bar's high to be breached before entering. Needs follow-through.</p>
+      <p style="font-size: 12px; color: var(--muted); margin-top: 8px;">Good setup but may lack one confirmation. With the older 85 threshold B waits for the next bar to break the signal high; production profiles use 70, so B auto-enters there.</p>
     </div>
     <div class="grade-box grade-c">
       <div class="grade-letter">C</div>
       <div class="grade-range">Below 70</div>
       <div class="grade-label">Filtered</div>
       <p style="font-size: 12px; color: var(--muted); margin-top: 8px;">Too many missing or weak confirmations. The scanner shows these in VCP Base section but they are not presented as tradeable entries.</p>
+    </div>
+  </div>
+
+
+  <div class="callout callout-info">
+    <div class="callout-icon">🎚️</div>
+    <div>
+      <strong>Which grades actually auto-enter?</strong> That is set by <code>confirmation_policy.min_auto_entry_score</code>. The older default was 85 (A and above). <strong>The production profiles use 70</strong>, so B-grade setups (70–79) also count as confirmed. Below the threshold, a setup shows <code>AWAITING CONFIRMATION</code> until price trades above the signal level on a later candle.
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    <div class="callout-icon">🧪</div>
+    <div>
+      <strong>A low grade is not always a weak setup.</strong> Missing data scores zero. In a test, an A+ setup (96) dropped to <strong>64 (C)</strong> when only the daily and sector data failed to load, and an A-grade setup (87) dropped to 55. If a clean-looking breakout shows a C and a <code>⚠️ PROVISIONAL</code> badge, the grade reflects a Yahoo problem, not the chart. See <a href="#s14">§14</a>.
     </div>
   </div>
 
@@ -1352,11 +1466,18 @@ SOL-USD
         <tr><td><strong>Structural Risk Too Wide</strong></td><td>Stop distance &gt; 5.0%</td><td>Stops wider than 5% create poor risk:reward — your position size becomes too small to matter</td></tr>
         <tr><td><strong>Unfavorable Payoff</strong></td><td>TP1 &lt; 1.0× risk distance</td><td>You need to make at least as much as you risk. RR &lt; 1.0 is a losing game mathematically</td></tr>
         <tr><td><strong>Imminent Earnings</strong></td><td>Earnings ≤ 3 trading days away</td><td>Earnings can gap a stock 10–20% overnight. This destroys your stop and creates undefined risk</td></tr>
-        <tr><td><strong>Excessive Friction</strong></td><td>Round-trip costs &gt; 0.15R</td><td>If brokerage + taxes + slippage eats more than 15% of your risk unit, the edge disappears</td></tr>
+        <tr><td><strong>Excessive Friction</strong></td><td>Round-trip costs &gt; max_friction_r (0.15R US, 0.20R NSE)</td><td>If brokerage + taxes + slippage eats more than that share of your risk unit, the edge disappears. Cost inputs must be realistic (see below)</td></tr>
         <tr><td><strong>Late Chase / Extended</strong></td><td>Price &gt;1.0% or &gt;0.5 ATR past pivot</td><td>Buying too late means your stop gets wider and RR deteriorates — you're buying someone else's trade</td></tr>
         <tr><td><strong>Base Trap</strong></td><td>&gt;2 failed breakout wicks in base</td><td>A base where price repeatedly spikes above resistance and fails is a trap — institutions are selling into each spike</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <div class="callout callout-tip">
+    <div class="callout-icon">🧮</div>
+    <div>
+      <strong>Cost settings must be realistic.</strong> If you set slippage and commission too high, the friction gate silently rejects your tightest (and historically best) setups; if you set them too low you will over-trade and fool yourself. Measure your <em>actual</em> fills during the forward test (§17) and set the numbers from that. Backtest edge disappears at roughly 0.08% slippage per fill (§16).
+    </div>
   </div>
 </div>
 
@@ -1399,6 +1520,8 @@ SOL-USD
         <tr><td>Technology +2.1% ↗</td><td>Stock outperforming its tech sector by +2.1%, and RS is rising</td><td>Sector tailwind — favorable</td></tr>
         <tr><td>🟢 ENTER NOW</td><td>Price is still within entry tolerance — fresh signal</td><td>Enter now</td></tr>
         <tr><td>⚠️ EXTENDED</td><td>Already moved past entry tolerance</td><td>Do NOT enter — wait for next setup</td></tr>
+        <tr><td>⚠️ PROVISIONAL: DATA INCOMPLETE</td><td>Daily / sector data failed to load (usually a Yahoo throttle). The grade is understated</td><td>Technical-only signal: check the daily chart yourself, consider half size, or re-run in 10–15 minutes (§14)</td></tr>
+        <tr><td>⏳ AWAITING CONFIRMATION</td><td>Score is under the auto-entry threshold</td><td>Wait for a later candle to trade above the signal price</td></tr>
       </tbody>
     </table>
   </div>
@@ -1422,6 +1545,22 @@ SOL-USD
   </div>
 
   <p>Every behavior of the scanner can be customized via the YAML config files in <code>config/</code>. Here is every option explained:</p>
+
+
+  <div class="config-group">
+    <div class="config-group-title">💸 Cost Model &amp; Confirmation Policy <span class="tag tag-new">NEW</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>US prod</th><th>NSE prod</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>risk.slippage_pct</code></td><td><code>0.02</code></td><td><code>0.03</code></td><td>Percent of price lost on every fill (entry, TP1 leg, exit). Backtest edge is ~zero near 0.08–0.10</td></tr>
+        <tr><td><code>risk.commission_pct</code></td><td><code>0.005</code></td><td><code>0.10</code></td><td>Percent of turnover charged per side. NSE figure includes delivery STT, brokerage, GST, stamp duty</td></tr>
+        <tr><td><code>friction.base_slippage_pct</code> / <code>commission_pct</code></td><td><code>0.02</code> / <code>0.005</code></td><td><code>0.03</code> / <code>0.10</code></td><td>Used by the friction engine for slate sizing. Keep identical to the <code>risk</code> values so the two never disagree</td></tr>
+        <tr><td><code>confirmation_policy.min_auto_entry_score</code></td><td><code>70</code></td><td><code>70</code></td><td>Score needed to skip the "awaiting confirmation" step. Must appear <strong>once</strong> in the file — a duplicate key silently overrides the first</td></tr>
+        <tr><td><code>breakout.allow_shorts</code></td><td><code>false</code></td><td><code>false</code></td><td><strong>If the key is missing, shorts are ON.</strong> Always set it explicitly</td></tr>
+        <tr><td><code>timeframe.interval</code> / <code>period</code></td><td><code>1h</code> / <code>60d</code></td><td><code>1h</code> / <code>60d</code></td><td>Set explicitly in production profiles</td></tr>
+      </tbody>
+    </table></div>
+  </div>
 
   <div class="config-group">
     <div class="config-group-title">📅 Timeframe Settings</div>
@@ -1503,7 +1642,7 @@ SOL-USD
         <tr><td><code>risk.account_size</code></td><td><code>$100,000</code></td><td>Your total trading capital. Used for position sizing calculations</td></tr>
         <tr><td><code>risk.risk_per_trade_pct</code></td><td><code>1.0%</code></td><td>What % of your account to risk per trade. 1% on $100k = $1,000 max risk per trade</td></tr>
         <tr><td><code>risk.use_cost_filter</code></td><td><code>false</code></td><td>When true, rejects trades where total friction &gt; max_friction_r</td></tr>
-        <tr><td><code>risk.max_friction_r</code></td><td><code>0.15</code></td><td>Maximum allowed friction as fraction of risk unit (0.15 = 15% of 1R)</td></tr>
+        <tr><td><code>risk.max_friction_r</code></td><td><code>0.15</code></td><td>Maximum allowed friction as fraction of risk unit (0.15 = 15% of 1R). NSE production uses 0.20</td></tr>
       </tbody>
     </table></div>
   </div>
@@ -1580,9 +1719,11 @@ SOL-USD
       <li><strong>Respect position sizing</strong> — use the Trade Slate or the formula. Never risk more than 1–2% per trade</li>
       <li><strong>Exit at TP1 (sell 50%)</strong> and move remaining stop to breakeven</li>
       <li><strong>Exit at max hold time</strong> even if you're slightly down — dead money is opportunity cost</li>
-      <li><strong>Use A/A+ grades only</strong> when starting out — skip B and C grades until you're profitable</li>
-      <li><strong>Run the scan before market opens</strong> — fresh signals at open are the most powerful</li>
+      <li><strong>Use A/A+ grades only</strong> when starting out — skip B and C grades until you're profitable. <em>Exception:</em> a C with a ⚠️ PROVISIONAL badge may be a data problem, not a weak setup (§14)</li>
+      <li><strong>Scan after each hourly candle closes</strong> — the scanner only sees closed candles; backtests showed no reliable "best hour" of the day</li>
       <li><strong>Avoid earnings</strong> — the scanner blocks these automatically, but always double-check your broker's earnings calendar</li>
+      <li><strong>Paper-trade first, and freeze your config</strong> — change nothing except bug fixes during the forward test, or the results mean nothing (§17)</li>
+      <li><strong>Record your real fill prices</strong> — your slippage decides whether the edge survives (§16)</li>
     </ol>
   </div>
 
@@ -1597,6 +1738,8 @@ SOL-USD
       <li><strong>Never trade a stock with earnings in 3 days</strong> — the scanner warns you with ⚠️ EARNINGS RISK</li>
       <li><strong>Never ignore the grade</strong> — a C grade is a reason to pass, not a challenge to beat</li>
       <li><strong>Never use options config stop distance for the options contract</strong> — your option risk = 100% of premium</li>
+      <li><strong>Never read "no signals" as "calm market" without checking data health</strong> — a Yahoo throttle can look identical (§14)</li>
+      <li><strong>Never size up because of a short winning streak</strong> — even a real edge here is about +0.05 to +0.1R per trade (§16)</li>
     </ol>
   </div>
 
@@ -1617,7 +1760,7 @@ SOL-USD
 
   <div class="card">
     <h4 style="color: var(--blue);">Q: The scanner shows no signals today. Is something broken?</h4>
-    <p style="margin: 0;">No — a day with no signals is a good day to stay in cash. Forcing trades when conditions aren't right is how traders lose money. The scanner will only show high-quality setups; if none exist, it correctly shows nothing. The <strong>Heartbeat Monitor</strong> will alert you via Telegram if 3+ consecutive sessions produce zero candidates.</p>
+    <p style="margin: 0;">Not necessarily broken — but check before you assume. A quiet day is genuinely common: the scanner only shows high-quality setups, and the production profile is strict. <strong>However</strong>, a Yahoo Finance throttle (HTTP 429) can look exactly the same: missing daily/sector data lowers scores, and the US analyst-rating point can silently drop, which empties the VCP-base list. Check for <code>[DataHealth]</code> warnings in the log, look for <code>⚠️ PROVISIONAL</code> badges, and re-run in 10–15 minutes before concluding the market is quiet (§14). The <strong>Heartbeat Monitor</strong> will alert you via Telegram if 3+ consecutive sessions produce zero candidates.</p>
   </div>
 
   <div class="card">
@@ -1683,6 +1826,439 @@ SOL-USD
   </div>
 </div>
 
+
+<div class="section section-break" id="s14">
+  <div class="section-header"><div class="section-num">14</div><h2>Data Health &amp; Provisional Signals <span class="tag tag-new">NEW</span></h2></div>
+  <p>The scanner gets its data from Yahoo Finance for free. Yahoo throttles (HTTP 429) when many symbols are requested quickly — and <code>scan_now.py</code> fires several extra calls per symbol (daily trend, sector, analyst info, earnings). Before v2.1 a failed call just meant "0 points" with no warning.</p>
+  <div class="chart-box"><div class="chart-title">Score when Yahoo fails (daily + sector data missing)</div><svg viewBox="0 0 620 156" role="img" aria-label="Score when Yahoo fails (daily + sector data missing)"><text x="0" y="27" fill="#8b949e" font-size="12">A+ setup — healthy</text><rect x="200" y="13" width="364" height="20" rx="3" fill="#3fb950"/><text x="572" y="28" fill="#e6edf3" font-size="12" font-weight="700">96</text><text x="0" y="61" fill="#8b949e" font-size="12">A+ setup — throttled</text><rect x="200" y="47" width="243" height="20" rx="3" fill="#f85149"/><text x="451" y="62" fill="#e6edf3" font-size="12" font-weight="700">64</text><text x="0" y="95" fill="#8b949e" font-size="12">A setup — healthy</text><rect x="200" y="81" width="330" height="20" rx="3" fill="#3fb950"/><text x="538" y="96" fill="#e6edf3" font-size="12" font-weight="700">87</text><text x="0" y="129" fill="#8b949e" font-size="12">A setup — throttled</text><rect x="200" y="115" width="209" height="20" rx="3" fill="#f85149"/><text x="417" y="130" fill="#e6edf3" font-size="12" font-weight="700">55</text></svg><div class="chart-note">Same chart, same breakout — only the data differs. Missing evidence is scored as zero.</div></div>
+  <h3>What the patch does</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Status field</th><th>Values</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>htf_data_status</code></td><td>OK / STALE / FAILED</td><td>Daily (higher-timeframe) evidence</td></tr>
+      <tr><td><code>sector_data_status</code></td><td>OK / STALE / FAILED</td><td>Sector relative-strength evidence</td></tr>
+      <tr><td><code>regime_data_status</code></td><td>OK / STALE / FAILED</td><td>Index / market regime evidence</td></tr>
+      <tr><td><code>provisional_data_incomplete</code></td><td>true / false</td><td>True when daily or sector data was not OK</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>Failures are <strong>logged</strong> (<code>[DataHealth]</code>) and the scorer's evidence text says "unavailable" instead of showing a fake low number.</li>
+    <li>A provisional setup is <strong>exempt from the "awaiting confirmation" suppression</strong>, gets <code>confirmation_status = "PROVISIONAL - DATA INCOMPLETE"</code>, and shows <code>[⚠️ PROVISIONAL: DATA INCOMPLETE]</code> in Telegram.</li>
+  </ul>
+  <div class="callout callout-warn"><div class="callout-icon">⚠️</div><div>
+    <strong>Provisional ≠ approved.</strong> The exemption means the signal is <em>shown</em>, not that it is verified. You still have to look at the daily chart yourself. The current build also counts provisional signals alongside approved ones in the slate, so size them conservatively (half size or skip) until that is tightened (§17 known limitations).
+  </div></div>
+  <h3>Your 30-second check after every scan</h3>
+  <ol>
+    <li>Scan the log for <code>[DataHealth]</code> lines. Many of them = Yahoo was throttled.</li>
+    <li>"No signals" and lots of warnings → <strong>re-run in 10–15 minutes</strong>. Do not conclude the market is quiet.</li>
+    <li>A signal with a PROVISIONAL badge → check the daily trend (price above the daily 50-day average) and the sector yourself.</li>
+  </ol>
+  <div class="callout callout-info"><div class="callout-icon">💡</div><div>
+    <strong>Where this is going:</strong> the durable fix is batching downloads, caching daily/sector data on disk, and making failure loud at the top of every report. Switching data vendor is not required — the free IEX-only feeds are worse for 1H bars than Yahoo.
+  </div></div>
+</div>
+
+<div class="section section-break" id="s15">
+  <div class="section-header"><div class="section-num">15</div><h2>Audit Ledger &amp; What-If Tracker <span class="tag tag-new">NEW</span></h2></div>
+  <p>A forward test is only worth something if you can prove what the scanner said at the time. Two new modules do that.</p>
+  <h3>1 · Forward-test ledger — <code>breakout_scanner/audit_ledger.py</code></h3>
+  <p>Every scan appends one JSON line per setup to <code>logs/forward_test_ledger.jsonl</code> (written by <code>scan_now.py</code> and by the slate pipeline).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Field group</th><th>What is stored</th></tr></thead>
+    <tbody>
+      <tr><td>Identity</td><td><code>timestamp</code>, <code>config_hash</code>, <code>profile_name</code>, <code>symbol</code>, <code>direction</code></td></tr>
+      <tr><td>Decision</td><td><code>state</code>, <code>status</code>, <code>code</code>, <code>reason</code>, <code>quant_score</code>/grade, <code>bias_score</code></td></tr>
+      <tr><td>Price plan</td><td>current, entry, stop, risk %, TP1, TP2</td></tr>
+      <tr><td>Data health</td><td>htf / sector / regime status, provisional flag</td></tr>
+      <tr><td>Shadow feature</td><td><code>is_above_daily_sma50</code> — recorded only, <strong>not</strong> used to filter (so you can later test whether it should be)</td></tr>
+      <tr><td>Execution (you fill in)</td><td>your real fill, slippage, exit — currently empty fields</td></tr>
+      <tr><td>What-if outcome</td><td>filled in later by the tracker</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Config hash:</strong> a fingerprint of the active YAML. If it changes mid-test, the hash changes — so you can see exactly which rows ran under which settings. If the hash changes, the test restarts.</p>
+  <h3>2 · Nightly outcome tracker — <code>breakout_scanner/outcome_tracker.py</code></h3>
+  <p>The production daemon runs it every night at <strong>00:15</strong> (server clock, UTC on EC2). For each ledger row it downloads recent 1h bars and walks forward up to <strong>24 bars</strong> to see whether the stop, TP1 or TP2 would have been hit first, writing the result into <code>what_if_outcome</code>. You can also run it by hand: <code>python3 -m breakout_scanner.outcome_tracker</code>.</p>
+  <div class="callout callout-warn"><div class="callout-icon">🧪</div><div>
+    <strong>Read the what-if numbers as rough.</strong> They assume a perfect fill at the planned entry and use hourly bars, so they flatter reality. A review of the current build also found: the same setup can be logged on every scan (duplicate rows), outcomes can be finalised before the 24-bar window completes, and TP1 R-math is simplified. Do the analysis on <em>de-duplicated</em> rows (first row per symbol per signal) and treat your own fills as the source of truth.
+  </div></div>
+  <h3>Handy one-liners</h3>
+  <div class="terminal"><div class="terminal-body">
+<span class="t-comment"># how many ledger rows, and how many were provisional?</span><br>
+<span class="t-cmd">wc -l</span> logs/forward_test_ledger.jsonl<br>
+<span class="t-cmd">grep -c</span> '"provisional": true' logs/forward_test_ledger.jsonl<br><br>
+<span class="t-comment"># which config produced which rows?</span><br>
+<span class="t-cmd">grep -o</span> '"config_hash": "[^"]*"' logs/forward_test_ledger.jsonl | <span class="t-cmd">sort | uniq -c</span>
+  </div></div>
+</div>
+
+<div class="section section-break" id="s16">
+  <div class="section-header"><div class="section-num">16</div><h2>What the Backtests Actually Say <span class="tag tag-new">NEW</span></h2></div>
+  <p>Honest numbers matter more than a nice grade label. These come from replaying the engine on cached 1H data (about 2.9 years, Nov 2023 – Oct 2026) for large-cap Nasdaq and financial names, with next-bar-open entries, slippage, stop-first fills and gap stops.</p>
+  <div class="chart-box"><div class="chart-title">Profit factor — old vs new cost settings (9 Nasdaq names, ~2.9 yrs, 1H)</div><svg viewBox="0 0 620 88" role="img" aria-label="Profit factor — old vs new cost settings (9 Nasdaq names, ~2.9 yrs, 1H)"><text x="0" y="27" fill="#8b949e" font-size="12">Old costs (204 trades)</text><rect x="200" y="13" width="268" height="20" rx="3" fill="#f85149"/><text x="476" y="28" fill="#e6edf3" font-size="12" font-weight="700">0.92</text><text x="0" y="61" fill="#8b949e" font-size="12">New costs (383 trades)</text><rect x="200" y="47" width="324" height="20" rx="3" fill="#3fb950"/><text x="532" y="62" fill="#e6edf3" font-size="12" font-weight="700">1.11</text></svg><div class="chart-note">Same strategy, same data. Only the cost model changed. In-sample — treat as directional, not a promise.</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Finding</th><th>What it means for you</th></tr></thead>
+    <tbody>
+      <tr><td>Production profile: 383 trades, profit factor ≈ 1.11</td><td>A small positive edge, roughly <strong>+0.05 to +0.1R per trade</strong>. Real, but thin</td></tr>
+      <tr><td>Last ~12 months were statistically flat</td><td>The edge is regime-dependent. Do not extrapolate the full-period figure</td></tr>
+      <tr><td>AAPL / MSFT / NVDA-type mega-caps lost money</td><td>Mega-caps are over-traded and mean-revert; expect better behaviour on mid-large liquid names. Test it on forward data</td></tr>
+      <tr><td>Tightest stops (&lt;1%) were the best bucket (about +0.22R)</td><td>This is why the old cost model hurt — it blocked exactly these</td></tr>
+      <tr><td>Shorts ≈ −0.19R</td><td>Why <code>allow_shorts: false</code> in production</td></tr>
+      <tr><td>Edge vanishes near 0.08% slippage per fill</td><td>Your real fills decide everything. Use limit orders, liquid names, avoid the first and last minutes</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout callout-warn"><div class="callout-icon">⚖️</div><div>
+    <strong>Be realistic.</strong> These results are <em>in-sample</em> (the settings were tuned after looking at this data), the sample is small, and the confidence interval on the average R includes zero. Expect long losing streaks and drawdowns of many R even if the edge is real. This is a reason to forward-test with small size — not a reason to size up. None of this is financial advice.
+  </div></div>
+</div>
+
+<div class="section section-break" id="s17">
+  <div class="section-header"><div class="section-num">17</div><h2>Forward-Test Playbook &amp; Production Configs <span class="tag tag-new">NEW</span></h2></div>
+
+  <h3>Deploy checklist (EC2)</h3>
+  <div class="terminal"><div class="terminal-body">
+<span class="t-cmd">cd</span> ~/breakout-scanner<br>
+<span class="t-cmd">git pull</span> origin main<br>
+<span class="t-cmd">sudo systemctl restart</span> breakout-scanner<br>
+<span class="t-cmd">journalctl</span> -u breakout-scanner -n 50 --no-pager <span class="t-comment"># confirm it started, tracker scheduled at 00:15</span>
+  </div></div>
+
+  <h3>Daily routine (Singapore time, US session)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>When (SGT)</th><th>Do</th></tr></thead>
+    <tbody>
+      <tr><td>~22:30 – 04:00 (US regular hours, 1h after DST changes)</td><td>Scan right after each hourly candle closes. Check the data-health lines. Paper-trade or place small orders from A/B signals only</td></tr>
+      <tr><td>After the close</td><td>Fill in your actual entry / exit prices and slippage for every trade you took</td></tr>
+      <tr><td>Weekly</td><td>De-duplicate the ledger, compare what-if vs your fills, check the config hash never changed</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Rules of the forward test</h3>
+  <ol style="line-height: 2">
+    <li><strong>Freeze the config.</strong> No threshold changes, only bug fixes. A changed <code>config_hash</code> restarts the count.</li>
+    <li><strong>Minimum sample:</strong> at least <strong>100 closed trades</strong> (or 3 months) before judging. 20 trades tells you nothing.</li>
+    <li><strong>Size:</strong> paper first; then risk at most 0.25–0.5% per trade, a small fraction of what the config's 1% assumes.</li>
+    <li><strong>Hard stop:</strong> if cumulative result reaches <strong>−6R</strong>, stop and review. This is a manual rule for now — the automatic breaker is not in the build.</li>
+    <li><strong>Go / no-go:</strong> go live only if your <em>real-fill</em> average R is positive after costs and slippage is under about 0.05% per fill. Otherwise the edge is gone.</li>
+  </ol>
+
+  <h3>Known limitations in the current build</h3>
+  <div class="callout callout-warn"><div class="callout-icon">🔧</div><div>
+    <ul style="margin:0 0 0 18px; line-height:1.9">
+      <li>Ledger can log the same setup on every scan (duplicates) and may include non-setup rows</li>
+      <li>Outcome tracker can finalise before its 24-bar window completes; it fetches data per record and can be slow or throttled</li>
+      <li>Nightly tracker schedule uses the server's local clock, and ledger errors are swallowed silently (<code>except: pass</code>)</li>
+      <li>Provisional signals are shown and counted with approved ones in the slate; no terminal badge or "data unhealthy" banner yet</li>
+      <li>Analyst-rating <code>.info</code> call is still made per symbol, so Section 1 can empty out under throttling</li>
+      <li>Earnings check fails open (an error means "no earnings" rather than "unknown")</li>
+      <li>No automatic drawdown circuit breaker; no daily-SMA50 hard gate (it is recorded as a shadow feature only)</li>
+      <li>NSE and crypto profiles are untested against backtests</li>
+    </ul>
+  </div></div>
+
+  <h3 id="s17-yaml">Full production configs</h3>
+  <p>Every changed line carries a <code># FIX:</code> comment. Click to expand and copy.</p>
+  <details class="cfg"><summary>config/profiles/us_production.yaml</summary><div class="code-block"># 🏛️ Institutional Production Profile: US Equities (NYSE / Nasdaq)
+# Profile Name: us_production
+profile_name: &quot;US Equities Production (NYSE/Nasdaq)&quot;
+market: &quot;US&quot;
+currency: &quot;USD&quot;
+
+# FIX: explicit timeframe (previously fell back to 1h/60d inside scan_now.py)
+timeframe:
+  interval: 1h
+  period: 60d
+
+trend:
+  sma_length: 50
+  use_trend_filter: true
+  use_slope_filter: true
+  slope_lookback_bars: 5
+
+base:
+  base_lookback: 20
+  tight_lookback: 5
+  max_base_range_pct: 12.0
+  max_tight_range_pct: 6.0
+  require_tightening: true
+  min_setup_bars: 5
+  max_setup_bars: 30
+  tightening_threshold: 0.70
+  min_box_density_pct: 75.0
+
+volume:
+  use_volume_contraction: true
+  volume_length: 20
+  contraction_ratio: 0.90
+  use_breakout_volume: true
+  breakout_multiplier: 1.20
+  vdu_threshold: 0.75
+  rvol_threshold: 1.20
+  use_hourly_volume_profile: true
+  hourly_profile_days: 20
+
+breakout:
+  allow_shorts: false          # FIX: long-only. Repo backtests show shorts at about -0.19R on US 1H
+  buffer_pct: 0.10
+  close_location: 0.55
+  require_momentum_candle: true
+  min_body_pct: 40.0
+  use_open_confirmation: true
+  max_open_gap_pct: 0.50
+
+risk:
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 0.75
+  max_stop_pct: 5.00
+  use_structure_stop: true
+  structure_buffer_pct: 0.25
+  account_size: 100000.0
+  risk_per_trade_pct: 1.0
+  # FIX: 0.05% slippage + 0.05% commission PER SIDE (0.20% round trip) forced stops &gt;= 1.33% wide to pass
+  # the 0.15R gate, which blocked tight mega-cap bases (AAPL/MSFT/CSCO: 6 trades vs ~40 in 2y).
+  # Realistic liquid Nasdaq-50 costs: ~0.02% slippage + ~0.005% commission per side.
+  slippage_pct: 0.02
+  commission_pct: 0.005
+  use_cost_filter: true
+  max_friction_r: 0.15
+
+target:
+  target_lookback: 50
+  tp1_r: 1.0
+  tp2_r: 2.0
+
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.10
+  max_hold_days: 10
+  use_time_exit: true
+  use_failed_breakout_exit: true
+  failed_breakout_max_bars: 3
+
+signal_quality:
+  enabled: true
+  require_clv_confirmation: true
+  min_clv_threshold: 0.65
+  max_failed_breakouts_in_base: 2
+  close_location_weight: 1.0
+  vdu_slope_weight: 0.8
+  trigger_tightness_weight: 0.6
+  failed_breakout_penalty_weight: 1.0
+
+confluence_context:
+  enabled: true
+  htf_4h_weight: 1.0
+  market_regime_weight: 0.8
+  earnings_risk_weight: 0.8
+
+portfolio_guard:
+  enabled: true
+  account_equity: 100000.0
+  risk_per_trade_pct: 1.0
+  max_daily_risk_pct: 2.0
+  max_active_trades: 4
+  max_sector_allocation_pct: 25.0
+  max_position_size_pct: 20.0
+  max_trades_per_sector: 1
+  allow_fractional: false
+
+rejection_gate:
+  enabled: true
+  max_stop_pct: 5.0
+  max_friction_r: 0.15
+  min_rr_ratio: 1.0
+  earnings_buffer_days: 3
+  enforce_earnings_check: true
+  enforce_anti_chase: true
+  max_extension_pct: 1.0
+  max_failed_breakouts_in_base: 2
+
+# FIX: this key was defined twice (85 then 70); YAML silently kept the last one (70).
+# Kept ONE block at the effective value. Raise to 80-85 only if you want fewer, higher-grade entries.
+confirmation_policy:
+  enabled: true
+  min_auto_entry_score: 70
+
+friction:
+  base_slippage_pct: 0.02
+  commission_pct: 0.005
+  use_dynamic_slippage: true
+  max_friction_r: 0.15
+
+safeguards:
+  enforce_stale_data: true
+  max_stale_data_seconds: 120
+  kill_switch_file: &quot;data/KILL_SWITCH&quot;
+  max_daily_loss_pct: 2.0
+  max_spread_pct: 0.5
+  min_liquidity_volume: 10000
+
+dynamic_universe:
+  enabled: true
+  target_size: 30
+  buffer_cutoff: 35
+  min_active_sessions: 18
+  lookback_days: 20
+  min_price:
+    us: 5.0
+  max_sector_concentration: 8
+  max_spread_pct: 6.0
+  max_avg_gap_pct: 2.5
+  metadata_dir: &quot;data/universe&quot;
+</div></details>
+  <details class="cfg"><summary>config/profiles/nse_production.yaml</summary><div class="code-block"># 🏛️ Institutional Production Profile: NSE India Equities (Nifty 50 / F&amp;O Universe)
+# Profile Name: nse_production
+profile_name: &quot;NSE India Equities Production (XNSE)&quot;
+market: &quot;NSE&quot;
+currency: &quot;INR&quot;
+
+# FIX: explicit timeframe (previously fell back to 1h/60d inside scan_now.py)
+timeframe:
+  interval: 1h
+  period: 60d
+
+trend:
+  sma_length: 50
+  use_trend_filter: true
+  use_slope_filter: true
+  slope_lookback_bars: 5
+
+base:
+  base_lookback: 20
+  tight_lookback: 5
+  max_base_range_pct: 10.0
+  max_tight_range_pct: 5.0
+  require_tightening: true
+  min_setup_bars: 5
+  max_setup_bars: 30
+  tightening_threshold: 0.70
+  min_box_density_pct: 75.0
+
+volume:
+  use_volume_contraction: true
+  volume_length: 20
+  contraction_ratio: 0.90
+  use_breakout_volume: true
+  breakout_multiplier: 1.25
+  vdu_threshold: 0.75
+  rvol_threshold: 1.20
+  use_hourly_volume_profile: true
+  hourly_profile_days: 20
+
+breakout:
+  allow_shorts: false          # FIX: long-only. Repo backtests show shorts at about -0.19R on US 1H (and NSE cash equities can&#x27;t be carried short on delivery)
+  buffer_pct: 0.10
+  close_location: 0.55
+  require_momentum_candle: true
+  min_body_pct: 40.0
+  use_open_confirmation: true
+  max_open_gap_pct: 0.50
+
+risk:
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 0.75
+  max_stop_pct: 4.50
+  use_structure_stop: true
+  structure_buffer_pct: 0.25
+  account_size: 1000000.0  # INR 10,00,000 (10 Lakhs)
+  risk_per_trade_pct: 1.0   # INR 10,000 per trade
+  # FIX: slippage 0.05 -&gt; 0.03 for liquid Nifty names. Commission 0.10 kept: it matches delivery STT (0.1%/side)
+  # + brokerage/GST/stamp (~0.13%/side), so it is realistic. Round trip ~0.26% -&gt; 0.20R gate needs stop &gt;= 1.3%
+  # (was 0.30% / 0.15R -&gt; stop &gt;= 2.0%, which blocks most tight bases).
+  slippage_pct: 0.03
+  commission_pct: 0.10      # Includes STT (0.1% on delivery or 0.025% on intraday), GST, SEBI turnover fees
+  use_cost_filter: true
+  max_friction_r: 0.20
+
+target:
+  target_lookback: 50
+  tp1_r: 1.0
+  tp2_r: 2.0
+
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.10
+  max_hold_days: 10
+  use_time_exit: true
+  use_failed_breakout_exit: true
+  failed_breakout_max_bars: 3
+
+signal_quality:
+  enabled: true
+  require_clv_confirmation: true
+  min_clv_threshold: 0.65
+  max_failed_breakouts_in_base: 2
+  close_location_weight: 1.0
+  vdu_slope_weight: 0.8
+  trigger_tightness_weight: 0.6
+  failed_breakout_penalty_weight: 1.0
+
+confluence_context:
+  enabled: true
+  htf_4h_weight: 1.0
+  market_regime_weight: 0.8
+  earnings_risk_weight: 0.8
+
+portfolio_guard:
+  enabled: true
+  account_equity: 1000000.0
+  risk_per_trade_pct: 1.0
+  max_daily_risk_pct: 2.0
+  max_active_trades: 4
+  max_sector_allocation_pct: 25.0
+  max_position_size_pct: 20.0
+  max_trades_per_sector: 1
+  allow_fractional: false
+
+rejection_gate:
+  enabled: true
+  max_stop_pct: 4.5
+  max_friction_r: 0.20
+  min_rr_ratio: 1.0
+  earnings_buffer_days: 3
+  enforce_earnings_check: true
+  enforce_anti_chase: true
+  max_extension_pct: 1.0
+  max_failed_breakouts_in_base: 2
+
+# FIX: this key was defined twice (85 then 70); YAML silently kept the last one (70).
+# Kept ONE block at the effective value. Raise to 80-85 only if you want fewer, higher-grade entries.
+confirmation_policy:
+  enabled: true
+  min_auto_entry_score: 70
+
+friction:
+  base_slippage_pct: 0.03
+  commission_pct: 0.10      # Indian statutory friction breakdown (STT + GST + Stamp Duty)
+  use_dynamic_slippage: true
+  max_friction_r: 0.20
+
+safeguards:
+  enforce_stale_data: true
+  max_stale_data_seconds: 120
+  kill_switch_file: &quot;data/KILL_SWITCH&quot;
+  max_daily_loss_pct: 2.0
+  max_spread_pct: 0.5
+  min_liquidity_volume: 25000
+
+dynamic_universe:
+  enabled: true
+  target_size: 30
+  buffer_cutoff: 35
+  min_active_sessions: 18
+  lookback_days: 20
+  min_price:
+    nse: 50.0
+  max_sector_concentration: 8
+  max_spread_pct: 5.0
+  max_avg_gap_pct: 2.5
+  metadata_dir: &quot;data/universe&quot;
+</div></details>
+
+</div>
+
 </div><!-- /container -->
 
 <!-- ================================================================ FOOTER -->
@@ -1695,7 +2271,7 @@ SOL-USD
       Never trade with money you cannot afford to lose. Always consult a licensed financial advisor before making investment decisions.
     </p>
     <p style="margin-top: 16px; color: #555;">
-      Built on institutional-grade VCP methodology · 5-Pillar scoring · Real-time market data via Yahoo Finance
+      Built on institutional-grade VCP methodology · 5-Pillar scoring · Market data via Yahoo Finance (can be throttled — see §14) · v2.1 Nov 2026
     </p>
   </div>
 </footer>
