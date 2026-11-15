@@ -27,6 +27,7 @@ from .providers.base import MarketDataProvider
 logger = logging.getLogger("outcome_tracker")
 
 DEFAULT_MAX_HOLD_BARS = 70  # 10 trading days of 1H candles (approx 7 hrs/day * 10 = 70)
+FRESH_SCAN_TOLERANCE_MINUTES = 10
 
 
 def evaluate_setup_outcome_from_df(
@@ -62,11 +63,16 @@ def evaluate_setup_outcome_from_df(
         return {"status": "FAILED", "evaluated": False, "reason": "NO_PRICE_DATA"}
 
     try:
-        # Resolve fill bar: priority on breakout_time candle, fallback to scan timestamp
+        # Infer bar length from median diff of df.index (fallback 1h)
+        diffs = pd.Series(df.index).diff().dropna()
+        bar_length = diffs.median() if not diffs.empty else pd.Timedelta(hours=1)
+        if not isinstance(bar_length, pd.Timedelta) or pd.isna(bar_length):
+            bar_length = pd.Timedelta(hours=1)
+
         breakout_str = record.get("breakout_time")
         sig_ts_str = record.get("timestamp")
-        fill_idx = None
 
+        b_dt = None
         if breakout_str:
             try:
                 b_dt = pd.to_datetime(breakout_str)
@@ -78,19 +84,11 @@ def evaluate_setup_outcome_from_df(
                 else:
                     if b_dt.tz is not None:
                         b_dt = b_dt.tz_convert(None)
-
-                if b_dt in df.index:
-                    sig_loc = df.index.get_loc(b_dt)
-                    if isinstance(sig_loc, (int, np.integer)):
-                        fill_idx = int(sig_loc) + 1
-                else:
-                    matching = np.where(df.index <= b_dt)[0]
-                    if len(matching) > 0:
-                        fill_idx = int(matching[-1]) + 1
             except Exception:
-                fill_idx = None
+                b_dt = None
 
-        if fill_idx is None and sig_ts_str:
+        s_dt = None
+        if sig_ts_str:
             try:
                 s_dt = pd.to_datetime(sig_ts_str)
                 if df.index.tz is not None:
@@ -101,26 +99,54 @@ def evaluate_setup_outcome_from_df(
                 else:
                     if s_dt.tz is not None:
                         s_dt = s_dt.tz_convert(None)
+            except Exception:
+                s_dt = None
 
-                if s_dt in df.index:
-                    sig_loc = df.index.get_loc(s_dt)
+        fill_idx = None
+        fill_basis = "FALLBACK"
+
+        if b_dt is not None:
+            breakout_bar_end = b_dt + bar_length
+            tolerance = pd.Timedelta(minutes=FRESH_SCAN_TOLERANCE_MINUTES)
+            is_fresh = True
+            if s_dt is not None and s_dt > (breakout_bar_end + tolerance):
+                is_fresh = False
+
+            if is_fresh:
+                # Fresh: fill = first bar AFTER the breakout bar
+                if b_dt in df.index:
+                    sig_loc = df.index.get_loc(b_dt)
                     if isinstance(sig_loc, (int, np.integer)):
                         fill_idx = int(sig_loc) + 1
+                        fill_basis = "BREAKOUT_NEXT_OPEN"
                 else:
-                    matching = np.where(df.index <= s_dt)[0]
+                    matching = np.where(df.index <= b_dt)[0]
                     if len(matching) > 0:
-                        last_idx = int(matching[-1])
-                        bar_dt = df.index[last_idx]
-                        elapsed_sec = (s_dt - bar_dt).total_seconds()
-                        if 0 <= elapsed_sec < 3600:
-                            fill_idx = last_idx
-                        else:
-                            fill_idx = last_idx + 1
-            except Exception:
-                fill_idx = None
+                        fill_idx = int(matching[-1]) + 1
+                        fill_basis = "BREAKOUT_NEXT_OPEN"
+            else:
+                # Late: fill = first bar whose START is strictly greater than the scan timestamp
+                if s_dt is not None:
+                    matching_late = np.where(df.index > s_dt)[0]
+                    if len(matching_late) > 0:
+                        fill_idx = int(matching_late[0])
+                        fill_basis = "SCAN_NEXT_OPEN"
+                    else:
+                        fill_idx = len(df)
+                        fill_basis = "SCAN_NEXT_OPEN"
 
         if fill_idx is None:
-            fill_idx = 1
+            if s_dt is not None:
+                matching_late = np.where(df.index > s_dt)[0]
+                if len(matching_late) > 0:
+                    fill_idx = int(matching_late[0])
+                    fill_basis = "SCAN_NEXT_OPEN"
+                else:
+                    fill_idx = len(df)
+                    fill_basis = "SCAN_NEXT_OPEN"
+            else:
+                fill_idx = 1
+                fill_basis = "FALLBACK"
 
         if len(df) <= fill_idx:
             return {
@@ -129,6 +155,7 @@ def evaluate_setup_outcome_from_df(
                 "bars_elapsed": 0,
                 "hypothetical_r": 0.0,
                 "reason": "AWAITING_NEXT_OPEN_FILL",
+                "fill_basis": fill_basis,
             }
 
         # Realistic Execution: Enter at fill bar Open + 5 bps friction
@@ -143,6 +170,7 @@ def evaluate_setup_outcome_from_df(
                 "status": "FAILED",
                 "evaluated": False,
                 "reason": "ZERO_INITIAL_RISK",
+                "fill_basis": fill_basis,
             }
 
         # Evaluation path begins from fill bar up to max_hold_bars
@@ -159,6 +187,7 @@ def evaluate_setup_outcome_from_df(
         active_stop = stop
 
         for bar_idx, (_, row) in enumerate(eval_window.iterrows()):
+            open_px = float(row["Open"])
             high = float(row["High"])
             low = float(row["Low"])
             close = float(row["Close"])
@@ -173,14 +202,7 @@ def evaluate_setup_outcome_from_df(
                 if curr_ae_r > mae_r:
                     mae_r = curr_ae_r
 
-                # 1. Early Failed Breakout Exit (First 3 bars post-fill fall back below resistance)
-                if bar_idx <= 2 and resistance and close < resistance:
-                    failed_breakout = True
-                    exit_reason = "FAILED_BREAKOUT"
-                    exit_r = round((close - entry) / initial_risk, 2)
-                    break
-
-                # 2. Stop Hit Check
+                # 1. Stop Hit Check (Stop wins inside a bar!)
                 if low <= active_stop:
                     hit_stop = True
                     if hit_tp1:
@@ -188,8 +210,19 @@ def evaluate_setup_outcome_from_df(
                         exit_r = 0.50
                         exit_reason = "BREAKEVEN_STOP"
                     else:
-                        exit_r = -1.00
                         exit_reason = "STOP_LOSS"
+                        if open_px <= active_stop:
+                            # Gap-down open below stop: exit at open
+                            exit_r = round((open_px - entry) / initial_risk, 2)
+                        else:
+                            exit_r = -1.00
+                    break
+
+                # 2. Early Failed Breakout Exit (First 3 bars post-fill fall back below resistance)
+                if bar_idx <= 2 and resistance and close < resistance:
+                    failed_breakout = True
+                    exit_reason = "FAILED_BREAKOUT"
+                    exit_r = round((close - entry) / initial_risk, 2)
                     break
 
                 # 3. TP1 Hit Check (1.0R)
@@ -214,22 +247,26 @@ def evaluate_setup_outcome_from_df(
                 if curr_ae_r > mae_r:
                     mae_r = curr_ae_r
 
-                # 1. Early Failed Breakout Exit
-                if bar_idx <= 2 and support and close > support:
-                    failed_breakout = True
-                    exit_reason = "FAILED_BREAKOUT"
-                    exit_r = round((entry - close) / initial_risk, 2)
-                    break
-
-                # 2. Stop Hit Check
+                # 1. Stop Hit Check (Stop wins inside a bar!)
                 if high >= active_stop:
                     hit_stop = True
                     if hit_tp1:
                         exit_r = 0.50
                         exit_reason = "BREAKEVEN_STOP"
                     else:
-                        exit_r = -1.00
                         exit_reason = "STOP_LOSS"
+                        if open_px >= active_stop:
+                            # Gap-up open above stop: exit at open
+                            exit_r = round((entry - open_px) / initial_risk, 2)
+                        else:
+                            exit_r = -1.00
+                    break
+
+                # 2. Early Failed Breakout Exit
+                if bar_idx <= 2 and support and close > support:
+                    failed_breakout = True
+                    exit_reason = "FAILED_BREAKOUT"
+                    exit_r = round((entry - close) / initial_risk, 2)
                     break
 
                 # 3. TP1 Hit Check
@@ -278,6 +315,7 @@ def evaluate_setup_outcome_from_df(
             "intended_fill": record.get("price", {}).get("entry"),
             "actual_fill": round(entry, 4),
             "exit_reason": exit_reason,
+            "fill_basis": fill_basis,
             "max_favorable_excursion_r": round(float(mfe_r), 2),
             "max_adverse_excursion_r": round(float(mae_r), 2),
             "hypothetical_r": round(float(exit_r), 2),

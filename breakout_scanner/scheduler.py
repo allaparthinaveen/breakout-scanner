@@ -499,6 +499,17 @@ class SessionScheduler:
             market_label = self.market_id or "MARKET"
             report_signature = f"SCAN_REPORT:{market_label.upper()}:{candle_slot_key}"
 
+            scan_stats = getattr(self.scanner, "last_scan_stats", None)
+            if scan_stats:
+                tot_s = scan_stats.get("total", 0)
+                wd_s = scan_stats.get("with_data", 0)
+                min_p = scan_stats.get("min_scan_completeness_pct", 90.0)
+                if tot_s > 0 and ((wd_s / tot_s * 100) < min_p or scan_stats.get("aborted", False)):
+                    incomplete_sig = f"INCOMPLETE_ALERT:{market_label.upper()}:{candle_slot_key}"
+                    if not self.deduplicator.is_duplicate(incomplete_sig):
+                        self.send_telegram_alert(f"⚠️ SCAN INCOMPLETE {market_label.upper()} {wd_s}/{tot_s}")
+                        self.deduplicator.record_alert(incomplete_sig, {"market": market_label})
+
             sent = False
             if self.deduplicator.is_duplicate(report_signature) and not force:
                 duplicates_skipped += 1
@@ -509,7 +520,8 @@ class SessionScheduler:
                     market=self.market_id,
                     timestamp=report_ts,
                     slate=slate,
-                    exit_events=exit_events
+                    exit_events=exit_events,
+                    scan_stats=scan_stats,
                 )
                 self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
                 self.logger.info("\n" + report_html)

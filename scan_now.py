@@ -53,8 +53,8 @@ def send_telegram_message(message: str):
 
 from breakout_scanner.telegram_formatter import format_scan_report_html
 
-def build_report_string(setups, slate=None, market=None, timeframe="1h"):
-    return format_scan_report_html(setups, slate=slate, market=market, timeframe=timeframe)
+def build_report_string(setups, slate=None, market=None, timeframe="1h", scan_stats=None):
+    return format_scan_report_html(setups, slate=slate, market=market, timeframe=timeframe, scan_stats=scan_stats)
 
 def scan_now():
     parser = argparse.ArgumentParser(description="Run breakout scanner on a watchlist")
@@ -185,7 +185,8 @@ def scan_now():
 
     # Build HTML string and send via Telegram if enabled
     if not args.no_tg:
-        report_html = build_report_string(setups, slate=slate, market=market_label, timeframe=interval)
+        scan_stats = getattr(scanner, "last_scan_stats", None)
+        report_html = build_report_string(setups, slate=slate, market=market_label, timeframe=interval, scan_stats=scan_stats)
         send_telegram_message(report_html)
     else:
         print("\n🔕 Telegram notification skipped (--no-tg specified).")

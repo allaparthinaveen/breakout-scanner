@@ -348,7 +348,18 @@ def enrich_confluence_and_context(
         days_until, imminent, earn_stat = check_earnings_proximity(setup.symbol, return_status=True)
         setup.days_to_earnings = days_until
         setup.earnings_data_status = earn_stat
+        if earn_stat in ("FAILED", "UNKNOWN"):
+            setup.earnings_unverified = True
+            earn_cfg = cfg.get("earnings", {}) if cfg else {}
+            unverified_policy = str(earn_cfg.get("unverified_policy", "warn")).lower()
+            if unverified_policy == "block":
+                setup.earnings_warning = True
+        else:
+            setup.earnings_unverified = False
+
         if imminent:
             setup.earnings_warning = True
+    else:
+        setup.earnings_unverified = False
 
     return setup

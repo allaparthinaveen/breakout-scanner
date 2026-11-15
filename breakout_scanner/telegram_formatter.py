@@ -75,6 +75,8 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
         parts.append(htf)
     if grade_badge:
         parts.append(grade_badge)
+    if getattr(s, "earnings_unverified", False):
+        parts.append("⚠️ EARNINGS UNVERIFIED — check broker calendar")
     if getattr(s, "provisional_data_incomplete", False):
         parts.append("[⚠️ PROVISIONAL: DATA INCOMPLETE]")
 
@@ -104,6 +106,7 @@ def format_scan_report_html(
     timeframe: str = "1H",
     slate: Optional[Any] = None,
     exit_events: Optional[List[Any]] = None,
+    scan_stats: Optional[Any] = None,
 ) -> str:
     """
     Full multi-symbol market scan report formatted for Telegram.
@@ -146,11 +149,30 @@ def format_scan_report_html(
         utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
         time_line = f"📅 <i>{ist_str} | {sgt_str} | {utc_str} ({timeframe} Close)</i>"
 
-    lines = [
+    incomplete_banner = None
+    if scan_stats:
+        tot = scan_stats.get("total", 0)
+        wd = scan_stats.get("with_data", 0)
+        failed_list = scan_stats.get("failed_symbols", [])
+        min_pct = scan_stats.get("min_scan_completeness_pct", 90.0)
+        aborted = scan_stats.get("aborted", False)
+        pct = (wd / tot * 100) if tot > 0 else 0.0
+        if tot > 0 and (pct < min_pct or aborted):
+            failed_str = ", ".join(failed_list[:10]) + ("..." if len(failed_list) > 10 else "")
+            incomplete_banner = (
+                f"⚠️ <b>SCAN INCOMPLETE:</b> {wd}/{tot} symbols had data (failed: {failed_str}). "
+                "Do NOT read 'no signals' as a quiet market.\n━━━━━━━━━━━━━━━━━━━━"
+            )
+
+    lines = []
+    if incomplete_banner:
+        lines.append(incomplete_banner)
+
+    lines.extend([
         title,
         time_line,
         "━━━━━━━━━━━━━━━━━━━━",
-    ]
+    ])
 
     prov_count = sum(1 for s in setups if getattr(s, "provisional_data_incomplete", False))
     if prov_count > 0:

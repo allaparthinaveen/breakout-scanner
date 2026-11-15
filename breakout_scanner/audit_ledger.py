@@ -248,6 +248,7 @@ def record_forward_test_ledger(
                     "sector_status": getattr(s, "sector_data_status", "UNKNOWN"),
                     "regime_status": getattr(s, "regime_data_status", "UNKNOWN"),
                     "earnings_status": getattr(s, "earnings_data_status", "UNKNOWN"),
+                    "earnings_unverified": getattr(s, "earnings_unverified", False),
                     "provisional": is_provisional,
                 },
                 "shadow_features": {

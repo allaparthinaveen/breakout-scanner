@@ -14,6 +14,7 @@ class MultiSymbolScanner:
         self.cfg = cfg
         self.engines: Dict[str, BreakoutEngine] = {}
         self.consecutive_aux_failures = 0
+        self.last_scan_stats = None
 
     def get_engine(self, symbol: str) -> BreakoutEngine:
         if symbol not in self.engines:
@@ -32,18 +33,62 @@ class MultiSymbolScanner:
         elif hasattr(self.provider, "consecutive_fetch_failures"):
             self.provider.consecutive_fetch_failures = 0
 
-        for symbol in symbols:
+        total_symbols = len(symbols)
+        with_data = 0
+        failed_symbols = []
+        aborted = False
+
+        data_health_cfg = self.cfg.get("data_health", {}) if self.cfg else {}
+        abort_k = int(data_health_cfg.get("abort_after_consecutive_empty", 8))
+        min_comp_pct = float(data_health_cfg.get("min_scan_completeness_pct", 90))
+
+        consecutive_initial_failures = 0
+        success_seen = False
+
+        for idx, symbol in enumerate(symbols):
+            if not success_seen and consecutive_initial_failures >= abort_k:
+                aborted = True
+                failed_symbols.extend(symbols[idx:])
+                break
+
             try:
                 df = self.provider.candles(symbol, period, interval)
-                if not df.empty:
+                if df is not None and not df.empty:
+                    success_seen = True
+                    consecutive_initial_failures = 0
+                    with_data += 1
                     engine = self.get_engine(symbol)
                     setup = engine.run(df)
                     if setup.state in (State.CONTRACTION, State.BUY, State.SELL, State.FAILED):
                         self.enrich_bias(setup, df, period, interval)
                         
                     out.append(setup)
+                else:
+                    failed_symbols.append(symbol)
+                    if not success_seen:
+                        consecutive_initial_failures += 1
+                        if consecutive_initial_failures >= abort_k:
+                            aborted = True
+                            failed_symbols.extend(symbols[idx + 1:])
+                            break
             except Exception as e:
-                print(f"Error scanning {symbol}: {e}")
+                import logging
+                logging.getLogger("breakout_scanner.scanner").warning(f"Error scanning {symbol}: {e}")
+                failed_symbols.append(symbol)
+                if not success_seen:
+                    consecutive_initial_failures += 1
+                    if consecutive_initial_failures >= abort_k:
+                        aborted = True
+                        failed_symbols.extend(symbols[idx + 1:])
+                        break
+
+        self.last_scan_stats = {
+            "total": total_symbols,
+            "with_data": with_data,
+            "failed_symbols": failed_symbols,
+            "aborted": aborted,
+            "min_scan_completeness_pct": min_comp_pct,
+        }
         return out
 
     def enrich_bias(self, setup: Setup, df, period, interval):
@@ -400,6 +445,18 @@ class MultiSymbolScanner:
         setup.options_status = "UNDERLYING_UNVALIDATED"
 
     def report(self, setups: List[Setup]):
+        stats = getattr(self, "last_scan_stats", None)
+        if stats:
+            total_sym = stats.get("total", 0)
+            with_data = stats.get("with_data", 0)
+            failed_syms = stats.get("failed_symbols", [])
+            min_pct = stats.get("min_scan_completeness_pct", 90)
+            aborted = stats.get("aborted", False)
+            pct = (with_data / total_sym * 100) if total_sym > 0 else 0.0
+            if total_sym > 0 and (pct < min_pct or aborted):
+                failed_str = ", ".join(failed_syms[:10]) + ("..." if len(failed_syms) > 10 else "")
+                print(f"\n\033[91m⚠️  SCAN INCOMPLETE: {with_data}/{total_sym} symbols had data (failed: {failed_str}). Do NOT read 'no signals' as a quiet market.\033[0m")
+
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
         fresh_setups = [s for s in active_setups if s.is_fresh_entry]
         progress_setups = [s for s in active_setups if not s.is_fresh_entry]
@@ -494,6 +551,8 @@ class MultiSymbolScanner:
                     
                 if s.earnings_warning:
                     bias_text += " ⚠️ EARNINGS RISK"
+                elif getattr(s, "earnings_unverified", False):
+                    bias_text += " ⚠️ EARNINGS UNVERIFIED — check broker calendar"
                     
                 bias_str = f"{bias_color}Bias: {bias_text}\033[0m"
                 parts = [f"  • {s.symbol:9}", res, sup]
@@ -550,6 +609,8 @@ class MultiSymbolScanner:
         grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
         
         parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
+        if getattr(s, "earnings_unverified", False):
+            parts.append("\033[93m⚠️ EARNINGS UNVERIFIED — check broker calendar\033[0m")
         if getattr(s, "provisional_data_incomplete", False):
             parts.append("\033[93m[PROVISIONAL]\033[0m")
         if risk_str:

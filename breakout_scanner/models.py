@@ -74,6 +74,7 @@ class Setup:
     sector_data_status: str = "PENDING"    # "OK", "FAILED", "STALE", "PENDING"
     regime_data_status: str = "PENDING"    # "OK", "FAILED", "STALE", "PENDING"
     earnings_data_status: str = "UNKNOWN"  # "OK", "FAILED", "UNKNOWN"
+    earnings_unverified: bool = False
     provisional_data_incomplete: bool = False
     is_above_daily_sma50: Optional[bool] = None
 
