@@ -48,8 +48,8 @@ def evaluate_setup_outcome_from_df(
     stated_stop = price_info.get("stop")
     tp1 = price_info.get("tp1")
     tp2 = price_info.get("tp2")
-    resistance = price_info.get("resistance")
-    support = price_info.get("support")
+    resistance = price_info.get("resistance") or price_info.get("breakout_level")
+    support = price_info.get("support") or price_info.get("breakout_level")
 
     if not stated_stop or direction == 0:
         return {
@@ -62,34 +62,77 @@ def evaluate_setup_outcome_from_df(
         return {"status": "FAILED", "evaluated": False, "reason": "NO_PRICE_DATA"}
 
     try:
-        # Find bars after the signal timestamp
+        # Resolve fill bar: priority on breakout_time candle, fallback to scan timestamp
+        breakout_str = record.get("breakout_time")
         sig_ts_str = record.get("timestamp")
-        if sig_ts_str:
-            try:
-                sig_dt = pd.to_datetime(sig_ts_str)
-                if df.index.tz is None and sig_dt.tz is not None:
-                    df = df.copy()
-                    df.index = df.index.tz_localize("UTC")
-                elif df.index.tz is not None and sig_dt.tz is None:
-                    sig_dt = sig_dt.tz_localize("UTC")
-                subsequent_df = df[df.index >= sig_dt]
-            except Exception:
-                subsequent_df = df
-        else:
-            subsequent_df = df
+        fill_idx = None
 
-        # Need at least 2 bars: Bar 0 is signal bar close, Bar 1 is entry fill bar
-        if subsequent_df.empty or len(subsequent_df) < 2:
+        if breakout_str:
+            try:
+                b_dt = pd.to_datetime(breakout_str)
+                if df.index.tz is not None:
+                    if b_dt.tz is None:
+                        b_dt = b_dt.tz_localize(df.index.tz)
+                    else:
+                        b_dt = b_dt.tz_convert(df.index.tz)
+                else:
+                    if b_dt.tz is not None:
+                        b_dt = b_dt.tz_convert(None)
+
+                if b_dt in df.index:
+                    sig_loc = df.index.get_loc(b_dt)
+                    if isinstance(sig_loc, (int, np.integer)):
+                        fill_idx = int(sig_loc) + 1
+                else:
+                    matching = np.where(df.index <= b_dt)[0]
+                    if len(matching) > 0:
+                        fill_idx = int(matching[-1]) + 1
+            except Exception:
+                fill_idx = None
+
+        if fill_idx is None and sig_ts_str:
+            try:
+                s_dt = pd.to_datetime(sig_ts_str)
+                if df.index.tz is not None:
+                    if s_dt.tz is None:
+                        s_dt = s_dt.tz_localize(df.index.tz)
+                    else:
+                        s_dt = s_dt.tz_convert(df.index.tz)
+                else:
+                    if s_dt.tz is not None:
+                        s_dt = s_dt.tz_convert(None)
+
+                if s_dt in df.index:
+                    sig_loc = df.index.get_loc(s_dt)
+                    if isinstance(sig_loc, (int, np.integer)):
+                        fill_idx = int(sig_loc) + 1
+                else:
+                    matching = np.where(df.index <= s_dt)[0]
+                    if len(matching) > 0:
+                        last_idx = int(matching[-1])
+                        bar_dt = df.index[last_idx]
+                        elapsed_sec = (s_dt - bar_dt).total_seconds()
+                        if 0 <= elapsed_sec < 3600:
+                            fill_idx = last_idx
+                        else:
+                            fill_idx = last_idx + 1
+            except Exception:
+                fill_idx = None
+
+        if fill_idx is None:
+            fill_idx = 1
+
+        if len(df) <= fill_idx:
             return {
                 "status": "IN_PROGRESS",
                 "evaluated": False,
-                "bars_elapsed": len(subsequent_df),
+                "bars_elapsed": 0,
                 "hypothetical_r": 0.0,
                 "reason": "AWAITING_NEXT_OPEN_FILL",
             }
 
-        # Realistic Execution: Enter at Bar 1 Open + 5 bps friction
-        fill_bar = subsequent_df.iloc[1]
+        # Realistic Execution: Enter at fill bar Open + 5 bps friction
+        fill_bar = df.iloc[fill_idx]
         raw_fill = float(fill_bar["Open"])
         entry = raw_fill * (1.0005 if direction == 1 else 0.9995)
         stop = stated_stop
@@ -102,8 +145,8 @@ def evaluate_setup_outcome_from_df(
                 "reason": "ZERO_INITIAL_RISK",
             }
 
-        # Evaluation path begins from fill bar (Bar 1 onwards) up to max_hold_bars
-        eval_window = subsequent_df.iloc[1: 1 + max_hold_bars]
+        # Evaluation path begins from fill bar up to max_hold_bars
+        eval_window = df.iloc[fill_idx: fill_idx + max_hold_bars]
 
         mfe_r = 0.0
         mae_r = 0.0
@@ -270,7 +313,7 @@ def update_ledger_outcomes(
     ledger_path: str = "logs/forward_test_ledger.jsonl",
     outcomes_path: str = "logs/forward_test_outcomes.jsonl",
     provider: Optional[MarketDataProvider] = None,
-    max_record_age_days: int = 14,
+    max_record_age_days: int = 25,
     eval_bars: int = DEFAULT_MAX_HOLD_BARS,
 ) -> Dict[str, Any]:
     """

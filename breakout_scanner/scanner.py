@@ -13,6 +13,7 @@ class MultiSymbolScanner:
         self.provider = provider
         self.cfg = cfg
         self.engines: Dict[str, BreakoutEngine] = {}
+        self.consecutive_aux_failures = 0
 
     def get_engine(self, symbol: str) -> BreakoutEngine:
         if symbol not in self.engines:
@@ -25,6 +26,7 @@ class MultiSymbolScanner:
         triggered periodically (e.g., every minute) as a fallback to websockets.
         """
         out = []
+        self.consecutive_aux_failures = 0
         if hasattr(self.provider, "reset_circuit_breaker"):
             self.provider.reset_circuit_breaker()
         elif hasattr(self.provider, "consecutive_fetch_failures"):
@@ -89,8 +91,12 @@ class MultiSymbolScanner:
                     if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
                         is_stale = True
                 if is_stale:
-                    cb_val = getattr(self.provider, "consecutive_fetch_failures", 0)
+                    cb_val = getattr(self, "consecutive_aux_failures", 0)
                     if isinstance(cb_val, (int, float)) and cb_val >= 3:
+                        logger.warning(
+                            f"⚠️ [CircuitBreaker] Auxiliary benchmark fetches throttled/failed >= 3 times. "
+                            f"Bypassing network download for {sym}; marking provisional."
+                        )
                         if cached_df is not None and not cached_df.empty:
                             setup.htf_data_status = "STALE"
                             return cached_df
@@ -99,15 +105,18 @@ class MultiSymbolScanner:
                     try:
                         fresh_df = self.provider.candles(sym, period='1y', interval='1d')
                         if fresh_df is not None and not fresh_df.empty:
+                            self.consecutive_aux_failures = 0
                             self.provider.daily_cache[sym] = fresh_df
                             self.provider.daily_cache_ts[sym] = now_utc
                             return fresh_df
-                        elif cached_df is not None and not cached_df.empty:
-                            # Use stale cache if fresh fetch returned empty
-                            setup.htf_data_status = "STALE"
-                            return cached_df
-                        return pd.DataFrame()
+                        else:
+                            self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
+                            if cached_df is not None and not cached_df.empty:
+                                setup.htf_data_status = "STALE"
+                                return cached_df
+                            return pd.DataFrame()
                     except Exception as e:
+                        self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
                         logger.warning(f"⚠️ [DataHealth] HTF 1D candles fetch failed for {sym}: {e}")
                         if cached_df is not None and not cached_df.empty:
                             setup.htf_data_status = "STALE"
@@ -174,8 +183,12 @@ class MultiSymbolScanner:
                     if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
                         is_stale = True
                 if is_stale:
-                    cb_val = getattr(self.provider, "consecutive_fetch_failures", 0)
+                    cb_val = getattr(self, "consecutive_aux_failures", 0)
                     if isinstance(cb_val, (int, float)) and cb_val >= 3:
+                        logger.warning(
+                            f"⚠️ [CircuitBreaker] Auxiliary benchmark fetches throttled/failed >= 3 times. "
+                            f"Bypassing network download for {p_sym}; marking provisional."
+                        )
                         if cached_df is not None and not cached_df.empty:
                             setup.sector_data_status = "STALE"
                             return cached_df
@@ -184,14 +197,18 @@ class MultiSymbolScanner:
                     try:
                         fresh_df = self.provider.candles(p_sym, period=p_per, interval=p_int)
                         if fresh_df is not None and not fresh_df.empty:
+                            self.consecutive_aux_failures = 0
                             self.provider.market_cache[key] = fresh_df
                             self.provider.market_cache_ts[key] = now_utc
                             return fresh_df
-                        elif cached_df is not None and not cached_df.empty:
-                            setup.sector_data_status = "STALE"
-                            return cached_df
-                        return pd.DataFrame()
+                        else:
+                            self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
+                            if cached_df is not None and not cached_df.empty:
+                                setup.sector_data_status = "STALE"
+                                return cached_df
+                            return pd.DataFrame()
                     except Exception as e:
+                        self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
                         logger.warning(f"⚠️ [DataHealth] Sector proxy fetch failed for {p_sym}: {e}")
                         if cached_df is not None and not cached_df.empty:
                             setup.sector_data_status = "STALE"

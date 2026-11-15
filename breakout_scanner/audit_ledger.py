@@ -220,6 +220,7 @@ def record_forward_test_ledger(
                 "signal_id": signal_id,
                 "git_sha": git_sha,
                 "timestamp": timestamp,
+                "breakout_time": getattr(s, "breakout_time", None) or timestamp,
                 "config_hash": config_hash,
                 "profile_name": cfg.get("profile_name", "Standard"),
                 "symbol": s.symbol,
@@ -238,6 +239,9 @@ def record_forward_test_ledger(
                     "risk_pct": s.risk_pct,
                     "tp1": target_1,
                     "tp2": target_2,
+                    "resistance": getattr(s, "resistance", None),
+                    "support": getattr(s, "support", None),
+                    "breakout_level": getattr(s, "breakout_level", None),
                 },
                 "data_health": {
                     "htf_status": getattr(s, "htf_data_status", "UNKNOWN"),

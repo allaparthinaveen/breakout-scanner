@@ -196,7 +196,12 @@ def compute_market_regime(
         return "NORMAL", True
 
 
-_EARNINGS_CACHE: Dict[str, Tuple[Optional[int], bool, str]] = {}
+_EARNINGS_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def clear_earnings_cache():
+    """Resets the in-memory earnings cache."""
+    _EARNINGS_CACHE.clear()
 
 
 def check_earnings_proximity(
@@ -209,14 +214,39 @@ def check_earnings_proximity(
     Returns (days_until_earnings, is_earnings_imminent) or (days_until_earnings, is_earnings_imminent, data_status).
     is_earnings_imminent is True if earnings occur within 0 to 3 trading days.
     data_status: "OK", "FAILED", "UNKNOWN".
+    
+    Includes TTL (12h for OK, 15m for FAILED/UNKNOWN) and dynamic day recalculation
+    so cached earnings dates adjust naturally as calendar days advance.
     """
     if not symbol or is_non_equity_symbol(symbol):
         res = (None, False, "OK")
         return res if return_status else (res[0], res[1])
 
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    today = now_utc.date()
+
     if calendar_data is None and symbol in _EARNINGS_CACHE:
-        res = _EARNINGS_CACHE[symbol]
-        return res if return_status else (res[0], res[1])
+        entry = _EARNINGS_CACHE[symbol]
+        cached_status = entry.get("status", "UNKNOWN")
+        cached_at = entry.get("cached_at")
+        
+        # TTL: 12 hours for OK, 15 minutes for FAILED/UNKNOWN
+        ttl_seconds = 12 * 3600 if cached_status == "OK" else 15 * 60
+        is_fresh = False
+        if cached_at is not None:
+            age_sec = (now_utc - cached_at).total_seconds()
+            if age_sec < ttl_seconds:
+                is_fresh = True
+                
+        if is_fresh:
+            earning_date = entry.get("earning_date")
+            if earning_date is not None and cached_status == "OK":
+                days_until = (earning_date - today).days
+                is_imminent = (0 <= days_until <= 3)
+                res = (days_until, is_imminent, cached_status)
+            else:
+                res = (None, False, cached_status)
+            return res if return_status else (res[0], res[1])
 
     try:
         cal = calendar_data
@@ -226,8 +256,12 @@ def check_earnings_proximity(
             cal = getattr(ticker, "calendar", None)
 
         if cal is None:
+            _EARNINGS_CACHE[symbol] = {
+                "earning_date": None,
+                "status": "UNKNOWN",
+                "cached_at": now_utc,
+            }
             res = (None, False, "UNKNOWN")
-            _EARNINGS_CACHE[symbol] = res
             return res if return_status else (res[0], res[1])
 
         dates = None
@@ -253,21 +287,32 @@ def check_earnings_proximity(
                 earning_date = datetime.datetime.strptime(earning_date[:10], "%Y-%m-%d").date()
 
             if isinstance(earning_date, datetime.date):
-                today = datetime.date.today()
                 days_until = (earning_date - today).days
                 is_imminent = (0 <= days_until <= 3)
+                _EARNINGS_CACHE[symbol] = {
+                    "earning_date": earning_date,
+                    "status": "OK",
+                    "cached_at": now_utc,
+                }
                 res = (days_until, is_imminent, "OK")
-                _EARNINGS_CACHE[symbol] = res
                 return res if return_status else (res[0], res[1])
 
-    except Exception:
-        res = (None, False, "FAILED")
-        _EARNINGS_CACHE[symbol] = res
+        _EARNINGS_CACHE[symbol] = {
+            "earning_date": None,
+            "status": "UNKNOWN",
+            "cached_at": now_utc,
+        }
+        res = (None, False, "UNKNOWN")
         return res if return_status else (res[0], res[1])
 
-    res = (None, False, "UNKNOWN")
-    _EARNINGS_CACHE[symbol] = res
-    return res if return_status else (res[0], res[1])
+    except Exception:
+        _EARNINGS_CACHE[symbol] = {
+            "earning_date": None,
+            "status": "FAILED",
+            "cached_at": now_utc,
+        }
+        res = (None, False, "FAILED")
+        return res if return_status else (res[0], res[1])
 
 
 def enrich_confluence_and_context(
