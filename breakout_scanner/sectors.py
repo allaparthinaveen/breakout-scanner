@@ -25,11 +25,15 @@ SECTOR_MAP = {
     'SBIN.NS': ('Banking', '^NSEBANK'),
     'KOTAKBANK.NS': ('Banking', '^NSEBANK'),
     'AXISBANK.NS': ('Banking', '^NSEBANK'),
-    'BAJFINANCE.NS': ('Financials', '^NSEBANK'),
-    'BAJAJFINSV.NS': ('Financials', '^NSEBANK'),
-    'LICI.NS': ('Financials', '^NSEBANK'),
-    'SBILIFE.NS': ('Financials', '^NSEBANK'),
-    'SHRIRAMFIN.NS': ('Financials', '^NSEBANK'),
+    'INDUSINDBK.NS': ('Banking', '^NSEBANK'),
+    
+    # Non-Bank Financial Services & Insurance
+    'BAJFINANCE.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'BAJAJFINSV.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'LICI.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'SBILIFE.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'HDFCLIFE.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
+    'SHRIRAMFIN.NS': ('Fin Services', 'NIFTY_FIN_SERVICE.NS'),
 
     # Auto & Mobility
     'MARUTI.NS': ('Auto', '^CNXAUTO'),
@@ -62,17 +66,19 @@ SECTOR_MAP = {
     'COLPAL.NS': ('FMCG', '^CNXFMCG'),
     'EMAMILTD.NS': ('FMCG', '^CNXFMCG'),
 
-    # Energy, Oil & Power
+    # Energy & Oil
     'RELIANCE.NS': ('Energy', '^CNXENERGY'),
     'ONGC.NS': ('Energy', '^CNXENERGY'),
     'IOC.NS': ('Energy', '^CNXENERGY'),
     'BPCL.NS': ('Energy', '^CNXENERGY'),
     'GAIL.NS': ('Energy', '^CNXENERGY'),
-    'NTPC.NS': ('Energy', '^CNXENERGY'),
-    'POWERGRID.NS': ('Energy', '^CNXENERGY'),
-    'ADANIGREEN.NS': ('Energy', '^CNXENERGY'),
-    'TATAPOWER.NS': ('Energy', '^CNXENERGY'),
     'OIL.NS': ('Energy', '^CNXENERGY'),
+
+    # Utilities, Power & Infrastructure
+    'NTPC.NS': ('Utilities', '^CNXINFRA'),
+    'POWERGRID.NS': ('Utilities', '^CNXINFRA'),
+    'TATAPOWER.NS': ('Utilities', '^CNXINFRA'),
+    'ADANIGREEN.NS': ('Utilities', '^CNXINFRA'),
 
     # ----------------------------------------------------
     # US Market Sector Mappings
@@ -172,6 +178,69 @@ SECTOR_MAP = {
     'NEE': ('Utilities', 'XLU'),
     'SO': ('Utilities', 'XLU'),
     'DUK': ('Utilities', 'XLU'),
+
+    # ----------------------------------------------------
+    # Hong Kong Sector Mappings
+    # ----------------------------------------------------
+    # Technology / Cloud / Semis
+    '0700.HK': ('Tech/Gaming', '^HSI'),
+    '9988.HK': ('Tech/E-Commerce', '^HSI'),
+    '3690.HK': ('Tech/Delivery', '^HSI'),
+    '9888.HK': ('Tech/AI', '^HSI'),
+    '0981.HK': ('Semis', '^HSI'),
+    '1810.HK': ('Hardware/EV', '^HSI'),
+    # Financials & Insurance
+    '0005.HK': ('Banking', '^HSI'),
+    '1299.HK': ('Insurance', '^HSI'),
+    '0388.HK': ('Exchange', '^HSI'),
+    '2318.HK': ('Insurance', '^HSI'),
+    '0939.HK': ('Banking', '^HSI'),
+    '1398.HK': ('Banking', '^HSI'),
+    # Auto & Consumer
+    '1211.HK': ('Auto/EV', '^HSI'),
+    '2015.HK': ('Auto/EV', '^HSI'),
+    '9999.HK': ('Gaming', '^HSI'),
+    '9618.HK': ('E-Commerce', '^HSI'),
+    # Healthcare
+    '2269.HK': ('Biotech/CDMO', '^HSI'),
+    '2359.HK': ('Biotech/CXO', '^HSI'),
+    '6160.HK': ('Biotech/Oncology', '^HSI'),
+    # Energy
+    '0883.HK': ('Energy', '^HSI'),
+    '0857.HK': ('Energy', '^HSI'),
+
+    # ----------------------------------------------------
+    # Japan Sector Mappings
+    # ----------------------------------------------------
+    # Semiconductors & Electronics
+    '8035.T': ('Semis', '^N225'),
+    '6857.T': ('Semis', '^N225'),
+    '6758.T': ('Consumer Electronics/Gaming', '^N225'),
+    '6861.T': ('Automation/Sensors', '^N225'),
+    '6920.T': ('Semis/EUV', '^N225'),
+    # Automotive
+    '7203.T': ('Auto', '^N225'),
+    '7267.T': ('Auto', '^N225'),
+    # Gaming & Entertainment
+    '7974.T': ('Gaming', '^N225'),
+    # Financials & Banking
+    '8306.T': ('Banking', '^N225'),
+    '8316.T': ('Banking', '^N225'),
+    '8766.T': ('Insurance', '^N225'),
+    # Tech / Telecom / Investment
+    '9984.T': ('Tech Conglomerate', '^N225'),
+    '9432.T': ('Telecom', '^N225'),
+    '9434.T': ('Telecom', '^N225'),
+    # Retail
+    '9983.T': ('Apparel/Retail', '^N225'),
+    # Pharma
+    '4502.T': ('Pharma', '^N225'),
+    '4568.T': ('Pharma/Oncology', '^N225'),
+    # Trading Houses & Industrials
+    '8058.T': ('Trading House', '^N225'),
+    '8001.T': ('Trading House', '^N225'),
+    '4063.T': ('Chemicals/Semis', '^N225'),
+    '6501.T': ('Industrials/Energy', '^N225'),
 }
 
 def get_sector_benchmark(symbol: str) -> Tuple[str, str]:
@@ -187,5 +256,10 @@ def get_sector_benchmark(symbol: str) -> Tuple[str, str]:
         return ('Crypto', 'BTC-USD')
     elif symbol.endswith('.NS') or symbol.endswith('.BO'):
         return ('NSE Market', '^NSEI')
+    elif symbol.endswith('.HK'):
+        return ('HK Market', '^HSI')
+    elif symbol.endswith('.T'):
+        return ('Japan Market', '^N225')
     else:
         return ('US Market', 'SPY')
+

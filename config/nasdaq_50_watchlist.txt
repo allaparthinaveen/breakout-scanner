@@ -1,0 +1,63 @@
+# Technology / Semiconductors
+AAPL
+MSFT
+NVDA
+AVGO
+AMD
+QCOM
+AMAT
+MU
+CSCO
+INTC
+
+# Software / Cloud / Cybersecurity
+ORCL
+CRM
+ADBE
+NOW
+PANW
+CRWD
+INTU
+SNPS
+CDNS
+ANET
+
+# Consumer / E-commerce
+AMZN
+TSLA
+COST
+BKNG
+MELI
+ABNB
+
+# Communication / Media
+GOOGL
+GOOG
+META
+NFLX
+TMUS
+
+# Healthcare / Biotech
+AMGN
+GILD
+ISRG
+VRTX
+REGN
+
+# Consumer Staples
+PEP
+MDLZ
+SBUX
+
+# Industrials / Business Services
+ADP
+HON
+MAR
+CSX
+
+# Other Nasdaq-listed growth companies
+PLTR
+APP
+ARM
+ADI
+ALNY

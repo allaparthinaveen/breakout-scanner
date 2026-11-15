@@ -1,5 +1,6 @@
 import argparse
 import pandas as pd
+import numpy as np
 import requests
 import os
 from dotenv import load_dotenv
@@ -47,11 +48,11 @@ def run_pre_market_scan(watchlist_file: str):
     setups = scanner.scan(symbols, period='60d', interval='1h')
     
     forming_box = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-    forming_box.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
+    forming_box.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
     breaking_out = [s for s in setups if s.state in (State.BUY, State.SELL) and not s.retest_confirmed]
-    breaking_out.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
+    breaking_out.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
     retesting = [s for s in setups if s.state in (State.BUY, State.SELL) and s.retest_confirmed]
-    retesting.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
+    retesting.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
     idle = [s for s in setups if s.state in (State.IDLE, State.FAILED)]
     
     from breakout_scanner.telegram_formatter import format_daily_briefing_html

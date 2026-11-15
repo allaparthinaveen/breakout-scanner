@@ -13,6 +13,8 @@ class MultiSymbolScanner:
         self.provider = provider
         self.cfg = cfg
         self.engines: Dict[str, BreakoutEngine] = {}
+        self.consecutive_aux_failures = 0
+        self.last_scan_stats = None
 
     def get_engine(self, symbol: str) -> BreakoutEngine:
         if symbol not in self.engines:
@@ -25,23 +27,88 @@ class MultiSymbolScanner:
         triggered periodically (e.g., every minute) as a fallback to websockets.
         """
         out = []
-        for symbol in symbols:
+        self.consecutive_aux_failures = 0
+        if hasattr(self.provider, "reset_circuit_breaker"):
+            self.provider.reset_circuit_breaker()
+        elif hasattr(self.provider, "consecutive_fetch_failures"):
+            self.provider.consecutive_fetch_failures = 0
+
+        total_symbols = len(symbols)
+        with_data = 0
+        failed_symbols = []
+        aborted = False
+
+        data_health_cfg = self.cfg.get("data_health", {}) if self.cfg else {}
+        abort_k = int(data_health_cfg.get("abort_after_consecutive_empty", 8))
+        min_comp_pct = float(data_health_cfg.get("min_scan_completeness_pct", 90))
+
+        consecutive_initial_failures = 0
+        success_seen = False
+
+        for idx, symbol in enumerate(symbols):
+            if not success_seen and consecutive_initial_failures >= abort_k:
+                aborted = True
+                failed_symbols.extend(symbols[idx:])
+                break
+
             try:
                 df = self.provider.candles(symbol, period, interval)
-                if not df.empty:
+                if df is not None and not df.empty:
+                    success_seen = True
+                    consecutive_initial_failures = 0
+                    with_data += 1
                     engine = self.get_engine(symbol)
                     setup = engine.run(df)
-                    if setup.state in (State.CONTRACTION, State.BUY, State.SELL):
+                    if setup.state in (State.CONTRACTION, State.BUY, State.SELL, State.FAILED):
                         self.enrich_bias(setup, df, period, interval)
                         
                     out.append(setup)
+                else:
+                    failed_symbols.append(symbol)
+                    if not success_seen:
+                        consecutive_initial_failures += 1
+                        if consecutive_initial_failures >= abort_k:
+                            aborted = True
+                            failed_symbols.extend(symbols[idx + 1:])
+                            break
             except Exception as e:
-                print(f"Error scanning {symbol}: {e}")
+                import logging
+                logging.getLogger("breakout_scanner.scanner").warning(f"Error scanning {symbol}: {e}")
+                failed_symbols.append(symbol)
+                if not success_seen:
+                    consecutive_initial_failures += 1
+                    if consecutive_initial_failures >= abort_k:
+                        aborted = True
+                        failed_symbols.extend(symbols[idx + 1:])
+                        break
+
+        self.last_scan_stats = {
+            "total": total_symbols,
+            "with_data": with_data,
+            "failed_symbols": failed_symbols,
+            "aborted": aborted,
+            "min_scan_completeness_pct": min_comp_pct,
+        }
         return out
 
     def enrich_bias(self, setup: Setup, df, period, interval):
+        import logging
+        logger = logging.getLogger("breakout_scanner.scanner")
+        
         score = 0
-        if setup.trend == 1:
+        target_dir = setup.direction if setup.direction in (1, -1) else (1 if setup.trend >= 0 else -1)
+        
+        # Initialize data provenance statuses
+        setup.htf_data_status = "PENDING"
+        setup.sector_data_status = "PENDING"
+        setup.regime_data_status = "PENDING"
+        setup.provisional_data_incomplete = False
+        proxy_df = pd.DataFrame()
+
+        # Pillar 1: 1H Trend Alignment
+        if target_dir == 1 and setup.trend == 1:
+            score += 1
+        elif target_dir == -1 and setup.trend == -1:
             score += 1
             
         try:
@@ -49,30 +116,96 @@ class MultiSymbolScanner:
             import datetime
             
             # ----------------------------------------------------
-            # 1. Higher-Timeframe (1D) Confluence Check
+            # 1. Higher-Timeframe (1D) Confluence Check & Cache TTL
             # ----------------------------------------------------
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
             if not hasattr(self.provider, 'daily_cache'):
                 self.provider.daily_cache = {}
+            if not hasattr(self.provider, 'daily_cache_ts'):
+                self.provider.daily_cache_ts = {}
+
+            def get_cached_daily(sym: str) -> pd.DataFrame:
+                cached_df = self.provider.daily_cache.get(sym)
+                cached_ts = self.provider.daily_cache_ts.get(sym)
+                is_stale = False
+                if cached_df is None or cached_ts is None:
+                    is_stale = True
+                else:
+                    elapsed = (now_utc - cached_ts).total_seconds()
+                    # Invalidate if older than 4 hours or if calendar day/session has advanced
+                    if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
+                        is_stale = True
+                if is_stale:
+                    cb_val = getattr(self, "consecutive_aux_failures", 0)
+                    if isinstance(cb_val, (int, float)) and cb_val >= 3:
+                        logger.warning(
+                            f"⚠️ [CircuitBreaker] Auxiliary benchmark fetches throttled/failed >= 3 times. "
+                            f"Bypassing network download for {sym}; marking provisional."
+                        )
+                        if cached_df is not None and not cached_df.empty:
+                            setup.htf_data_status = "STALE"
+                            return cached_df
+                        setup.htf_data_status = "FAILED"
+                        return pd.DataFrame()
+                    try:
+                        fresh_df = self.provider.candles(sym, period='1y', interval='1d')
+                        if fresh_df is not None and not fresh_df.empty:
+                            self.consecutive_aux_failures = 0
+                            self.provider.daily_cache[sym] = fresh_df
+                            self.provider.daily_cache_ts[sym] = now_utc
+                            return fresh_df
+                        else:
+                            self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
+                            if cached_df is not None and not cached_df.empty:
+                                setup.htf_data_status = "STALE"
+                                return cached_df
+                            return pd.DataFrame()
+                    except Exception as e:
+                        self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
+                        logger.warning(f"⚠️ [DataHealth] HTF 1D candles fetch failed for {sym}: {e}")
+                        if cached_df is not None and not cached_df.empty:
+                            setup.htf_data_status = "STALE"
+                            return cached_df
+                        return pd.DataFrame()
+                return cached_df
                 
-            if setup.symbol not in self.provider.daily_cache:
-                self.provider.daily_cache[setup.symbol] = self.provider.candles(setup.symbol, period='1y', interval='1d')
-                
-            daily_df = self.provider.daily_cache[setup.symbol]
-            if not daily_df.empty and len(daily_df) >= 50:
-                daily_sma50 = daily_df['Close'].rolling(50).mean().iloc[-1]
+            daily_df = get_cached_daily(setup.symbol)
+            if daily_df is not None and not daily_df.empty and len(daily_df) >= 55:
+                if setup.htf_data_status != "STALE":
+                    setup.htf_data_status = "OK"
+                daily_sma = daily_df['Close'].rolling(50).mean()
+                sma50_curr = daily_sma.iloc[-1]
+                sma50_prev5 = daily_sma.iloc[-5]
                 daily_close = daily_df['Close'].iloc[-1]
-                setup.htf_trend = 1 if daily_close > daily_sma50 else -1
                 
-                # Check HTF alignment with current setup
-                if setup.direction == 1 and setup.htf_trend == 1:
+                # Shadow Feature: Daily SMA50 alignment
+                setup.is_above_daily_sma50 = bool(daily_close > sma50_curr)
+                
+                # SMA50 slope check: SMA50[-1] > SMA50[-5]
+                slope_up = sma50_curr > sma50_prev5
+                slope_down = sma50_curr < sma50_prev5
+                
+                if daily_close > sma50_curr and slope_up:
+                    setup.htf_trend = 1
+                elif daily_close < sma50_curr and slope_down:
+                    setup.htf_trend = -1
+                else:
+                    setup.htf_trend = 0
+                
+                # Check HTF alignment with current setup direction
+                if target_dir == 1 and setup.htf_trend == 1:
                     setup.htf_confirmed = True
-                elif setup.direction == -1 and setup.htf_trend == -1:
+                elif target_dir == -1 and setup.htf_trend == -1:
                     setup.htf_confirmed = True
-                elif setup.state == State.CONTRACTION and setup.htf_trend == 1:
-                    setup.htf_confirmed = True
+                else:
+                    setup.htf_confirmed = False
+            else:
+                setup.htf_data_status = "FAILED"
+                setup.provisional_data_incomplete = True
+                logger.warning(f"⚠️ [DataHealth] HTF 1D data missing or insufficient for {setup.symbol}")
 
             # ----------------------------------------------------
-            # 2. Sector-Level Relative Strength
+            # 2. Sector-Level Relative Strength (Forward-Only Alignment)
             # ----------------------------------------------------
             sector_name, benchmark_symbol = get_sector_benchmark(setup.symbol)
             setup.sector_name = sector_name
@@ -81,22 +214,79 @@ class MultiSymbolScanner:
             cache_key = f"{proxy}_{period}_{interval}"
             if not hasattr(self.provider, 'market_cache'):
                 self.provider.market_cache = {}
+            if not hasattr(self.provider, 'market_cache_ts'):
+                self.provider.market_cache_ts = {}
+
+            def get_cached_proxy(key: str, p_sym: str, p_per: str, p_int: str) -> pd.DataFrame:
+                cached_df = self.provider.market_cache.get(key)
+                cached_ts = self.provider.market_cache_ts.get(key)
+                is_stale = False
+                if cached_df is None or cached_ts is None:
+                    is_stale = True
+                else:
+                    elapsed = (now_utc - cached_ts).total_seconds()
+                    if elapsed > 4 * 3600 or now_utc.date() != cached_ts.date():
+                        is_stale = True
+                if is_stale:
+                    cb_val = getattr(self, "consecutive_aux_failures", 0)
+                    if isinstance(cb_val, (int, float)) and cb_val >= 3:
+                        logger.warning(
+                            f"⚠️ [CircuitBreaker] Auxiliary benchmark fetches throttled/failed >= 3 times. "
+                            f"Bypassing network download for {p_sym}; marking provisional."
+                        )
+                        if cached_df is not None and not cached_df.empty:
+                            setup.sector_data_status = "STALE"
+                            return cached_df
+                        setup.sector_data_status = "FAILED"
+                        return pd.DataFrame()
+                    try:
+                        fresh_df = self.provider.candles(p_sym, period=p_per, interval=p_int)
+                        if fresh_df is not None and not fresh_df.empty:
+                            self.consecutive_aux_failures = 0
+                            self.provider.market_cache[key] = fresh_df
+                            self.provider.market_cache_ts[key] = now_utc
+                            return fresh_df
+                        else:
+                            self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
+                            if cached_df is not None and not cached_df.empty:
+                                setup.sector_data_status = "STALE"
+                                return cached_df
+                            return pd.DataFrame()
+                    except Exception as e:
+                        self.consecutive_aux_failures = getattr(self, "consecutive_aux_failures", 0) + 1
+                        logger.warning(f"⚠️ [DataHealth] Sector proxy fetch failed for {p_sym}: {e}")
+                        if cached_df is not None and not cached_df.empty:
+                            setup.sector_data_status = "STALE"
+                            return cached_df
+                        return pd.DataFrame()
+                return cached_df
             
-            if cache_key not in self.provider.market_cache:
-                self.provider.market_cache[cache_key] = self.provider.candles(proxy, period, interval)
+            proxy_df = get_cached_proxy(cache_key, proxy, period, interval)
+            
+            # Relative Strength without backward-filling future data
+            if proxy_df is not None and not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
+                if setup.sector_data_status != "STALE":
+                    setup.sector_data_status = "OK"
+                stock_tail = df['Close'].iloc[-20:]
+                proxy_aligned = proxy_df['Close'].reindex(stock_tail.index).ffill()
                 
-            proxy_df = self.provider.market_cache[cache_key]
-            
-            # Point 2: Relative Strength against sector / benchmark
-            if not proxy_df.empty and len(df) > 20 and len(proxy_df) > 20:
-                stock_returns = df['Close'].iloc[-20:] / df['Close'].iloc[-20]
-                proxy_returns = proxy_df['Close'].reindex(stock_returns.index).ffill().bfill()
-                if not proxy_returns.empty and not pd.isna(proxy_returns.iloc[0]) and proxy_returns.iloc[0] > 0:
-                    proxy_returns = proxy_returns / proxy_returns.iloc[0]
-                    if not pd.isna(proxy_returns.iloc[-1]) and not pd.isna(stock_returns.iloc[-1]):
+                # Drop leading NaNs if proxy history started after stock_tail (NO bfill!)
+                valid_idx = proxy_aligned.dropna().index
+                if len(valid_idx) >= 10:
+                    proxy_aligned = proxy_aligned.loc[valid_idx]
+                    stock_aligned = stock_tail.loc[valid_idx]
+                    
+                    if proxy_aligned.iloc[0] > 0 and stock_aligned.iloc[0] > 0:
+                        stock_returns = stock_aligned / stock_aligned.iloc[0]
+                        proxy_returns = proxy_aligned / proxy_aligned.iloc[0]
+                        
                         rs_delta = (stock_returns.iloc[-1] - proxy_returns.iloc[-1]) * 100.0
-                        setup.sector_rs_pct = rs_delta
-                        if stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
+                        setup.sector_rs_pct = round(rs_delta, 2)
+                        
+                        # Symmetric RS evaluation
+                        if target_dir == 1 and stock_returns.iloc[-1] > proxy_returns.iloc[-1]:
+                            score += 1
+                        elif target_dir == -1 and stock_returns.iloc[-1] < proxy_returns.iloc[-1]:
                             score += 1
 
                         # Step 3: RS Momentum Slope (Linear regression slope over trailing bars)
@@ -107,144 +297,187 @@ class MultiSymbolScanner:
                             slope, _ = np.polyfit(x, tail.values, 1)
                             setup.rs_slope = round(float(slope * 100.0), 2)
                             setup.rs_trend = "↗" if setup.rs_slope > 0.05 else ("↘" if setup.rs_slope < -0.05 else "→")
+            else:
+                setup.sector_data_status = "FAILED"
+                setup.provisional_data_incomplete = True
+                logger.warning(f"⚠️ [DataHealth] Sector proxy data missing for {setup.symbol}")
 
             # ----------------------------------------------------
             # 3. Institutional Consensus / Macro Regime
             # ----------------------------------------------------
+            from .confluence import is_non_equity_symbol
             is_crypto = setup.symbol.endswith('-USD') or setup.symbol.endswith('-USDT')
             is_nse = setup.symbol.endswith('.NS') or setup.symbol.endswith('.BO')
+            is_macro = is_non_equity_symbol(setup.symbol)
 
             if is_crypto:
-                # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above 50-day SMA)
-                if 'BTC-USD' not in self.provider.daily_cache:
-                    self.provider.daily_cache['BTC-USD'] = self.provider.candles('BTC-USD', period='1y', interval='1d')
-                btc_daily = self.provider.daily_cache.get('BTC-USD')
-                if btc_daily is not None and not btc_daily.empty and len(btc_daily) >= 50:
-                    btc_sma50 = btc_daily['Close'].rolling(50).mean().iloc[-1]
-                    if btc_daily['Close'].iloc[-1] > btc_sma50:
-                        score += 1
-                elif not proxy_df.empty and len(proxy_df) >= 50:
-                    btc_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
-                    if proxy_df['Close'].iloc[-1] > btc_sma50:
-                        score += 1
-            elif is_nse:
-                # NSE: Nifty 50 Trend Regime or Analyst Consensus if available
-                nifty_bullish = False
-                if '^NSEI' not in self.provider.daily_cache:
-                    self.provider.daily_cache['^NSEI'] = self.provider.candles('^NSEI', period='1y', interval='1d')
-                nifty_daily = self.provider.daily_cache.get('^NSEI')
-                if nifty_daily is not None and not nifty_daily.empty and len(nifty_daily) >= 50:
-                    nifty_sma50 = nifty_daily['Close'].rolling(50).mean().iloc[-1]
-                    nifty_bullish = nifty_daily['Close'].iloc[-1] > nifty_sma50
-                elif not proxy_df.empty and len(proxy_df) >= 50:
-                    nifty_sma50 = proxy_df['Close'].rolling(50).mean().iloc[-1]
-                    nifty_bullish = proxy_df['Close'].iloc[-1] > nifty_sma50
+                # Crypto: Bitcoin Macro Regime (Daily BTC-USD trading above upward-sloping 50-day SMA)
+                btc_daily = get_cached_daily('BTC-USD')
+                btc_bullish = False
+                if btc_daily is not None and not btc_daily.empty and len(btc_daily) >= 55:
+                    btc_sma = btc_daily['Close'].rolling(50).mean()
+                    btc_bullish = (btc_daily['Close'].iloc[-1] > btc_sma.iloc[-1]) and (btc_sma.iloc[-1] > btc_sma.iloc[-5])
+                elif not proxy_df.empty and len(proxy_df) >= 55:
+                    btc_sma = proxy_df['Close'].rolling(50).mean()
+                    btc_bullish = (proxy_df['Close'].iloc[-1] > btc_sma.iloc[-1]) and (btc_sma.iloc[-1] > btc_sma.iloc[-5])
                 
-                has_analyst_buy = False
-                try:
-                    ticker = yf.Ticker(setup.symbol)
-                    info = ticker.info
-                    rec = info.get('recommendationKey', '')
-                    if rec in ['buy', 'strong_buy', 'outperform']:
-                        has_analyst_buy = True
-                except Exception:
-                    pass
-                    
-                if has_analyst_buy or nifty_bullish:
+                setup.regime_data_status = "OK"
+                if target_dir == 1 and btc_bullish:
                     score += 1
-            else:
-                # US Stocks: Wall Street Analyst Ratings & Earnings Risk
-                try:
-                    ticker = yf.Ticker(setup.symbol)
-                    info = ticker.info
-                    rec = info.get('recommendationKey', '')
-                    if rec in ['buy', 'strong_buy', 'outperform']:
+                elif target_dir == -1 and not btc_bullish:
+                    score += 1
+
+            elif is_nse:
+                # NSE: Nifty 50 Trend Regime
+                nifty_bullish = False
+                nifty_daily = get_cached_daily('^NSEI')
+                if nifty_daily is not None and not nifty_daily.empty and len(nifty_daily) >= 55:
+                    nifty_sma = nifty_daily['Close'].rolling(50).mean()
+                    nifty_bullish = (nifty_daily['Close'].iloc[-1] > nifty_sma.iloc[-1]) and (nifty_sma.iloc[-1] > nifty_sma.iloc[-5])
+                elif not proxy_df.empty and len(proxy_df) >= 55:
+                    nifty_sma = proxy_df['Close'].rolling(50).mean()
+                    nifty_bullish = (proxy_df['Close'].iloc[-1] > nifty_sma.iloc[-1]) and (nifty_sma.iloc[-1] > nifty_sma.iloc[-5])
+                
+                setup.regime_data_status = "OK"
+                if target_dir == 1 and nifty_bullish:
+                    score += 1
+                elif target_dir == -1 and not nifty_bullish:
+                    score += 1
+
+            elif is_macro:
+                # Macro & Derivative Instruments (Commodities, Futures, Forex, Global Indices)
+                if not proxy_df.empty and len(proxy_df) >= 55:
+                    macro_sma = proxy_df['Close'].rolling(50).mean()
+                    macro_bullish = (proxy_df['Close'].iloc[-1] > macro_sma.iloc[-1]) and (macro_sma.iloc[-1] > macro_sma.iloc[-5])
+                    setup.regime_data_status = "OK"
+                    if target_dir == 1 and macro_bullish:
                         score += 1
-                        
-                    cal = ticker.calendar
-                    if isinstance(cal, dict) and 'Earnings Date' in cal:
-                        dates = cal['Earnings Date']
-                        if dates and isinstance(dates, list) and len(dates) > 0:
-                            earning_date = dates[0]
-                            days_until = (earning_date - datetime.date.today()).days
-                            if 0 <= days_until <= 3:
-                                setup.earnings_warning = True
-                    elif hasattr(cal, 'get'):
-                        earnings_val = cal.get('Earnings Date')
-                        if earnings_val is not None and len(earnings_val) > 0:
-                            earning_date = earnings_val[0] if isinstance(earnings_val, (list, pd.Series)) else earnings_val
-                            if hasattr(earning_date, 'date'):
-                                earning_date = earning_date.date()
-                            days_until = (earning_date - datetime.date.today()).days
-                            if 0 <= days_until <= 3:
-                                setup.earnings_warning = True
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                    elif target_dir == -1 and not macro_bullish:
+                        score += 1
+
+            else:
+                # US Equities: Market Regime via Benchmark (SPY / QQQ / Sector Proxy)
+                spy_daily = get_cached_daily('SPY')
+                if spy_daily is None or spy_daily.empty:
+                    spy_daily = get_cached_daily('QQQ')
+
+                regime_bullish = False
+                if spy_daily is not None and not spy_daily.empty and len(spy_daily) >= 55:
+                    spy_sma = spy_daily['Close'].rolling(50).mean()
+                    regime_bullish = (spy_daily['Close'].iloc[-1] > spy_sma.iloc[-1]) and (spy_sma.iloc[-1] > spy_sma.iloc[-5])
+                    setup.regime_data_status = "OK"
+                elif proxy_df is not None and not proxy_df.empty and len(proxy_df) >= 55:
+                    spy_sma = proxy_df['Close'].rolling(50).mean()
+                    regime_bullish = (proxy_df['Close'].iloc[-1] > spy_sma.iloc[-1]) and (spy_sma.iloc[-1] > spy_sma.iloc[-5])
+                    setup.regime_data_status = "OK"
+                else:
+                    setup.regime_data_status = "FAILED"
+                    setup.provisional_data_incomplete = True
+
+                if setup.regime_data_status == "OK":
+                    if target_dir == 1 and regime_bullish:
+                        score += 1
+                    elif target_dir == -1 and not regime_bullish:
+                        score += 1
+
+        except Exception as e:
+            logger.error(f"❌ [DataHealth] Unexpected error in enrich_bias for {setup.symbol}: {e}", exc_info=True)
+            setup.provisional_data_incomplete = True
             
         setup.bias_score = score
-        c_score, c_grade = calculate_composite_score(setup)
+
+        # Phase 3: Confluence & Context Layer
+        try:
+            from .confluence import enrich_confluence_and_context
+            enrich_confluence_and_context(setup, df, proxy_df=proxy_df, cfg=self.cfg)
+        except Exception as e:
+            logger.warning(f"⚠️ [DataHealth] Confluence enrichment failed for {setup.symbol}: {e}")
+
+        quality_cfg = self.cfg.get('signal_quality', {}) if self.cfg else None
+        context_cfg = self.cfg.get('confluence_context', {}) if self.cfg else None
+        c_score, c_grade = calculate_composite_score(setup, quality_cfg=quality_cfg, context_cfg=context_cfg)
         setup.composite_score = c_score
         setup.composite_grade = c_grade
 
-    def report(self, setups: List[Setup]):
-        print("\n=======================================================")
-        print(" SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)")
-        print("=======================================================")
+        # Phase 2/3: Tiered Follow-Through Confirmation Policy (P0-2)
+        confirmation_cfg = self.cfg.get('confirmation_policy', {}) if self.cfg else {}
+        min_auto_entry_score = int(confirmation_cfg.get('min_auto_entry_score', 70))
         
-        base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
-        base_setups.sort(key=lambda s: (s.composite_score, s.bias_score), reverse=True)
-        if not base_setups:
-            print("  (None)")
+        if setup.retest_confirmed:
+            setup.requires_confirmation = False
+            setup.confirmation_status = "CONFIRMED"
+        elif setup.provisional_data_incomplete:
+            # Exemption: Degraded external data does not suppress a structurally sound technical breakout!
+            setup.requires_confirmation = False
+            setup.confirmation_status = "PROVISIONAL - DATA INCOMPLETE"
+        elif c_score >= min_auto_entry_score:
+            setup.requires_confirmation = False
+            setup.confirmation_status = "CONFIRMED"
         else:
-            for s in base_setups:
-                res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
-                sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
-                width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
-                coil = f"\033[94m🗜️ Coil: {s.decay_ratio:.1f}x\033[0m" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
-                vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
-                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
-                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
-                htf = "\033[93m⭐ 1D Confirmed\033[0m" if s.htf_confirmed else ""
-                grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
-                
-                if s.bias_score >= 2:
-                    bias_text = f"Strong Upside Bias ({s.bias_score}/3)"
-                    bias_color = "\033[92m"
-                elif s.bias_score == 1:
-                    bias_text = f"Weak Upside Bias ({s.bias_score}/3)"
-                    bias_color = "\033[93m"
-                else:
-                    bias_text = f"Downside Bias ({s.bias_score}/3)"
-                    bias_color = "\033[91m"
-                    
-                if s.earnings_warning:
-                    bias_text += " ⚠️ EARNINGS RISK"
-                    
-                bias_str = f"{bias_color}Bias: {bias_text}\033[0m"
-                parts = [f"  • {s.symbol:9}", res, sup]
-                if width:
-                    parts.append(width)
-                if coil:
-                    parts.append(coil)
-                if vdu:
-                    parts.append(vdu)
-                if sector:
-                    parts.append(sector)
-                if htf:
-                    parts.append(htf)
-                if grade_badge:
-                    parts.append(grade_badge)
-                parts.append(bias_str)
-                print(" | ".join(parts))
+            # Score < 85: requires follow-through confirmation
+            # Check if breakout already occurred in prior closed bars and breached pivot
+            has_followed_through = False
+            if (
+                setup.state in (State.BUY, State.SELL)
+                and setup.bars_since_breakout is not None
+                and setup.bars_since_breakout >= 1
+                and setup.breakout_index is not None
+                and not df.empty
+            ):
+                subsequent_df = df.iloc[setup.breakout_index + 1:]
+                if not subsequent_df.empty:
+                    entry_lvl = setup.entry or setup.breakout_level
+                    if setup.direction == 1 and entry_lvl is not None:
+                        has_followed_through = bool(float(subsequent_df['High'].max()) > (entry_lvl * 1.0001))
+                    elif setup.direction == -1 and entry_lvl is not None:
+                        has_followed_through = bool(float(subsequent_df['Low'].min()) < (entry_lvl * 0.9999))
+
+            if has_followed_through:
+                setup.requires_confirmation = False
+                setup.confirmation_status = "CONFIRMED"
+            else:
+                setup.requires_confirmation = True
+                setup.confirmation_status = "AWAITING_FOLLOW_THROUGH"
+
+        # Phase 1: Options Policy Tag
+        setup.underlying_validated = False
+        setup.options_eligible = False
+        setup.options_status = "UNDERLYING_UNVALIDATED"
+
+    def report(self, setups: List[Setup]):
+        stats = getattr(self, "last_scan_stats", None)
+        if stats:
+            total_sym = stats.get("total", 0)
+            with_data = stats.get("with_data", 0)
+            failed_syms = stats.get("failed_symbols", [])
+            min_pct = stats.get("min_scan_completeness_pct", 90)
+            aborted = stats.get("aborted", False)
+            pct = (with_data / total_sym * 100) if total_sym > 0 else 0.0
+            if total_sym > 0 and (pct < min_pct or aborted):
+                failed_str = ", ".join(failed_syms[:10]) + ("..." if len(failed_syms) > 10 else "")
+                print(f"\n\033[91m⚠️  SCAN INCOMPLETE: {with_data}/{total_sym} symbols had data (failed: {failed_str}). Do NOT read 'no signals' as a quiet market.\033[0m")
 
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
         fresh_setups = [s for s in active_setups if s.is_fresh_entry]
         progress_setups = [s for s in active_setups if not s.is_fresh_entry]
 
-        fresh_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
-        progress_setups.sort(key=lambda s: (s.composite_score, -abs(s.entry - s.current_price) / s.entry if s.entry and s.current_price else float('inf')), reverse=True)
+        prov_count = sum(1 for s in setups if getattr(s, 'provisional_data_incomplete', False))
+        if prov_count > 0:
+            print(f"\n\033[93m⚠️  DATA DEGRADED: {prov_count}/{len(setups)} symbol(s) evaluated on provisional technicals (external data incomplete).\033[0m")
+
+        def safe_sort_active(s: Setup):
+            score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
+            if (s.entry is not None and s.current_price is not None and 
+                np.isfinite(s.entry) and np.isfinite(s.current_price) and s.entry > 0):
+                prox = -abs(s.entry - s.current_price) / s.entry
+                if not np.isfinite(prox):
+                    prox = -999.0
+            else:
+                prox = -999.0
+            return (score, prox)
+
+        fresh_setups.sort(key=safe_sort_active, reverse=True)
+        progress_setups.sort(key=safe_sort_active, reverse=True)
 
         print("\n=======================================================")
         print(" SECTION 2A: 🟢 FRESH ACTIONABLE ENTRIES (Playable Now)")
@@ -263,7 +496,90 @@ class MultiSymbolScanner:
         else:
             for s in progress_setups:
                 print(self.format_active_setup(s, is_fresh=False))
+
+        failed_setups = [s for s in setups if s.state == State.FAILED]
+        if failed_setups:
+            print("\n=======================================================")
+            print(" SECTION 2C: ⚠️ FAILED BREAKOUT EXITS (Exit Signal for Holders)")
+            print("=======================================================")
+            for s in failed_setups:
+                d_str = "BUY" if s.direction == 1 else "SELL"
+                pnl_str = f"{s.pnl_pct:+.1f}%" if s.pnl_pct is not None else "N/A"
+                print(f"  ❌ \033[91m{s.symbol:<8}\033[0m | Was {d_str} | PnL: {pnl_str} | Alert: {s.failure_reason or 'Fell back inside base'}")
+
+        print("\n=======================================================")
+        print(" SECTION 1: ◉ VCP BASE (Actively Ready To Provide Signal)")
+        print("=======================================================")
+        
+        base_setups = [s for s in setups if s.state == State.CONTRACTION and s.bias_score >= 3]
+        base_setups.sort(key=lambda s: (s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0, s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0), reverse=True)
+        if not base_setups:
+            print("  (None)")
+        else:
+            for s in base_setups:
+                res = f"\033[91mResistance: {s.resistance:.5g}\033[0m"
+                sup = f"\033[92mSupport: {s.support:.5g}\033[0m"
+                width = f"Width: {s.base_width_pct:.1f}%" if s.base_width_pct is not None else ""
+                coil = f"\033[94m🗜️ Coil: {s.decay_ratio:.1f}x\033[0m" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
+                vdu = f"\033[96m💧 VDU: {s.vdu_ratio:.1f}x\033[0m" if s.vdu_confirmed else ""
+                trend_sym = f" {s.rs_trend}" if s.rs_trend else ""
+                sector = f"[{s.sector_name} RS: {s.sector_rs_pct:+.1f}%{trend_sym}]" if s.sector_name and s.sector_rs_pct is not None else (f"[{s.sector_name}]" if s.sector_name else "")
                 
+                # Multi-TF HTF Badging
+                if s.htf_confirmed and getattr(s, 'htf_4h_confirmed', False):
+                    htf = "\033[93m⭐⭐ Multi-TF (1D+4H)\033[0m"
+                elif s.htf_confirmed:
+                    htf = "\033[93m⭐ 1D Confirmed\033[0m"
+                elif getattr(s, 'htf_4h_confirmed', False):
+                    htf = "\033[93m⭐ 4H Confirmed\033[0m"
+                else:
+                    htf = ""
+
+                grade_badge = f"\033[93m🏆 Grade: {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
+                
+                target_dir = s.direction if s.direction in (1, -1) else (1 if s.trend >= 0 else -1)
+                bias_label = "Upside" if target_dir == 1 else "Downside"
+                if s.bias_score >= 2:
+                    bias_text = f"Strong {bias_label} Bias ({s.bias_score}/3)"
+                    bias_color = "\033[92m" if target_dir == 1 else "\033[91m"
+                elif s.bias_score == 1:
+                    bias_text = f"Weak {bias_label} Bias ({s.bias_score}/3)"
+                    bias_color = "\033[93m"
+                else:
+                    bias_text = f"Neutral/Counter Bias ({s.bias_score}/3)"
+                    bias_color = "\033[90m"
+                    
+                if s.earnings_warning:
+                    bias_text += " ⚠️ EARNINGS RISK"
+                elif getattr(s, "earnings_unverified", False):
+                    bias_text += " ⚠️ EARNINGS UNVERIFIED — check broker calendar"
+                    
+                bias_str = f"{bias_color}Bias: {bias_text}\033[0m"
+                parts = [f"  • {s.symbol:9}", res, sup]
+                if width:
+                    parts.append(width)
+                if coil:
+                    parts.append(coil)
+                if vdu:
+                    parts.append(vdu)
+                if sector:
+                    parts.append(sector)
+                if htf:
+                    parts.append(htf)
+                if grade_badge:
+                    parts.append(grade_badge)
+                parts.append(bias_str)
+                print(" | ".join(parts))
+
+        # Phase 4: Portfolio Guard Actionable Trade Slate
+        if self.cfg and self.cfg.get('portfolio_guard', {}).get('enabled', False):
+            try:
+                from .portfolio_guard import generate_actionable_slate, format_trade_slate_cli
+                slate = generate_actionable_slate(setups, config=self.cfg)
+                print(format_trade_slate_cli(slate))
+            except Exception:
+                pass
+
         print("\n")
 
     def format_active_setup(self, s: Setup, is_fresh: bool) -> str:
@@ -277,6 +593,7 @@ class MultiSymbolScanner:
         stop = f"Stop: {s.stop:.5g}" if s.stop is not None else "Stop: N/A"
         targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
         risk_str = f"Risk: {s.risk_pct:.2f}%" if s.risk_pct is not None else ""
+        frict_str = f"[Cost: {s.friction_r:.2f}R]" if s.friction_r is not None else ""
         rvol_str = f"[Vol: {s.rvol:.1f}x]" if s.rvol is not None else ""
         
         pnl_str = ""
@@ -292,8 +609,14 @@ class MultiSymbolScanner:
         grade_badge = f"\033[93m🏆 {s.composite_grade} [{s.composite_score}]\033[0m" if s.composite_grade else ""
         
         parts = [f"  • {s.symbol:9}", dir_str, cp_str, entry, stop]
+        if getattr(s, "earnings_unverified", False):
+            parts.append("\033[93m⚠️ EARNINGS UNVERIFIED — check broker calendar\033[0m")
+        if getattr(s, "provisional_data_incomplete", False):
+            parts.append("\033[93m[PROVISIONAL]\033[0m")
         if risk_str:
             parts.append(risk_str)
+        if frict_str:
+            parts.append(frict_str)
         if pnl_str:
             parts.append(pnl_str)
         if rvol_str:

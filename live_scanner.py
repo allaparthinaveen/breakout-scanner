@@ -31,7 +31,7 @@ class LiveScanner(SessionScheduler):
         return self.scan_and_alert()
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Phase 2 Automated Session Scheduler & Background Daemon (Timing is Edge)"
     )
@@ -42,8 +42,10 @@ def main():
     )
     parser.add_argument(
         "--now",
+        "--startup-scan",
+        dest="now",
         action="store_true",
-        help="Execute an immediate scan right now",
+        help="Execute an immediate scan right now (or on startup when running as daemon)",
     )
     parser.add_argument(
         "--minute-offset",
@@ -54,13 +56,30 @@ def main():
     parser.add_argument(
         "--sessions",
         action="store_true",
-        help="Enable NSE & US market session specific schedules in addition to hourly :01",
+        help="Enable market session specific schedules aligned to exchange calendars and candle closes",
+    )
+    parser.add_argument(
+        "--market",
+        type=str,
+        default="US",
+        help="Target market identifier (US, NSE, TSE, HKEX, CRYPTO)",
+    )
+    parser.add_argument(
+        "--enforce-hours",
+        action="store_true",
+        help="Enforce exchange open/close hours and lunch breaks",
     )
     parser.add_argument(
         "--watchlists",
         type=str,
         default=None,
         help="Comma-separated paths to watchlist files (e.g. config/watchlist.txt,config/crypto_watchlist.txt)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/default.yaml",
+        help="Path to strategy configuration YAML (e.g. config/intraday_1h.yaml, config/options_trading.yaml)",
     )
     parser.add_argument(
         "--test-alert",
@@ -72,10 +91,15 @@ def main():
         action="store_true",
         help="Clear the deduplication alert cache",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     watchlists = [f.strip() for f in args.watchlists.split(",")] if args.watchlists else None
-    scanner = LiveScanner(watchlist_files=watchlists)
+    scanner = LiveScanner(
+        cfg_path=args.config,
+        watchlist_files=watchlists,
+        market_id=args.market,
+        enforce_market_hours=args.enforce_hours,
+    )
 
     if args.clear_cache:
         scanner.deduplicator.clear()
@@ -109,18 +133,22 @@ def main():
             print("❌ Failed to dispatch test alert. Check .env credentials.")
         return
 
-    # If --daemon is specified, set up hourly schedule and run
+    # If --daemon is specified, set up schedule and run
     if args.daemon:
-        scanner.schedule_hourly(minute_offset=args.minute_offset)
         if args.sessions:
-            scanner.schedule_session_times()
-        run_now = args.now or True  # By default run on startup so user sees immediate feedback
+            scanner.schedule_market_sessions()
+        else:
+            scanner.schedule_hourly(minute_offset=args.minute_offset)
+        run_now = bool(args.now)
         scanner.start(run_immediately=run_now)
     else:
         # One-off scan mode
         print("⚡ Running immediate candle scan...")
         res = scanner.run_scan()
-        print(f"✅ Scan finished: {res}")
+        slate = res.get("slate")
+        if slate:
+            print(slate.format_cli())
+        print(f"✅ Scan finished: Scanned={res.get('scanned')}, Actionable={res.get('actionable_trades')}, Suppressed={res.get('suppressed_trades')}, Rejected={res.get('rejected_trades')}")
 
 
 def start_scheduler():

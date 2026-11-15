@@ -1,0 +1,124 @@
+# Technology
+ASML.AS
+SAP.DE
+IFX.DE
+ASM.AS
+STMPA.PA
+NOKIA.HE
+ERIC-B.ST
+CAP.PA
+DSY.PA
+TEMN.SW
+# Financials
+HSBA.L
+BATS.L
+SAN.MC
+BNP.PA
+INGA.AS
+UBSG.SW
+ALV.DE
+MUV2.DE
+BBVA.MC
+ISP.MI
+# Healthcare
+NOVO-B.CO
+NOVN.SW
+ROG.SW
+AZN.L
+GSK.L
+SAN.PA
+UCB.BR
+BAYN.DE
+FRE.DE
+GRF.MC
+# Industrials
+SIE.DE
+AIR.PA
+SU.PA
+ABB.ST
+RR.L
+SAAB-B.ST
+ENR.DE
+VOW3.DE
+MT.AS
+PRY.MI
+# Consumer Discretionary / Luxury
+MC.PA
+RMS.PA
+OR.PA
+ITX.MC
+ADS.DE
+KER.PA
+RACE.MI
+BMW.DE
+MBG.DE
+STLAM.MI
+# Consumer Staples / Defensive
+NESN.SW
+ULVR.L
+DGE.L
+ABI.BR
+HEIA.AS
+OR.PA
+# Energy / Utilities / Materials
+SHEL.L
+TTE.PA
+BP.L
+ENEL.MI
+IBE.MC
+RWE.DE
+BAS.DE
+RIO.L
+GLEN.L
+AAL.L
+# Communication Services / Media
+DTE.DE
+TEF.MC
+VOD.L
+PRX.AS
+SPOT
+# Technology
+ASML.AS
+SAP.DE
+IFX.DE
+SU.PA
+
+# Financials
+HSBA.L
+SAN.MC
+BNP.PA
+UBSG.SW
+
+# Healthcare
+NOVO-B.CO
+NOVN.SW
+AZN.L
+ROG.SW
+
+# Industrials
+SIE.DE
+AIR.PA
+ABB.ST
+RR.L
+
+# Consumer Discretionary / Luxury
+MC.PA
+OR.PA
+ITX.MC
+ADS.DE
+
+# Consumer Staples / Defensive
+NESN.SW
+ULVR.L
+ABI.BR
+
+# Energy / Utilities / Materials
+SHEL.L
+TTE.PA
+ENEL.MI
+RIO.L
+
+# Communication Services / Media
+DTE.DE
+PRX.AS
+SPOT

@@ -9,3 +9,6 @@ Flask>=3.0
 requests>=2.31
 python-dotenv>=1.0
 schedule>=1.2.0
+pytz>=2024.1
+exchange_calendars>=4.13.0
+boto3>=1.34.0

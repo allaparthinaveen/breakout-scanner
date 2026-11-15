@@ -1,0 +1,83 @@
+# ==============================================================================
+# OPTIONS SCREENING CONFIG (UNDERLYING MOMENTUM FILTER ONLY)
+# ==============================================================================
+# IMPORTANT INSTITUTIONAL NOTICE:
+# This scanner filters UNDERLYING STOCKS with high directional momentum,
+# tight consolidation bases, and favorable volatility compression.
+# IT DOES NOT GENERATE EXECUTABLE OPTIONS ORDERS OR MODEL OPTION GREEKS.
+#
+# Before executing options based on this scanner's underlying signals:
+# 1. Delta: Select liquid call contracts with Delta between 0.40 and 0.60 (ATM/Slight OTM).
+# 2. Expiry: Choose 14 to 30 DTE (days to expiration) to avoid terminal theta decay.
+# 3. Bid-Ask Spread: Reject contracts where bid-ask spread > 10% of the option premium.
+# 4. Implied Volatility: Check IV percentile (< 50% preferred); avoid buying inflated IV before earnings.
+# 5. Risk Budget: Option risk is 100% of the premium paid, NOT the underlying stock stop distance.
+# ==============================================================================
+timeframe:
+  interval: 1h
+  period: 60d
+
+trend:
+  sma_length: 50
+  use_trend_filter: true
+  use_slope_filter: true              # Requires active upward slope on SMA50 for call options
+  slope_lookback_bars: 5
+
+base:
+  base_lookback: 20
+  tight_lookback: 5
+  max_base_range_pct: 10.0            # Tighter base for volatility compression (cheap option IV)
+  max_tight_range_pct: 5.0
+  require_tightening: true            # Insists on VCP coil before breakout
+  min_setup_bars: 5
+  max_setup_bars: 25
+  tightening_threshold: 0.65
+  min_box_density_pct: 75.0           # Consolidation Quality Gate: min 75% of closes inside base range
+
+volume:
+  use_volume_contraction: true       # Low volume during coil confirms institutional dry-up
+  volume_length: 20
+  contraction_ratio: 0.85
+  use_breakout_volume: true
+  breakout_multiplier: 1.50           # Strong 1.5x volume surge for explosive delta expansion
+  vdu_threshold: 0.70
+  rvol_threshold: 1.50
+  use_hourly_volume_profile: true     # Benchmarked against historical hourly median
+  hourly_profile_days: 20
+
+breakout:
+  allow_shorts: false                 # Long calls only
+  buffer_pct: 0.15                    # Clean clearance above pivot
+  close_location: 0.65                # Closes in top 35% of bar
+  require_momentum_candle: true
+  min_body_pct: 50.0                  # Convincing momentum candle body
+  use_open_confirmation: true         # Next-bar open confirmation to prevent false wicks
+  max_open_gap_pct: 0.40
+
+risk:
+  atr_length: 14
+  atr_multiplier: 1.50
+  min_stop_pct: 1.00                  # Minimum underlying stop buffer for delta movement
+  max_stop_pct: 4.00                  # Reject wide-risk bases that destroy option leverage
+  use_structure_stop: true
+  structure_buffer_pct: 0.20
+  account_size: 100000.0
+  risk_per_trade_pct: 1.0
+  slippage_pct: 0.05
+  commission_pct: 0.05
+  use_cost_filter: true               # Strict friction gate
+  max_friction_r: 0.10
+
+target:
+  target_lookback: 50
+  tp1_r: 1.0                          # Take partial profit to derisk option premium
+  tp2_r: 2.5                          # Runner for outsized delta gain
+
+management:
+  use_breakeven: true
+  breakeven_offset_pct: 0.10
+  max_hold_bars: 21                   # Max 3 trading days to strictly limit theta decay
+  max_hold_days: 3.0
+  use_time_exit: true
+  use_failed_breakout_exit: true      # Quick cut if price slips back below pivot
+  failed_breakout_max_bars: 4
