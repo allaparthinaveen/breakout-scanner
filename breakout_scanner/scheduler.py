@@ -547,7 +547,20 @@ class SessionScheduler:
                 volume=quote.get("volume")
             ):
                 safeguards_rejected += 1
-                self.logger.warning(f"🛡️ [SAFEGUARDS REJECTED] {s.symbol} blocked by pre-trade validation gate.")
+                s.safeguard_rejected = True
+                rej_reason = getattr(self.safeguards, "last_rejection_reason", "Pre-trade validation gate failed")
+                self.logger.warning(f"🛡️ [SAFEGUARDS REJECTED] {s.symbol} blocked by pre-trade validation gate: {rej_reason}")
+                # Demote from slate.selected_trades so it does not appear in Telegram Section 2A
+                slate.selected_trades = [tr for tr in slate.selected_trades if tr.symbol != s.symbol]
+                from .slate import RejectionRecord
+                slate.rejected_trades.append(
+                    RejectionRecord(
+                        symbol=s.symbol,
+                        rejection_code="SAFEGUARD_REJECTED",
+                        reason=rej_reason,
+                        setup=s,
+                    )
+                )
                 continue
 
             fresh_candidates.append(s)

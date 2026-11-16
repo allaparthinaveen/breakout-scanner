@@ -196,13 +196,21 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
         all_gates["base_range"] = base_ok
 
         # 3. tightening/decay
-        tight_ok = bool(df['TighteningOK'].iloc[-1]) if 'TighteningOK' in df else True
+        tight_thresh = float(c_base.get('tightening_threshold', 0.70))
         decay_val = float(setup.decay_ratio) if getattr(setup, "decay_ratio", None) is not None else 0.5
+        if c_base.get('require_tightening', False):
+            tight_ok = (decay_val <= tight_thresh) if getattr(setup, "decay_ratio", None) is not None else bool(df['TighteningOK'].iloc[-1])
+        else:
+            tight_ok = True
         all_gates["tightening/decay"] = tight_ok
 
         # 4. volume_contraction
-        vol_cont_ok = bool(df['VolContractionOK'].iloc[-1]) if 'VolContractionOK' in df else True
+        vol_thresh = float(c_vol.get('contraction_ratio', c_vol.get('vdu_threshold', 0.75)))
         vdu_val = float(setup.vdu_ratio) if getattr(setup, "vdu_ratio", None) is not None else 0.6
+        if c_vol.get('use_volume_contraction', False):
+            vol_cont_ok = (vdu_val <= vol_thresh) if getattr(setup, "vdu_ratio", None) is not None else bool(df['VolContractionOK'].iloc[-1])
+        else:
+            vol_cont_ok = True
         all_gates["volume_contraction"] = vol_cont_ok
 
         # 5. breakout_volume
@@ -247,8 +255,8 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
             ordered_gates = [
                 ("trend_sma50", trend_ok, trend_ratio, 1.0),
                 ("base_range", base_ok, base_rng, max_base),
-                ("tightening/decay", tight_ok, decay_val, float(c_base.get('tightening_threshold', 0.70))),
-                ("volume_contraction", vol_cont_ok, vdu_val, float(c_vol.get('contraction_ratio', 0.75))),
+                ("tightening/decay", tight_ok, decay_val, tight_thresh),
+                ("volume_contraction", vol_cont_ok, vdu_val, vol_thresh),
                 ("breakout_volume", break_vol_ok, vol_ratio, vol_mult),
                 ("clv", clv_ok, clv_val, min_clv),
                 ("base_trap", base_trap_ok, failed_breakouts, max_failed if max_failed is not None else 2),

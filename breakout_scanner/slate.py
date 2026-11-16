@@ -252,7 +252,7 @@ class EffectiveConfigSummary:
         conf_enabled = bool(conf_cfg.get("enabled", False))
 
         safe_cfg = cfg.get("safeguards", {})
-        stale_cap = int(safe_cfg.get("max_stale_data_seconds", 120))
+        stale_cap = int(safe_cfg.get("max_stale_data_seconds", 600))
         kill_file = safe_cfg.get("kill_switch_file", "data/KILL_SWITCH")
 
         cost_filter = bool(cfg.get("risk", {}).get("use_cost_filter", False))

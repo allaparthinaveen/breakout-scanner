@@ -12,4 +12,5 @@ git_key
 *.key
 .DS_Store
 *.pdf
+*.zip
 

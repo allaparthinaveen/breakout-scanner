@@ -143,6 +143,17 @@ class PositionSizer:
         return alloc
 
 
+GENERIC_SECTOR_BUCKETS = {
+    "NSE Market",
+    "US Market",
+    "Broad Market",
+    "Global Market",
+    "Unassigned",
+    "Unknown",
+    "",
+}
+
+
 class CorrelationStackingGuard:
     """
     Prevents correlated industry stacking by filtering simultaneous alerts in the same sector.
@@ -155,8 +166,9 @@ class CorrelationStackingGuard:
         self, setups: List[Setup]
     ) -> Tuple[List[Setup], List[Tuple[Setup, str]]]:
         """
-        Groups setups by sector, ranks by conviction (composite_score, sector RS, tightness),
+        Groups setups by sector, ranks by conviction (is_fresh_entry, composite_score, sector RS, tightness),
         and filters out lower-ranked candidates in the same sector basket.
+        Generic fallback market buckets are exempt from single-industry capping.
         """
         if not setups:
             return [], []
@@ -178,14 +190,16 @@ class CorrelationStackingGuard:
 
         # 2. Rank each sector basket
         for sec, group in sector_groups.items():
-            if len(group) <= self.max_trades_per_sector:
+            # Generic market fallbacks represent unmapped diverse stocks across different industries; do not cap as 1 sector
+            if sec in GENERIC_SECTOR_BUCKETS or len(group) <= self.max_trades_per_sector:
                 approved_setups.extend(group)
             else:
                 def ranking_key(setup: Setup):
+                    is_fresh = 1 if getattr(setup, "is_fresh_entry", False) else 0
                     score = setup.composite_score if (setup.composite_score is not None and np.isfinite(setup.composite_score)) else 0
                     rs = setup.sector_rs_pct if (setup.sector_rs_pct is not None and np.isfinite(setup.sector_rs_pct)) else -999.0
                     risk = -setup.risk_pct if (setup.risk_pct is not None and np.isfinite(setup.risk_pct)) else -999.0
-                    return (score, rs, risk)
+                    return (is_fresh, score, rs, risk)
 
                 sorted_group = sorted(group, key=ranking_key, reverse=True)
                 approved = sorted_group[:self.max_trades_per_sector]
@@ -282,11 +296,12 @@ class DailyRiskBudgetEngine:
             alloc.reason = sup_reason
             suppressed_trades.append(alloc)
 
-        # Step 2: Global priority sorting of correlation-approved candidates
+        # Step 2: Global priority sorting of correlation-approved candidates (Fresh entries prioritized first)
         def global_priority(s: Setup):
+            is_fresh = 1 if getattr(s, "is_fresh_entry", False) else 0
             score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
             bias = s.bias_score if (s.bias_score is not None and np.isfinite(s.bias_score)) else 0
-            return (score, bias)
+            return (is_fresh, score, bias)
 
         approved_setups.sort(key=global_priority, reverse=True)
 
@@ -359,16 +374,17 @@ class DailyRiskBudgetEngine:
                 suppressed_trades.append(alloc)
                 continue
 
-            # Check 3: Sector capital concentration cap
+            # Check 3: Sector capital concentration cap (Exempt generic market fallbacks)
             cur_sec_cap = sector_capital_used.get(sec, 0.0)
-            if (cur_sec_cap + alloc.position_value) > (max_sector_capital + 1e-4):
-                alloc.status = "SUPPRESSED"
-                alloc.reason = (
-                    f"SECTOR_CAP_EXCEEDED: Sector '{sec}' capital would reach "
-                    f"${cur_sec_cap + alloc.position_value:.2f} (exceeds {self.max_sector_allocation_pct}% cap: ${max_sector_capital:.2f})"
-                )
-                suppressed_trades.append(alloc)
-                continue
+            if sec not in GENERIC_SECTOR_BUCKETS:
+                if (cur_sec_cap + alloc.position_value) > (max_sector_capital + 1e-4):
+                    alloc.status = "SUPPRESSED"
+                    alloc.reason = (
+                        f"SECTOR_CAP_EXCEEDED: Sector '{sec}' capital would reach "
+                        f"${cur_sec_cap + alloc.position_value:.2f} (exceeds {self.max_sector_allocation_pct}% cap: ${max_sector_capital:.2f})"
+                    )
+                    suppressed_trades.append(alloc)
+                    continue
 
             # Approved for live execution
             alloc.status = "APPROVED"

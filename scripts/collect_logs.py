@@ -127,7 +127,15 @@ def create_log_bundle(
     archive_files["journalctl_recent.txt"] = jctl_clean
 
     # 4. Effective config snapshot
-    cfg_snapshot = get_effective_config()
+    profile_map = {
+        "NSE": "config/profiles/nse_production.yaml",
+        "US": "config/profiles/us_production.yaml",
+        "CRYPTO": "config/profiles/crypto_production.yaml",
+    }
+    cfg_path = profile_map.get(market_upper, "config/default.yaml")
+    if not os.path.exists(cfg_path):
+        cfg_path = "config/default.yaml"
+    cfg_snapshot = get_effective_config(config_path=cfg_path)
     import json
     cfg_json = json.dumps(cfg_snapshot, indent=2)
     cfg_clean, count = redact_secrets(cfg_json)

@@ -88,9 +88,20 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
         elif risk_blocked:
             status_badge = "[🛡️ RISK DISQUALIFIED - DO NOT ENTER]"
         elif s.is_tp1_reached:
-            status_badge = f"[TP1 HIT: {pnl_val} - DO NOT ENTER]" if pnl_val else "[TP1 HIT - DO NOT ENTER]"
+            # Check if currently at/beyond TP1 or if it was reached earlier and pulled back
+            curr = s.current_price if s.current_price is not None else s.entry
+            at_tp1 = False
+            if curr is not None and s.tp1 is not None:
+                at_tp1 = (curr >= s.tp1) if s.direction == 1 else (curr <= s.tp1)
+            if at_tp1:
+                status_badge = f"[TP1 HIT: {pnl_val} - DO NOT ENTER]" if pnl_val else "[TP1 HIT - DO NOT ENTER]"
+            else:
+                status_badge = f"[TP1 REACHED (Current: {pnl_val}) - DO NOT ENTER]" if pnl_val else "[TP1 REACHED - DO NOT ENTER]"
         else:
-            status_badge = f"[EXTENDED: {pnl_val} - DO NOT CHASE]" if pnl_val else "[EXTENDED - DO NOT CHASE]"
+            if s.pnl_pct is not None and s.pnl_pct < 0:
+                status_badge = f"[IN PROGRESS: {pnl_val} - DO NOT CHASE]"
+            else:
+                status_badge = f"[EXTENDED: {pnl_val} - DO NOT CHASE]" if pnl_val else "[EXTENDED - DO NOT CHASE]"
         parts.append(status_badge)
 
     if targets:
@@ -181,10 +192,16 @@ def format_scan_report_html(
 
     active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
 
-    # Approved symbols from institutional ActionableSlate
+    # Approved symbols from institutional ActionableSlate / TradeSlate
     approved_symbols = set()
-    if slate is not None and hasattr(slate, "selected_trades"):
-        approved_symbols = set(t.symbol for t in slate.selected_trades)
+    trades_list = None
+    if slate is not None:
+        if hasattr(slate, "selected_trades") and slate.selected_trades:
+            trades_list = slate.selected_trades
+        elif hasattr(slate, "actionable_trades") and slate.actionable_trades:
+            trades_list = slate.actionable_trades
+    if trades_list is not None:
+        approved_symbols = set(t.symbol for t in trades_list)
 
     fresh_setups: List[Setup] = []
     progress_setups: List[Tuple[Setup, bool]] = []  # (Setup, is_risk_blocked)
@@ -193,7 +210,7 @@ def format_scan_report_html(
         # P0-1 Risk Filtering Gate:
         # If slate is provided, setup must be in selected_trades (approved by rejection gate & portfolio guard)
         # If slate not provided, evaluate basic rejection gate rules
-        if slate is not None and hasattr(slate, "selected_trades"):
+        if trades_list is not None:
             is_risk_approved = (s.symbol in approved_symbols)
         else:
             is_risk_approved = (
@@ -201,6 +218,9 @@ def format_scan_report_html(
                 and (s.risk_pct is None or s.risk_pct <= 5.0)
                 and (getattr(s, "friction_r", None) is None or s.friction_r <= 0.15)
             )
+
+        if getattr(s, "safeguard_rejected", False):
+            is_risk_approved = False
 
         is_confirmed = not getattr(s, "requires_confirmation", False)
 

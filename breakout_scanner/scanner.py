@@ -601,7 +601,19 @@ class MultiSymbolScanner:
                     cnt_contraction += 1
                 if st_after in ("BUY", "SELL"):
                     cnt_breakout += 1
-                    fresh_signals += 1
+                    is_fresh_val = enrich.get("is_fresh", True)
+                    if is_fresh_val:
+                        fresh_signals += 1
+                    else:
+                        inprogress_signals += 1
+
+                    c_score = score_d.get("composite_score")
+                    if c_score is not None and c_score >= min_auto_score:
+                        cnt_scored_gte_min += 1
+                        cnt_quality += 1
+
+                    if slate_d.get("friction_pass"):
+                        cnt_friction += 1
 
                 if enrich.get("provisional"):
                     provisional_cnt += 1
@@ -611,14 +623,6 @@ class MultiSymbolScanner:
                     aux_sec_fails += 1
                 if enrich.get("regime_status") in ("FAILED", "UNKNOWN"):
                     aux_reg_fails += 1
-
-                c_score = score_d.get("composite_score")
-                if c_score is not None and c_score >= min_auto_score:
-                    cnt_scored_gte_min += 1
-                    cnt_quality += 1
-
-                if slate_d.get("friction_pass"):
-                    cnt_friction += 1
 
                 st_slate = slate_d.get("status")
                 if st_slate in ("APPROVED", "PROVISIONAL"):
@@ -1231,9 +1235,19 @@ class MultiSymbolScanner:
         if not is_fresh:
             pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
             if s.is_tp1_reached:
-                parts.append(f"\033[91m[TP1 HIT: {pnl_val} - DO NOT ENTER]\033[0m")
+                curr = s.current_price if s.current_price is not None else s.entry
+                at_tp1 = False
+                if curr is not None and s.tp1 is not None:
+                    at_tp1 = (curr >= s.tp1) if s.direction == 1 else (curr <= s.tp1)
+                if at_tp1:
+                    parts.append(f"\033[91m[TP1 HIT: {pnl_val} - DO NOT ENTER]\033[0m")
+                else:
+                    parts.append(f"\033[91m[TP1 REACHED (Current: {pnl_val}) - DO NOT ENTER]\033[0m")
             else:
-                parts.append(f"\033[93m[EXTENDED: {pnl_val} - DO NOT CHASE]\033[0m")
+                if s.pnl_pct is not None and s.pnl_pct < 0:
+                    parts.append(f"\033[93m[IN PROGRESS: {pnl_val} - DO NOT CHASE]\033[0m")
+                else:
+                    parts.append(f"\033[93m[EXTENDED: {pnl_val} - DO NOT CHASE]\033[0m")
         else:
             parts.append("\033[92m[ENTER NOW]\033[0m")
             

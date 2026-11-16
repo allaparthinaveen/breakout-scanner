@@ -430,12 +430,14 @@ class CloudDaemonRunner:
         # Startup Snapshot (§A)
         try:
             from breakout_scanner.run_logger import log_startup_snapshot, rotate_and_clean_logs
-            retention_days = int(self.scheduler.base_cfg.get("logging", {}).get("retention_days", 14))
+            from breakout_scanner.config import load_config
+            daemon_cfg = load_config(self.config_path) if os.path.exists(self.config_path) else {}
+            retention_days = int(daemon_cfg.get("logging", {}).get("retention_days", 14))
             rotate_and_clean_logs(base_dir="logs/run", retention_days=retention_days)
             log_startup_snapshot(
                 market=",".join(self.markets),
                 config_path=self.config_path,
-                cfg=self.scheduler.base_cfg,
+                cfg=daemon_cfg,
                 component="daemon",
                 schedule_jobs=schedule.jobs,
                 market_session=getattr(self.scheduler.schedulers.get("US", self.scheduler.schedulers.get("NSE", None)), "market_session", None),

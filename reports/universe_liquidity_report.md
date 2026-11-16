@@ -1,8 +1,8 @@
 # 🏛️ Layer 1 Universe Intelligence: Dynamic Liquidity Audit Report
 
-> **Market:** `NSE` | **Date:** `2026-11-15`  
+> **Market:** `NSE` | **Date:** `2026-11-16`  
 > **Eligible Universe:** 83 candidates | **Qualified:** 80 | **Rejected:** 3  
-> **Stability Metrics:** Target: 30 | Buffer Cutoff: 35 | Retained: 27 | Additions: 3 | Drops: 3 | Turnover: 10.0%
+> **Stability Metrics:** Target: 30 | Buffer Cutoff: 35 | Retained: 30 | Additions: 0 | Drops: 0 | Turnover: 0.0%
 
 ---
 
@@ -28,18 +28,18 @@
 | 16 | **MARUTI.NS** | Auto | ₹12854.00 | ₹6,765,392,066 | 559,181 | EXPANDING (1.40x) | 2.26% | NO | 11.3 bps | `BUFFER_RETAINED` |
 | 17 | **INDHOTEL.NS** | NSE Market | ₹890.30 | ₹5,617,359,879 | 6,877,437 | STABLE (0.97x) | 2.89% | NO | 12.3 bps | `BUFFER_RETAINED` |
 | 18 | **SHRIRAMFIN.NS** | Fin Services | ₹970.00 | ₹5,588,946,455 | 6,207,586 | STABLE (1.02x) | 3.30% | NO | 16.2 bps | `BUFFER_RETAINED` |
-| 19 | **HINDALCO.NS** | NSE Market | ₹943.60 | ₹5,417,756,986 | 5,846,392 | EXPANDING (1.91x) | 2.73% | NO | 13.4 bps | `SELECTED` |
+| 19 | **HINDALCO.NS** | NSE Market | ₹943.60 | ₹5,417,756,986 | 5,846,392 | EXPANDING (1.91x) | 2.73% | NO | 13.4 bps | `BUFFER_RETAINED` |
 | 20 | **ITC.NS** | FMCG | ₹285.00 | ₹5,339,532,449 | 19,742,320 | STABLE (0.91x) | 2.20% | NO | 11.8 bps | `BUFFER_RETAINED` |
 | 21 | **ADANIPORTS.NS** | NSE Market | ₹1903.30 | ₹5,258,558,123 | 2,846,134 | STABLE (0.99x) | 2.75% | NO | 14.4 bps | `BUFFER_RETAINED` |
 | 22 | **HCLTECH.NS** | IT | ₹1378.00 | ₹5,240,392,042 | 3,728,003 | CONTRACTING (0.84x) | 2.57% | NO | 13.1 bps | `BUFFER_RETAINED` |
 | 23 | **COFORGE.NS** | IT | ₹2028.00 | ₹5,160,657,455 | 2,578,960 | CONTRACTING (0.71x) | 3.35% | NO | 17.6 bps | `BUFFER_RETAINED` |
 | 24 | **PERSISTENT.NS** | IT | ₹6003.00 | ₹4,519,664,947 | 768,928 | CONTRACTING (0.58x) | 2.99% | NO | 13.0 bps | `BUFFER_RETAINED` |
-| 25 | **INDIGO.NS** | NSE Market | ₹5587.30 | ₹4,487,394,520 | 875,120 | EXPANDING (1.38x) | 2.57% | NO | 13.6 bps | `SELECTED` |
+| 25 | **INDIGO.NS** | NSE Market | ₹5587.30 | ₹4,487,394,520 | 875,120 | EXPANDING (1.38x) | 2.57% | NO | 13.6 bps | `BUFFER_RETAINED` |
 | 27 | **TATASTEEL.NS** | NSE Market | ₹186.68 | ₹4,299,516,492 | 24,161,912 | EXPANDING (1.32x) | 2.58% | NO | 12.8 bps | `BUFFER_RETAINED` |
 | 28 | **APOLLOHOSP.NS** | Pharma | ₹8526.00 | ₹4,213,984,009 | 514,118 | STABLE (0.91x) | 2.43% | NO | 11.7 bps | `BUFFER_RETAINED` |
+| 29 | **SUNPHARMA.NS** | Pharma | ₹1880.00 | ₹4,193,109,833 | 2,327,317 | STABLE (1.10x) | 2.33% | NO | 12.9 bps | `BUFFER_RETAINED` |
 | 31 | **WIPRO.NS** | IT | ₹194.60 | ₹3,865,513,011 | 20,341,620 | CONTRACTING (0.52x) | 2.67% | NO | 11.8 bps | `BUFFER_RETAINED` |
 | 32 | **BAJAJ-AUTO.NS** | Auto | ₹10850.00 | ₹3,676,564,948 | 347,846 | EXPANDING (1.20x) | 2.40% | NO | 11.4 bps | `BUFFER_RETAINED` |
-| 29 | **SUNPHARMA.NS** | Pharma | ₹1880.00 | ₹4,193,109,833 | 2,327,317 | STABLE (1.10x) | 2.33% | NO | 12.9 bps | `SELECTED` |
 
 ---
 
@@ -60,9 +60,9 @@
 
 ## 3. Boundary & Churn Audit
 
-- **🟢 New Inclusions (3):** HINDALCO.NS, INDIGO.NS, SUNPHARMA.NS
-- **🛡️ Buffer Retentions (27):** RELIANCE.NS, HDFCBANK.NS, ICICIBANK.NS, INFY.NS, BHARTIARTL.NS, TCS.NS, SBIN.NS, KOTAKBANK.NS, BAJFINANCE.NS, ETERNAL.NS, AXISBANK.NS, LT.NS, M&M.NS, TECHM.NS, HCLTECH.NS, ADANIPORTS.NS, DIVISLAB.NS, ITC.NS, MARUTI.NS, SHRIRAMFIN.NS, COFORGE.NS, APOLLOHOSP.NS, PERSISTENT.NS, INDHOTEL.NS, WIPRO.NS, TATASTEEL.NS, BAJAJ-AUTO.NS
-- **🔴 Dropped Constituents (3):** BEL.NS, ADANIENT.NS, HINDUNILVR.NS
+- **🟢 New Inclusions (0):** None
+- **🛡️ Buffer Retentions (30):** HDFCBANK.NS, RELIANCE.NS, ICICIBANK.NS, BHARTIARTL.NS, INFY.NS, SBIN.NS, TCS.NS, KOTAKBANK.NS, BAJFINANCE.NS, LT.NS, ETERNAL.NS, M&M.NS, AXISBANK.NS, DIVISLAB.NS, TECHM.NS, MARUTI.NS, INDHOTEL.NS, SHRIRAMFIN.NS, HINDALCO.NS, ITC.NS, ADANIPORTS.NS, HCLTECH.NS, COFORGE.NS, PERSISTENT.NS, INDIGO.NS, TATASTEEL.NS, APOLLOHOSP.NS, WIPRO.NS, BAJAJ-AUTO.NS, SUNPHARMA.NS
+- **🔴 Dropped Constituents (0):** None
 
 ---
 
@@ -70,4 +70,4 @@
 
 - **Active Watchlist File:** `data/universe/nse_top30_active.txt`
 - **Latest Metadata File:** `data/universe/nse_metadata_latest.json`
-- **Historical Snapshot:** `data/universe/snapshots/universe_nse_2026-11-15.json`
+- **Historical Snapshot:** `data/universe/snapshots/universe_nse_2026-11-16.json`

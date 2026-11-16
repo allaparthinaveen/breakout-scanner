@@ -313,7 +313,7 @@ def evaluate_setup_outcome_from_df(
             "bars_elapsed": len(eval_window),
             "max_hold_bars": max_hold_bars,
             "intended_fill": record.get("price", {}).get("entry"),
-            "actual_fill": round(entry, 4),
+            "actual_fill": round(entry, 8) if entry < 0.01 else round(entry, 4),
             "exit_reason": exit_reason,
             "fill_basis": fill_basis,
             "max_favorable_excursion_r": round(float(mfe_r), 2),

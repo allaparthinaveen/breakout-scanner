@@ -62,10 +62,24 @@ def generate_eod_summary(
     Computes comprehensive EOD analytics across all scans, symbol traces, and events.
     """
     session_dir = os.path.join(base_dir, date_str)
-    scan_summaries = read_jsonl_file(os.path.join(session_dir, "scan_summary.jsonl"))
-    symbol_traces = read_jsonl_file(os.path.join(session_dir, "symbol_trace.jsonl"))
-    events = read_jsonl_file(os.path.join(session_dir, "events.jsonl"))
+    all_scan_summaries = read_jsonl_file(os.path.join(session_dir, "scan_summary.jsonl"))
+    all_symbol_traces = read_jsonl_file(os.path.join(session_dir, "symbol_trace.jsonl"))
+    all_events = read_jsonl_file(os.path.join(session_dir, "events.jsonl"))
     ledger_rows = read_jsonl_file(ledger_path)
+
+    market_upper = market.upper()
+    scan_summaries = [s for s in all_scan_summaries if s.get("market", "").upper() == market_upper]
+    symbol_traces = [
+        t for t in all_symbol_traces
+        if t.get("market", "").upper() == market_upper
+        or (not t.get("market") and ((market_upper == "NSE" and str(t.get("symbol", "")).endswith(".NS")) or (market_upper == "US" and not str(t.get("symbol", "")).endswith(".NS") and "-" not in str(t.get("symbol", "")))))
+    ]
+    events = [
+        e for e in all_events
+        if e.get("market", "").upper() in (market_upper, "ALL", "")
+        or market_upper in str(e.get("market", "")).upper()
+        or (not e.get("market"))
+    ]
 
     # Filter ledger rows for this market and date if possible
     market_ledger = []
@@ -75,8 +89,8 @@ def generate_eod_summary(
             market_ledger.append(row)
 
     # 1. Scans scheduled vs executed vs completed
-    job_fires = [e for e in events if e.get("event") == "job_fire" and (market.upper() in e.get("market", "") or e.get("market") == "ALL")]
-    job_skips = [e for e in events if e.get("event") == "job_skipped" and (market.upper() in e.get("market", "") or e.get("market") == "ALL")]
+    job_fires = [e for e in events if e.get("event") == "job_fire" and (market_upper in str(e.get("market", "")).upper() or e.get("market") in ("ALL", ""))]
+    job_skips = [e for e in events if e.get("event") == "job_skipped" and (market_upper in str(e.get("market", "")).upper() or e.get("market") in ("ALL", ""))]
     completed_scans = len(scan_summaries)
     executed_scans = len(job_fires) if job_fires else completed_scans
     scheduled_scans = executed_scans + len(job_skips)
@@ -174,7 +188,11 @@ def generate_eod_summary(
             })
 
     # 9. Telegram send success rate
-    tg_events = [e for e in events if e.get("event") == "telegram_send"]
+    tg_events = [
+        e for e in events
+        if e.get("event") == "telegram_send"
+        and (market_upper in str(e.get("market", "")).upper() or e.get("market") in ("ALL", "", None))
+    ]
     tg_success = sum(1 for e in tg_events if e.get("level") == "INFO" or (e.get("http_status") and 200 <= e.get("http_status") < 300))
     tg_total = len(tg_events)
     tg_rate = round(tg_success / tg_total * 100.0, 1) if tg_total > 0 else 100.0

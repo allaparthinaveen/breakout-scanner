@@ -123,7 +123,7 @@ friction:
 
 safeguards:
   enforce_stale_data: true
-  max_stale_data_seconds: 120
+  max_stale_data_seconds: 600
   kill_switch_file: "data/KILL_SWITCH"
   max_daily_loss_pct: 2.0
   max_spread_pct: 0.5

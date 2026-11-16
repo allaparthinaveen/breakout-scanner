@@ -17,6 +17,7 @@ class ProductionSafeguards:
         self.kill_switch_active = False
         self.daily_pnl = 0.0
         self.max_daily_loss = self.cfg.get('risk', {}).get('max_daily_loss_pct', 2.0) / 100.0
+        self.last_rejection_reason: Optional[str] = None
         self.kill_switch_file = (
             os.getenv("KILL_SWITCH_FILE")
             or self.cfg.get('safeguards', {}).get('kill_switch_file', "data/KILL_SWITCH")
@@ -72,7 +73,7 @@ class ProductionSafeguards:
         if max_delay_seconds is None:
             max_delay_seconds = int(self.cfg.get('safeguards', {}).get(
                 'max_stale_data_seconds',
-                self.cfg.get('risk', {}).get('max_stale_data_seconds', 120)
+                self.cfg.get('risk', {}).get('max_stale_data_seconds', 600)
             ))
 
         now = time.time()
@@ -143,20 +144,29 @@ class ProductionSafeguards:
         4. Bid-ask spread and liquidity floor
         5. Max structural stop risk cap
         """
+        self.last_rejection_reason = None
         if self.kill_switch_active or self.check_kill_switch_triggers():
+            self.last_rejection_reason = "KILL_SWITCH: Kill switch is active"
             logger.info(f"[{setup.symbol}] Trade rejected: Kill switch is active.")
             return False
             
         if not self.check_daily_loss_limit(current_capital):
+            self.last_rejection_reason = "DAILY_LOSS_LIMIT: Daily loss limit breached"
             return False
             
         if current_timestamp is not None and current_timestamp > 0:
             if not self.check_stale_data(setup.symbol, current_timestamp, timeframe_seconds=timeframe_seconds):
+                max_delay_seconds = int(self.cfg.get('safeguards', {}).get(
+                    'max_stale_data_seconds',
+                    self.cfg.get('risk', {}).get('max_stale_data_seconds', 600)
+                ))
+                self.last_rejection_reason = f"STALE_DATA: Market data exceeds {max_delay_seconds}s staleness cap"
                 return False
 
         if bid is not None and ask is not None:
             vol = volume if volume is not None else 10000.0
             if not self.check_liquidity_spread(setup.symbol, bid, ask, vol):
+                self.last_rejection_reason = "SPREAD_OR_LIQUIDITY: Wide spread or insufficient volume"
                 return False
 
         max_stop_pct = self.cfg.get('rejection_gate', {}).get(
@@ -164,6 +174,7 @@ class ProductionSafeguards:
             self.cfg.get('risk', {}).get('max_stop_pct', 5.0)
         )
         if setup.risk_pct is not None and setup.risk_pct > max_stop_pct:
+            self.last_rejection_reason = f"MAX_STOP_BREACHED: Risk {setup.risk_pct:.2f}% > max {max_stop_pct:.2f}%"
             logger.warning(f"[{setup.symbol}] Trade rejected by safeguards: Risk {setup.risk_pct:.2f}% > max {max_stop_pct:.2f}%")
             return False
             
