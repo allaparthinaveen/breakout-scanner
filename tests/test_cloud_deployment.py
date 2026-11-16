@@ -188,3 +188,51 @@ def test_cloud_daemon_cli_status(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "[HEALTHY]" in captured.out
     assert "Active Markets:" in captured.out
+
+
+def test_env_market_resolution(monkeypatch):
+    from production_daemon import resolve_configured_markets
+
+    # Case 1: Default when nothing set
+    monkeypatch.delenv("ENABLED_MARKETS", raising=False)
+    monkeypatch.delenv("ACTIVE_MARKETS", raising=False)
+    monkeypatch.delenv("ENABLE_CRYPTO", raising=False)
+    monkeypatch.delenv("ENABLE_NSE", raising=False)
+    monkeypatch.delenv("ENABLE_US", raising=False)
+    assert resolve_configured_markets() == ["US", "NSE", "CRYPTO"]
+
+    # Case 2: Comma-separated ENABLED_MARKETS
+    monkeypatch.setenv("ENABLED_MARKETS", "NSE, US")
+    assert resolve_configured_markets() == ["NSE", "US"]
+
+    # Case 3: Disable individual market via ENABLE_CRYPTO=false
+    monkeypatch.delenv("ENABLED_MARKETS", raising=False)
+    monkeypatch.setenv("ENABLE_CRYPTO", "false")
+    assert resolve_configured_markets() == ["US", "NSE"]
+
+    # Case 4: DISABLE_CRYPTO=true
+    monkeypatch.delenv("ENABLE_CRYPTO", raising=False)
+    monkeypatch.setenv("DISABLE_CRYPTO", "true")
+    assert resolve_configured_markets() == ["US", "NSE"]
+
+
+def test_env_heartbeat_alert_toggle(monkeypatch, tmp_path):
+    from production_daemon import is_telegram_heartbeat_enabled, CloudDaemonRunner
+
+    # Enabled by default
+    monkeypatch.delenv("ENABLE_HEARTBEAT_ALERT", raising=False)
+    assert is_telegram_heartbeat_enabled() is True
+
+    # Disabled via .env
+    monkeypatch.setenv("ENABLE_HEARTBEAT_ALERT", "false")
+    assert is_telegram_heartbeat_enabled() is False
+
+    # When disabled, dispatch_telegram_heartbeat skips requests.post but succeeds
+    runner = CloudDaemonRunner(
+        markets=["US"],
+        config_path="config/default.yaml",
+        log_file=str(tmp_path / "cloud.log"),
+    )
+    res = runner.dispatch_telegram_heartbeat()
+    assert res is True
+

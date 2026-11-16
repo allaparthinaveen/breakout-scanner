@@ -25,6 +25,118 @@ from breakout_scanner.market_session import MultiMarketOrchestrator, STANDARD_MA
 from breakout_scanner.heartbeat import HeartbeatMonitor
 from breakout_scanner.secrets import get_telegram_credentials, get_telegram_targets
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+
+def is_env_truthy(val: Optional[str]) -> bool:
+    if val is None:
+        return False
+    return val.strip().lower() in ("true", "1", "yes", "on", "t", "y")
+
+
+def is_env_falsy(val: Optional[str]) -> bool:
+    if val is None:
+        return False
+    return val.strip().lower() in ("false", "0", "no", "off", "f", "n")
+
+
+def is_telegram_heartbeat_enabled() -> bool:
+    """
+    Checks whether Telegram heartbeat alerts are enabled from .env / os.environ.
+    Defaults to True (BAU). Set ENABLE_HEARTBEAT_ALERT=false in .env to disable.
+    """
+    for key in (
+        "ENABLE_HEARTBEAT_ALERT",
+        "HEARTBEAT_ALERT_ENABLED",
+        "ENABLE_TELEGRAM_HEARTBEAT",
+        "TELEGRAM_HEARTBEAT_ENABLED",
+        "ENABLE_HEARTBEAT",
+    ):
+        val = os.getenv(key)
+        if val is not None:
+            if is_env_falsy(val):
+                return False
+            if is_env_truthy(val):
+                return True
+    return True
+
+
+def resolve_configured_markets(cli_markets: Optional[List[str]] = None) -> List[str]:
+    """
+    Resolves the list of active markets to monitor and scan from .env / os.environ.
+    Supports both list variables (ENABLED_MARKETS, ACTIVE_MARKETS, MARKETS) and
+    individual boolean switches (ENABLE_CRYPTO=false, ENABLE_NSE=true, etc.).
+    Explicit cli_markets (if passed by caller) takes highest precedence.
+    """
+    if cli_markets is not None:
+        return [m.strip().upper() for m in cli_markets if m.strip()]
+
+    # 1. Determine base markets list from environment (.env)
+    env_markets_str = os.getenv("ENABLED_MARKETS") or os.getenv("ACTIVE_MARKETS") or os.getenv("MARKETS")
+    if env_markets_str and env_markets_str.strip():
+        base = [m.strip().upper() for m in env_markets_str.split(",") if m.strip()]
+    else:
+        base = ["US", "NSE", "CRYPTO"]
+
+    canonical = []
+    alias_map = {
+        "BTC": "CRYPTO",
+        "NIFTY": "NSE",
+        "INDIA": "NSE",
+        "USA": "US",
+        "SPY": "US",
+        "HK": "HKEX",
+        "HONGKONG": "HKEX",
+        "JAPAN": "TSE",
+        "TOKYO": "TSE",
+    }
+    for m in base:
+        c_m = alias_map.get(m, m)
+        if c_m not in canonical:
+            canonical.append(c_m)
+
+    # 2. Check individual boolean switches
+    market_switch_map = {
+        "CRYPTO": ["ENABLE_CRYPTO", "CRYPTO_ENABLED"],
+        "NSE": ["ENABLE_NSE", "NSE_ENABLED"],
+        "US": ["ENABLE_US", "US_ENABLED"],
+        "HKEX": ["ENABLE_HK", "HK_ENABLED", "ENABLE_HKEX", "HKEX_ENABLED"],
+        "TSE": ["ENABLE_JAPAN", "JAPAN_ENABLED", "ENABLE_TSE", "TSE_ENABLED"],
+    }
+    disable_switch_map = {
+        "CRYPTO": ["DISABLE_CRYPTO"],
+        "NSE": ["DISABLE_NSE"],
+        "US": ["DISABLE_US"],
+        "HKEX": ["DISABLE_HK", "DISABLE_HKEX"],
+        "TSE": ["DISABLE_JAPAN", "DISABLE_TSE"],
+    }
+
+    final_markets = list(canonical)
+
+    for mkt, enable_keys in market_switch_map.items():
+        for k in enable_keys:
+            val = os.getenv(k)
+            if val is not None:
+                if is_env_falsy(val) and mkt in final_markets:
+                    final_markets.remove(mkt)
+                elif is_env_truthy(val) and mkt not in final_markets:
+                    final_markets.append(mkt)
+
+    for mkt, disable_keys in disable_switch_map.items():
+        for k in disable_keys:
+            val = os.getenv(k)
+            if val is not None:
+                if is_env_truthy(val) and mkt in final_markets:
+                    final_markets.remove(mkt)
+                elif is_env_falsy(val) and mkt not in final_markets:
+                    final_markets.append(mkt)
+
+    return final_markets
+
 
 def setup_logger(log_file: str = "logs/cloud_daemon.log") -> logging.Logger:
     logger = logging.getLogger("cloud_daemon")
@@ -59,8 +171,10 @@ class CloudDaemonRunner:
         config_path: str = "config/default.yaml",
         heartbeat_interval: int = 900,
         log_file: str = "logs/cloud_daemon.log",
+        args: Optional[argparse.Namespace] = None,
     ):
-        self.markets = markets or ["US", "NSE", "CRYPTO"]
+        self.args = args or argparse.Namespace(test=False)
+        self.markets = resolve_configured_markets(markets)
         self.config_path = config_path
         self.heartbeat_interval = heartbeat_interval
         self.logger = setup_logger(log_file)
@@ -176,60 +290,63 @@ class CloudDaemonRunner:
             "⚡️ <i>Scheduler active</i>"
         )
 
-        targets = get_telegram_targets()
-        if not targets:
-            self.logger.warning("⚠️ Cannot send Telegram heartbeat: credentials missing.")
-            return False
-
         all_sent = True
-        for token, cid in targets:
-            url = f"https://api.telegram.org/bot{token}/sendMessage"
-            t0 = time.time()
-            try:
-                res = requests.post(
-                    url,
-                    json={"chat_id": cid, "text": msg, "parse_mode": "HTML"},
-                    timeout=15,
-                )
-                lat_ms = (time.time() - t0) * 1000.0
-                try:
-                    from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
-                    log_telegram_send(
-                        bot_label=mask_token(token),
-                        chat_label=mask_chat_id(cid),
-                        message_type="heartbeat",
-                        chunk_count=1,
-                        http_status=res.status_code,
-                        latency_ms=lat_ms,
-                        error_text=res.text if not res.ok else None,
-                        market="ALL",
-                    )
-                except Exception:
-                    pass
-                if not res.ok:
-                    self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid} via bot {token[:8]}...: {res.status_code} {res.text}")
-                    all_sent = False
-            except Exception as e:
-                lat_ms = (time.time() - t0) * 1000.0
-                try:
-                    from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
-                    log_telegram_send(
-                        bot_label=mask_token(token),
-                        chat_label=mask_chat_id(cid),
-                        message_type="heartbeat",
-                        chunk_count=1,
-                        http_status=getattr(getattr(e, "response", None), "status_code", None),
-                        latency_ms=lat_ms,
-                        error_text=str(e),
-                        market="ALL",
-                    )
-                except Exception:
-                    pass
-                self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {e}")
+        if not is_telegram_heartbeat_enabled():
+            self.logger.info("🔕 Telegram heartbeat alert disabled via .env (ENABLE_HEARTBEAT_ALERT=false). Skipping Telegram dispatch.")
+        else:
+            targets = get_telegram_targets()
+            if not targets:
+                self.logger.warning("⚠️ Cannot send Telegram heartbeat: credentials missing.")
                 all_sent = False
+            else:
+                for token, cid in targets:
+                    url = f"https://api.telegram.org/bot{token}/sendMessage"
+                    t0 = time.time()
+                    try:
+                        res = requests.post(
+                            url,
+                            json={"chat_id": cid, "text": msg, "parse_mode": "HTML"},
+                            timeout=15,
+                        )
+                        lat_ms = (time.time() - t0) * 1000.0
+                        try:
+                            from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+                            log_telegram_send(
+                                bot_label=mask_token(token),
+                                chat_label=mask_chat_id(cid),
+                                message_type="heartbeat",
+                                chunk_count=1,
+                                http_status=res.status_code,
+                                latency_ms=lat_ms,
+                                error_text=res.text if not res.ok else None,
+                                market="ALL",
+                            )
+                        except Exception:
+                            pass
+                        if not res.ok:
+                            self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid} via bot {token[:8]}...: {res.status_code} {res.text}")
+                            all_sent = False
+                    except Exception as e:
+                        lat_ms = (time.time() - t0) * 1000.0
+                        try:
+                            from breakout_scanner.run_logger import log_telegram_send, mask_token, mask_chat_id
+                            log_telegram_send(
+                                bot_label=mask_token(token),
+                                chat_label=mask_chat_id(cid),
+                                message_type="heartbeat",
+                                chunk_count=1,
+                                http_status=getattr(getattr(e, "response", None), "status_code", None),
+                                latency_ms=lat_ms,
+                                error_text=str(e),
+                                market="ALL",
+                            )
+                        except Exception:
+                            pass
+                        self.logger.error(f"❌ Failed to dispatch 40-minute Telegram heartbeat to {cid}: {e}")
+                        all_sent = False
 
-        if all_sent:
-            self.logger.info("💓 40-minute Telegram Heartbeat pulse successfully dispatched.")
+                if all_sent:
+                    self.logger.info("💓 40-minute Telegram Heartbeat pulse successfully dispatched.")
 
         # Heartbeat Telemetry Logging (§E)
         try:
@@ -328,7 +445,10 @@ class CloudDaemonRunner:
 
         # Schedule 40-minute Telegram Heartbeat pulse
         schedule.every(40).minutes.do(self.dispatch_telegram_heartbeat)
-        self.logger.info("💓 Scheduled 40-minute Telegram Heartbeat notification")
+        if is_telegram_heartbeat_enabled():
+            self.logger.info("💓 Scheduled 40-minute Telegram Heartbeat notification")
+        else:
+            self.logger.info("🔕 Scheduled 40-minute Heartbeat telemetry (Telegram alerts disabled via .env)")
 
         # Schedule nightly What-If outcome tracking at 00:15 UTC (executed asynchronously in background thread)
         def run_nightly_outcome_tracking():
@@ -397,8 +517,11 @@ class CloudDaemonRunner:
 
         # Dispatch immediate startup heartbeat to Telegram
         if targets:
-            self.logger.info("📡 Dispatching initial startup heartbeat to Telegram...")
-            self.dispatch_telegram_heartbeat()
+            if is_telegram_heartbeat_enabled():
+                self.logger.info("📡 Dispatching initial startup heartbeat to Telegram...")
+                self.dispatch_telegram_heartbeat()
+            else:
+                self.logger.info("🔕 Initial Telegram startup heartbeat skipped (ENABLE_HEARTBEAT_ALERT=false).")
 
         # Optional startup scan
         if startup_scan:
@@ -472,8 +595,8 @@ def main(argv=None):
     parser.add_argument(
         "--markets",
         type=str,
-        default="US,NSE,CRYPTO",
-        help="Comma-separated market identifiers to orchestrate (default: US,NSE,CRYPTO)",
+        default=None,
+        help="Comma-separated market identifiers to orchestrate (default: resolved from .env or US,NSE,CRYPTO)",
     )
     parser.add_argument(
         "--config",
@@ -522,7 +645,8 @@ def main(argv=None):
             print(f"❌ [UNHEALTHY] {res.get('message')}")
             sys.exit(1)
 
-    market_list = [m.strip().upper() for m in args.markets.split(",") if m.strip()]
+    cli_markets = [m.strip().upper() for m in args.markets.split(",") if m.strip()] if args.markets else None
+    market_list = resolve_configured_markets(cli_markets)
     runner = CloudDaemonRunner(
         markets=market_list,
         config_path=args.config,
