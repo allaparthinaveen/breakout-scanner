@@ -192,25 +192,37 @@ def format_scan_report_html(
 
     active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
 
-    # Approved symbols from institutional ActionableSlate / TradeSlate
+    # Approved and rejected symbols from institutional ActionableSlate / TradeSlate
     approved_symbols = set()
-    trades_list = None
+    rejected_map: Dict[str, str] = {}
     if slate is not None:
-        if hasattr(slate, "selected_trades") and slate.selected_trades:
-            trades_list = slate.selected_trades
-        elif hasattr(slate, "actionable_trades") and slate.actionable_trades:
-            trades_list = slate.actionable_trades
-    if trades_list is not None:
-        approved_symbols = set(t.symbol for t in trades_list)
+        if hasattr(slate, "selected_trades"):
+            approved_symbols = set(t.symbol for t in (slate.selected_trades or []))
+        elif hasattr(slate, "actionable_trades"):
+            approved_symbols = set(t.symbol for t in (slate.actionable_trades or []))
+
+        if hasattr(slate, "rejected_trades"):
+            for r in (slate.rejected_trades or []):
+                r_sym = getattr(r, "symbol", "")
+                r_reason = getattr(r, "reason", None) or getattr(r, "rejection_code", "REJECTED")
+                if r_sym:
+                    rejected_map[r_sym] = str(r_reason)
+        if hasattr(slate, "suppressed_trades"):
+            for sp in (slate.suppressed_trades or []):
+                sp_sym = getattr(sp, "symbol", "")
+                sp_reason = getattr(sp, "reason", None) or getattr(sp, "suppression_code", "SUPPRESSED")
+                if sp_sym and sp_sym not in rejected_map:
+                    rejected_map[sp_sym] = str(sp_reason)
 
     fresh_setups: List[Setup] = []
+    fresh_rejected_setups: List[Tuple[Setup, str]] = []
     progress_setups: List[Tuple[Setup, bool]] = []  # (Setup, is_risk_blocked)
 
     for s in active_setups:
         # P0-1 Risk Filtering Gate:
         # If slate is provided, setup must be in selected_trades (approved by rejection gate & portfolio guard)
-        # If slate not provided, evaluate basic rejection gate rules
-        if trades_list is not None:
+        # If slate not provided, evaluate basic rejection gate rules (legacy callers)
+        if slate is not None:
             is_risk_approved = (s.symbol in approved_symbols)
         else:
             is_risk_approved = (
@@ -219,7 +231,7 @@ def format_scan_report_html(
                 and (getattr(s, "friction_r", None) is None or s.friction_r <= 0.15)
             )
 
-        if getattr(s, "safeguard_rejected", False):
+        if getattr(s, "safeguard_rejected", False) or s.symbol in rejected_map:
             is_risk_approved = False
 
         is_confirmed = not getattr(s, "requires_confirmation", False)
@@ -228,6 +240,16 @@ def format_scan_report_html(
         if s.is_fresh_entry and is_confirmed and is_risk_approved:
             fresh_setups.append(s)
         else:
+            is_fresh_candle = (s.bars_since_breakout is None or s.bars_since_breakout <= 1)
+            if (s.is_fresh_entry or is_fresh_candle) and is_confirmed and not is_risk_approved:
+                if s.symbol in rejected_map or getattr(s, "safeguard_rejected", False):
+                    rej_msg = (
+                        rejected_map.get(s.symbol)
+                        or getattr(s, "safeguard_rejection_reason", None)
+                        or getattr(s, "failure_reason", None)
+                        or "REJECTED_BY_SAFEGUARDS"
+                    )
+                    fresh_rejected_setups.append((s, rej_msg))
             # Everything else belongs to Section 2B (Trades In Progress / Awaiting / Blocked)
             progress_setups.append((s, not is_risk_approved and s.is_fresh_entry))
 
@@ -250,6 +272,11 @@ def format_scan_report_html(
     lines.append("────────────────────")
     if not fresh_setups:
         lines.append("<i>(None)</i>")
+        if fresh_rejected_setups:
+            lines.append("")
+            lines.append("⚠️ <b>Fresh but rejected:</b>")
+            for s, r_reason in fresh_rejected_setups:
+                lines.append(f"  • <b>{html.escape(s.symbol)}</b>: {html.escape(str(r_reason))}")
     else:
         for s in fresh_setups:
             lines.append(format_setup_telegram_line(s, is_fresh=True))
