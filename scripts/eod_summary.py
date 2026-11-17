@@ -88,6 +88,38 @@ def generate_eod_summary(
         if date_str in row_time or market.lower() in str(row.get("symbol", "")).lower():
             market_ledger.append(row)
 
+    outcomes_path = os.path.join(os.path.dirname(ledger_path), "forward_test_outcomes.jsonl")
+    outcomes_map = {o.get("signal_id"): o for o in read_jsonl_file(outcomes_path) if o.get("signal_id")}
+
+    shadow_rows = [
+        row for row in market_ledger
+        if row.get("bucket") == "LATE_CHASE_SHADOW"
+    ]
+    late_chase_shadow_entries = []
+    for sr in shadow_rows:
+        sig_id = sr.get("signal_id")
+        out = outcomes_map.get(sig_id, {})
+        entry_item = {
+            "symbol": sr.get("symbol"),
+            "signal_id": sig_id,
+            "timestamp": sr.get("timestamp") or sr.get("breakout_time"),
+            "pivot": sr.get("pivot") or sr.get("price", {}).get("pivot"),
+            "signal_price": sr.get("signal_price") or sr.get("price", {}).get("signal_price") or sr.get("price", {}).get("current"),
+            "extension_pct": sr.get("extension_pct") or sr.get("price", {}).get("extension_pct"),
+            "tolerance_pct": sr.get("tolerance_pct") or sr.get("price", {}).get("tolerance_pct"),
+            "atr": sr.get("atr") or sr.get("price", {}).get("atr"),
+            "score": sr.get("score") or sr.get("quant_score"),
+            "grade": sr.get("grade") or sr.get("quant_grade"),
+            "stop": sr.get("stop") or sr.get("price", {}).get("stop"),
+            "tp1": sr.get("tp1") or sr.get("price", {}).get("tp1"),
+            "tp2": sr.get("tp2") or sr.get("price", {}).get("tp2"),
+            "status": out.get("status", "PENDING"),
+            "hypothetical_r": out.get("hypothetical_r"),
+            "pullback_filled": out.get("pullback_filled"),
+            "pullback_r": out.get("pullback_to_pivot_fill", {}).get("hypothetical_r"),
+        }
+        late_chase_shadow_entries.append(entry_item)
+
     # 1. Scans scheduled vs executed vs completed
     job_fires = [e for e in events if e.get("event") == "job_fire" and (market_upper in str(e.get("market", "")).upper() or e.get("market") in ("ALL", ""))]
     job_skips = [e for e in events if e.get("event") == "job_skipped" and (market_upper in str(e.get("market", "")).upper() or e.get("market") in ("ALL", ""))]
@@ -266,6 +298,10 @@ def generate_eod_summary(
         "performance": {
             "slowest_10_fetch_latency": slowest_10,
         },
+        "late_chase_shadow": {
+            "count": len(late_chase_shadow_entries),
+            "rows": late_chase_shadow_entries,
+        },
     }
 
 
@@ -343,6 +379,23 @@ def format_eod_markdown(summary: Dict[str, Any]) -> str:
         lines.append(f"- [SUPPRESSED] **{supp['symbol']}**: `{supp['code']}` - {supp['reason']}")
     for rej in summary.get("rejected_candidates", [])[:10]:
         lines.append(f"- [REJECTED] **{rej['symbol']}**: `{rej['code']}` - {rej['reason']}")
+
+    shadow_data = summary.get("late_chase_shadow", {})
+    shadow_rows = shadow_data.get("rows", [])
+    shadow_count = shadow_data.get("count", len(shadow_rows))
+    lines.extend([
+        "",
+        f"## Late-chase shadow: {shadow_count} rows, outcomes so far",
+    ])
+    if shadow_rows:
+        lines.append("| Symbol | Signal Time | Pivot | Signal Price | Ext % | Tol % | ATR | Score | Grade | Stop | TP1 | Outcome R | Pullback Filled |")
+        lines.append("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+        for r in shadow_rows:
+            pb_str = "YES" if r.get("pullback_filled") else ("NO" if r.get("pullback_filled") is False else "PENDING")
+            r_str = f"{r.get('hypothetical_r'):+.2f}R" if r.get("hypothetical_r") is not None else "PENDING"
+            lines.append(f"| **{r.get('symbol')}** | `{r.get('timestamp')}` | `{r.get('pivot')}` | `{r.get('signal_price')}` | `{r.get('extension_pct')}%` | `{r.get('tolerance_pct')}%` | `{r.get('atr')}` | `{r.get('score')}` | `{r.get('grade')}` | `{r.get('stop')}` | `{r.get('tp1')}` | `{r_str}` | `{pb_str}` |")
+    else:
+        lines.append("*No late-chase shadow candidates recorded.*")
 
     lines.extend([
         "",

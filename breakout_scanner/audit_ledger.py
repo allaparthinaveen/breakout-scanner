@@ -108,6 +108,7 @@ def record_forward_test_ledger(
                 rejected_map[rej.symbol] = {
                     "code": getattr(rej, "rejection_code", "REJECTED"),
                     "reason": getattr(rej, "reason", "Disqualified by pre-trade risk gate"),
+                    "details": getattr(rej, "details", {}),
                 }
 
     records_written = 0
@@ -145,15 +146,32 @@ def record_forward_test_ledger(
             # Classify signal status with dedicated PROVISIONAL quarantine
             is_provisional = getattr(s, "provisional_data_incomplete", False)
             quant_score = getattr(s, "composite_score", 0) or 0
+            bucket = "MAIN"
+            is_late_chase_only = False
 
             if s.symbol in rejected_map:
                 status = "REJECTED"
                 code = rejected_map[s.symbol]["code"]
                 reason = rejected_map[s.symbol]["reason"]
+                rej_details = rejected_map[s.symbol].get("details", {})
+                if rej_details.get("is_late_chase_only") is True:
+                    is_late_chase_only = True
+                elif code == "LATE_CHASE":
+                    failed_codes = rej_details.get("all_failed_codes")
+                    if failed_codes is not None:
+                        is_late_chase_only = (failed_codes == ["LATE_CHASE"])
+                    else:
+                        from .rejection_gate import TradeRejectionGate
+                        gate = TradeRejectionGate(cfg)
+                        is_late_chase_only = gate.is_late_chase_only(s)
             elif s.symbol in suppressed_map:
                 status = "SUPPRESSED"
                 code = suppressed_map[s.symbol]["code"]
                 reason = suppressed_map[s.symbol]["reason"]
+                if code == "LATE_CHASE":
+                    from .rejection_gate import TradeRejectionGate
+                    gate = TradeRejectionGate(cfg)
+                    is_late_chase_only = gate.is_late_chase_only(s)
             elif is_provisional:
                 # Technical-only quality gate: throttled setups with low technicals are suppressed
                 if quant_score < 50:
@@ -177,13 +195,36 @@ def record_forward_test_ledger(
                 status = "SUPPRESSED"
                 code = "LATE_CHASE"
                 reason = "Price extended beyond pivot tolerance (Anti-Chase Guard)"
+                from .rejection_gate import TradeRejectionGate
+                gate = TradeRejectionGate(cfg)
+                is_late_chase_only = gate.is_late_chase_only(s)
             else:
                 status = "APPROVED"
                 code = "ACTIONABLE_CANDIDATE"
                 reason = "Pristine technical breakout candidate"
 
+            if is_late_chase_only:
+                bucket = "LATE_CHASE_SHADOW"
+
             target_1 = s.tp1
             target_2 = s.tp2
+
+            target_dir = s.direction if s.direction in (1, -1) else (1 if s.state == State.BUY else -1)
+            pivot = s.breakout_level or (s.resistance if target_dir == 1 else s.support) or entry_price
+            signal_price = s.current_price if s.current_price is not None else entry_price
+
+            ext_pct = 0.0
+            if pivot and pivot > 0 and signal_price:
+                if target_dir == 1 and signal_price > pivot:
+                    ext_pct = round(((signal_price - pivot) / pivot) * 100.0, 2)
+                elif target_dir == -1 and signal_price < pivot:
+                    ext_pct = round(((pivot - signal_price) / pivot) * 100.0, 2)
+
+            max_tol = float(cfg.get("rejection_gate", {}).get("max_extension_pct", 1.0))
+            if s.atr is not None and s.atr > 0 and pivot and pivot > 0:
+                atr_tol = (0.5 * s.atr / pivot) * 100.0
+                max_tol = min(max_tol, atr_tol)
+            tolerance_pct = round(max_tol, 2)
 
             # Populate execution details
             alloc = None
@@ -229,16 +270,32 @@ def record_forward_test_ledger(
                 "status": status,
                 "code": code,
                 "reason": reason,
+                "bucket": bucket,
+                "pivot": pivot,
+                "signal_price": signal_price,
+                "extension_pct": ext_pct,
+                "tolerance_pct": tolerance_pct,
+                "atr": s.atr,
+                "score": quant_score,
+                "grade": s.composite_grade,
+                "stop": stop_price,
+                "tp1": target_1,
+                "tp2": target_2,
                 "quant_score": quant_score,
                 "quant_grade": s.composite_grade,
                 "bias_score": s.bias_score,
                 "price": {
                     "current": s.current_price,
+                    "signal_price": signal_price,
                     "entry": entry_price,
+                    "pivot": pivot,
                     "stop": stop_price,
                     "risk_pct": s.risk_pct,
                     "tp1": target_1,
                     "tp2": target_2,
+                    "atr": s.atr,
+                    "extension_pct": ext_pct,
+                    "tolerance_pct": tolerance_pct,
                     "resistance": getattr(s, "resistance", None),
                     "support": getattr(s, "support", None),
                     "breakout_level": getattr(s, "breakout_level", None),

@@ -306,6 +306,120 @@ def evaluate_setup_outcome_from_df(
                 else:
                     exit_r = round(rem_r, 2)
 
+        # Base (b): Hypothetical pullback-to-pivot entry
+        pivot_val = record.get("pivot") or price_info.get("pivot") or (resistance if direction == 1 else support)
+        pullback_filled = False
+        pb_entry = float(pivot_val) if (pivot_val is not None and float(pivot_val) > 0) else None
+        pb_initial_risk = abs(pb_entry - stop) if (pb_entry and stop and pb_entry != stop) else None
+        pb_mfe_r = 0.0
+        pb_mae_r = 0.0
+        pb_hit_tp1 = False
+        pb_hit_stop = False
+        pb_hit_tp2 = False
+        pb_exit_r = 0.0
+        pb_exit_reason = "DID_NOT_PULLBACK"
+        pb_active_stop = stop
+        pb_is_terminal = False
+
+        if pb_entry and pb_initial_risk and pb_initial_risk > 0:
+            for pb_idx, (_, row) in enumerate(eval_window.iterrows()):
+                open_px = float(row["Open"])
+                high = float(row["High"])
+                low = float(row["Low"])
+                close = float(row["Close"])
+
+                if not pullback_filled:
+                    if direction == 1:
+                        # Before fill: check if stop is hit first or price touches pivot
+                        if low <= stop and stop >= pb_entry:
+                            pb_exit_reason = "STOP_BREACHED_BEFORE_PULLBACK"
+                            break
+                        if low <= pb_entry:
+                            pullback_filled = True
+                            pb_active_stop = stop
+                    elif direction == -1:
+                        if high >= stop and stop <= pb_entry:
+                            pb_exit_reason = "STOP_BREACHED_BEFORE_PULLBACK"
+                            break
+                        if high >= pb_entry:
+                            pullback_filled = True
+                            pb_active_stop = stop
+
+                if pullback_filled:
+                    if direction == 1:
+                        curr_fe = (high - pb_entry) / pb_initial_risk
+                        if curr_fe > pb_mfe_r:
+                            pb_mfe_r = curr_fe
+                        curr_ae = (pb_entry - low) / pb_initial_risk
+                        if curr_ae > pb_mae_r:
+                            pb_mae_r = curr_ae
+
+                        # Stop hit
+                        if low <= pb_active_stop:
+                            pb_hit_stop = True
+                            pb_is_terminal = True
+                            if pb_hit_tp1:
+                                pb_exit_r = 0.50
+                                pb_exit_reason = "BREAKEVEN_STOP"
+                            else:
+                                pb_exit_reason = "STOP_LOSS"
+                                pb_exit_r = round((open_px - pb_entry) / pb_initial_risk, 2) if open_px <= pb_active_stop else -1.00
+                            break
+
+                        # TP1
+                        if tp1 and high >= tp1 and not pb_hit_tp1:
+                            pb_hit_tp1 = True
+                            pb_active_stop = pb_entry
+
+                        # TP2
+                        if tp2 and high >= tp2 and pb_hit_tp1:
+                            pb_hit_tp2 = True
+                            pb_is_terminal = True
+                            pb_exit_r = 1.50
+                            pb_exit_reason = "TP2_HIT"
+                            break
+                    elif direction == -1:
+                        curr_fe = (pb_entry - low) / pb_initial_risk
+                        if curr_fe > pb_mfe_r:
+                            pb_mfe_r = curr_fe
+                        curr_ae = (high - pb_entry) / pb_initial_risk
+                        if curr_ae > pb_mae_r:
+                            pb_mae_r = curr_ae
+
+                        # Stop hit
+                        if high >= pb_active_stop:
+                            pb_hit_stop = True
+                            pb_is_terminal = True
+                            if pb_hit_tp1:
+                                pb_exit_r = 0.50
+                                pb_exit_reason = "BREAKEVEN_STOP"
+                            else:
+                                pb_exit_reason = "STOP_LOSS"
+                                pb_exit_r = round((pb_entry - open_px) / pb_initial_risk, 2) if open_px >= pb_active_stop else -1.00
+                            break
+
+                        # TP1
+                        if tp1 and low <= tp1 and not pb_hit_tp1:
+                            pb_hit_tp1 = True
+                            pb_active_stop = pb_entry
+
+                        # TP2
+                        if tp2 and low <= tp2 and pb_hit_tp1:
+                            pb_hit_tp2 = True
+                            pb_is_terminal = True
+                            pb_exit_r = 1.50
+                            pb_exit_reason = "TP2_HIT"
+                            break
+
+            if pullback_filled and not pb_is_terminal:
+                rem_pb = ((last_close - pb_entry) / pb_initial_risk) if direction == 1 else ((pb_entry - last_close) / pb_initial_risk)
+                if len(eval_window) >= max_hold_bars:
+                    pb_exit_reason = "TIME_STOP_10D"
+                    pb_exit_r = round(0.50 * 1.0 + 0.50 * rem_pb, 2) if pb_hit_tp1 else round(rem_pb, 2)
+                else:
+                    pb_exit_reason = "OPEN_TRADE"
+                    pb_exit_r = round(0.50 * 1.0 + 0.50 * rem_pb, 2) if pb_hit_tp1 else round(rem_pb, 2)
+
         return {
             "status": "EVALUATED" if is_terminal else "IN_PROGRESS",
             "evaluated": is_terminal,
@@ -322,6 +436,30 @@ def evaluate_setup_outcome_from_df(
             "hit_tp1": hit_tp1,
             "hit_stop": hit_stop,
             "hit_tp2": hit_tp2,
+            "pullback_filled": pullback_filled,
+            "pullback_to_pivot_fill": {
+                "filled": pullback_filled,
+                "entry_price": pb_entry if pullback_filled else None,
+                "initial_risk": pb_initial_risk if pullback_filled else None,
+                "hypothetical_r": round(float(pb_exit_r), 2) if pullback_filled else None,
+                "exit_reason": pb_exit_reason,
+                "hit_tp1": pb_hit_tp1 if pullback_filled else False,
+                "hit_stop": pb_hit_stop if pullback_filled else False,
+                "hit_tp2": pb_hit_tp2 if pullback_filled else False,
+                "max_favorable_excursion_r": round(float(pb_mfe_r), 2) if pullback_filled else None,
+                "max_adverse_excursion_r": round(float(pb_mae_r), 2) if pullback_filled else None,
+            },
+            "signal_close_fill": {
+                "entry_price": round(entry, 8) if entry < 0.01 else round(entry, 4),
+                "initial_risk": initial_risk,
+                "hypothetical_r": round(float(exit_r), 2),
+                "exit_reason": exit_reason,
+                "hit_tp1": hit_tp1,
+                "hit_stop": hit_stop,
+                "hit_tp2": hit_tp2,
+                "max_favorable_excursion_r": round(float(mfe_r), 2),
+                "max_adverse_excursion_r": round(float(mae_r), 2),
+            },
         }
 
     except Exception as e:
@@ -481,14 +619,22 @@ def update_ledger_outcomes(
     provisional_r = []
     suppressed_r = []
     rejected_r = []
+    late_chase_shadow_r = []
+    late_chase_shadow_pullback_r = []
 
     for rec in ledger_records:
         sig_id = rec.get("signal_id")
         out = evaluated_outcomes.get(sig_id)
         if out and out.get("hypothetical_r") is not None and out.get("status") in ("EVALUATED", "SUCCESS"):
             r_val = out["hypothetical_r"]
+            bucket = rec.get("bucket")
             status = rec.get("status")
-            if status == "APPROVED":
+            if bucket == "LATE_CHASE_SHADOW":
+                late_chase_shadow_r.append(r_val)
+                pb_r = out.get("pullback_to_pivot_fill", {}).get("hypothetical_r")
+                if pb_r is not None:
+                    late_chase_shadow_pullback_r.append(pb_r)
+            elif status == "APPROVED":
                 approved_r.append(r_val)
             elif status == "PROVISIONAL":
                 provisional_r.append(r_val)
@@ -506,10 +652,13 @@ def update_ledger_outcomes(
             "provisional_avg_r": round(float(np.mean(provisional_r)), 3) if provisional_r else 0.0,
             "suppressed_avg_r": round(float(np.mean(suppressed_r)), 3) if suppressed_r else 0.0,
             "rejected_avg_r": round(float(np.mean(rejected_r)), 3) if rejected_r else 0.0,
+            "late_chase_shadow_avg_r": round(float(np.mean(late_chase_shadow_r)), 3) if late_chase_shadow_r else 0.0,
+            "late_chase_shadow_pullback_avg_r": round(float(np.mean(late_chase_shadow_pullback_r)), 3) if late_chase_shadow_pullback_r else 0.0,
             "approved_count": len(approved_r),
             "provisional_count": len(provisional_r),
             "suppressed_count": len(suppressed_r),
             "rejected_count": len(rejected_r),
+            "late_chase_shadow_count": len(late_chase_shadow_r),
         },
     }
 
