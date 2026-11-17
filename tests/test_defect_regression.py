@@ -233,6 +233,9 @@ def test_failed_breakout_exit_fires_correctly(tmp_path):
     ledger_file = str(tmp_path / "test_failed_bo_ledger.jsonl")
     cfg = {"profile_name": "Standard"}
 
+    now_ts = pd.Timestamp.now(tz="UTC").floor("1h")
+    now_str = str(now_ts)
+
     setup = Setup(
         symbol="FAIL_BO",
         state=State.BUY,
@@ -242,7 +245,7 @@ def test_failed_breakout_exit_fires_correctly(tmp_path):
         resistance=104.5,
         support=101.0,
         breakout_level=104.5,
-        breakout_time="2026-11-16 09:30:00-05:00",
+        breakout_time=now_str,
     )
 
     count = record_forward_test_ledger([setup], cfg, ledger_path=ledger_file)
@@ -255,10 +258,10 @@ def test_failed_breakout_exit_fires_correctly(tmp_path):
     assert rec["price"]["resistance"] == 104.5
     assert rec["price"]["support"] == 101.0
     assert rec["price"]["breakout_level"] == 104.5
-    assert rec["breakout_time"] == "2026-11-16 09:30:00-05:00"
+    assert rec["breakout_time"] == now_str
 
     # Candle series where price falls back below resistance (104.5) on Bar 2
-    dates = pd.date_range("2026-11-16 09:30:00-05:00", periods=4, freq="1h")
+    dates = pd.date_range(now_ts, periods=4, freq="1h")
     df = pd.DataFrame({
         "Open": [104.0, 105.0, 104.4, 103.5],
         "High": [105.0, 105.5, 104.6, 103.8],
