@@ -404,6 +404,42 @@ class CloudDaemonRunner:
 
         return all_sent
 
+    def emit_startup_snapshots(self, base_dir: str = "logs/run"):
+        """
+        Emits one daemon_start startup snapshot per active market,
+        using its resolved per-market production profile and watchlist.
+        """
+        from breakout_scanner.run_logger import log_startup_snapshot, rotate_and_clean_logs
+        import schedule
+        rotate_and_clean_logs(base_dir=base_dir, retention_days=14)
+
+        for m in self.markets:
+            sched = self.scheduler.schedulers.get(m)
+            if sched:
+                cfg_p = sched.cfg_path
+                m_cfg = sched.cfg
+                m_session = sched.market_session
+                wl_files = sched.watchlist_files
+                symbols = sched.load_symbols()
+            else:
+                cfg_p = self.config_path
+                m_cfg = None
+                m_session = None
+                wl_files = None
+                symbols = None
+
+            log_startup_snapshot(
+                market=m,
+                config_path=cfg_p,
+                cfg=m_cfg,
+                watchlist_file=wl_files[0] if (wl_files and len(wl_files) > 0) else None,
+                symbols=symbols,
+                component="daemon",
+                base_dir=base_dir,
+                schedule_jobs=schedule.jobs,
+                market_session=m_session,
+            )
+
     def run(self, startup_scan: bool = False, poll_sec: int = 5):
         self.running = True
         self.logger.info("=" * 70)
@@ -427,21 +463,9 @@ class CloudDaemonRunner:
         # Register exchange-aligned candle close schedules
         self.scheduler.schedule_all()
 
-        # Startup Snapshot (§A)
+        # Startup Snapshot (§A) - Emit one per active market
         try:
-            from breakout_scanner.run_logger import log_startup_snapshot, rotate_and_clean_logs
-            from breakout_scanner.config import load_config
-            daemon_cfg = load_config(self.config_path) if os.path.exists(self.config_path) else {}
-            retention_days = int(daemon_cfg.get("logging", {}).get("retention_days", 14))
-            rotate_and_clean_logs(base_dir="logs/run", retention_days=retention_days)
-            log_startup_snapshot(
-                market=",".join(self.markets),
-                config_path=self.config_path,
-                cfg=daemon_cfg,
-                component="daemon",
-                schedule_jobs=schedule.jobs,
-                market_session=getattr(self.scheduler.schedulers.get("US", self.scheduler.schedulers.get("NSE", None)), "market_session", None),
-            )
+            self.emit_startup_snapshots()
         except Exception as e:
             self.logger.warning(f"Failed to write startup snapshot: {e}")
 

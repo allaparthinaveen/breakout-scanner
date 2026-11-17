@@ -26,18 +26,40 @@ def get_effective_config(config_path: str = "config/default.yaml") -> dict:
     c_qual = cfg.get("signal_quality", {})
     c_earn = cfg.get("earnings", {})
     c_health = cfg.get("data_health", {})
+    c_conf = cfg.get("confirmation_policy", {})
+    c_safe = cfg.get("safeguards", {})
+    c_rej = cfg.get("rejection_gate", {})
+
+    min_auto_score = int(c_qual.get("min_auto_entry_score", c_conf.get("min_auto_entry_score", 70)))
+    stale_cap = int(c_safe.get("max_stale_data_seconds", c_risk.get("max_stale_data_seconds", 600)))
+    conf_enabled = bool(c_conf.get("enabled", c_break.get("use_open_confirmation", False)))
+    shorts_enabled = bool(c_break.get("allow_shorts", True))
 
     return {
         "config_file_path": config_path,
         "config_hash": c_hash,
         "effective_config": {
             "timeframe": c_timeframe.get("interval", "1h"),
-            "allow_shorts": c_break.get("allow_shorts", True),
+            "allow_shorts": shorts_enabled,
+            "shorts_enabled": shorts_enabled,
             "slippage_pct": c_risk.get("slippage_pct", 0.05),
             "commission_pct": c_risk.get("commission_pct", 0.05),
             "max_friction_r": c_risk.get("max_friction_r", 0.15),
-            "min_auto_entry_score": c_qual.get("min_auto_entry_score", 70),
-            "confirmation_policy": c_break.get("use_open_confirmation", False),
+            "cost_model": {
+                "slippage_pct": float(c_risk.get("slippage_pct", 0.05)),
+                "commission_pct": float(c_risk.get("commission_pct", 0.05)),
+                "max_friction_r": float(c_risk.get("max_friction_r", 0.15)),
+            },
+            "min_auto_entry_score": min_auto_score,
+            "confirmation_policy": {
+                "enabled": conf_enabled,
+                "min_auto_entry_score": int(c_conf.get("min_auto_entry_score", min_auto_score)),
+            },
+            "max_stale_data_seconds": stale_cap,
+            "extension_tolerance": {
+                "enforce_anti_chase": bool(c_rej.get("enforce_anti_chase", True)),
+                "max_extension_pct": float(c_rej.get("max_extension_pct", 1.0)),
+            },
             "earnings_unverified_policy": c_earn.get("unverified_policy", "warn"),
             "data_health": {
                 "min_scan_completeness_pct": c_health.get("min_scan_completeness_pct", 90),

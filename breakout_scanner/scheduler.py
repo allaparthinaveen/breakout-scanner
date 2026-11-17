@@ -238,6 +238,7 @@ class SessionScheduler:
         except Exception:
             self.market_session = None
 
+        self.cfg_path = cfg_path
         self.cfg = load_config(cfg_path)
         self.provider = YFinanceProvider()
         self.scanner = MultiSymbolScanner(self.provider, self.cfg)
