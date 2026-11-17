@@ -500,6 +500,17 @@ class SessionScheduler:
             }
 
         # Phase 1: Authoritative ActionableSlate evaluation with persistent open positions
+        # Mark final bar breakouts as next-session candidates if scanning after session close
+        if self.market_session is not None:
+            now_utc = pd.Timestamp.now(tz="UTC")
+            market_ts = self.market_session.to_market_tz(now_utc)
+            session_label = market_ts.strftime("%Y-%m-%d")
+            _, close_dt = self.market_session.get_session_bounds(session_label)
+            if close_dt is not None and market_ts >= close_dt:
+                for s in setups:
+                    if s.state in (State.BUY, State.SELL) and s.is_fresh_entry:
+                        s.is_next_session_candidate = True
+
         open_positions = self.portfolio_state.get_open_positions()
         slate = self.pipeline.evaluate_setups(setups, total_scanned=len(symbols), open_positions=open_positions)
         
@@ -629,7 +640,8 @@ class SessionScheduler:
                     # Record fresh playable entries into persistent portfolio state (P0-4)
                     for t in slate.selected_trades:
                         if t.setup and t.setup.is_fresh_entry and not getattr(t.setup, "requires_confirmation", False):
-                            self.portfolio_state.record_entry(t)
+                            if not getattr(t.setup, "is_next_session_candidate", False):
+                                self.portfolio_state.record_entry(t)
                 else:
                     self.logger.warning(f"⚠️ Telegram dispatch failed for {report_signature}, recorded locally.")
                     self.deduplicator.record_alert(report_signature, {

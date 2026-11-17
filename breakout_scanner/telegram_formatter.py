@@ -80,6 +80,12 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
     if getattr(s, "provisional_data_incomplete", False):
         parts.append("[⚠️ PROVISIONAL: DATA INCOMPLETE]")
 
+    if is_fresh:
+        if getattr(s, "is_next_session_candidate", False):
+            parts.append("🌅 [NEXT-SESSION CANDIDATE — MARKET CLOSED]")
+        else:
+            parts.append("🟢 [ENTER NOW]")
+
     if not is_fresh:
         pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
         pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
@@ -268,7 +274,11 @@ def format_scan_report_html(
     progress_setups.sort(key=lambda item: safe_sort_active(item[0]), reverse=True)
 
     # 1. SECTION 2A: FRESH ACTIONABLE ENTRIES
-    lines.append("🟢 <b>SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")
+    is_next_session = any(getattr(s, "is_next_session_candidate", False) for s in fresh_setups)
+    if is_next_session:
+        lines.append("🌅 <b>SECTION 2A: NEXT-SESSION CANDIDATES (Market Closed — Execute Next Open)</b>")
+    else:
+        lines.append("🟢 <b>SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")
     lines.append("────────────────────")
     if not fresh_setups:
         lines.append("<i>(None)</i>")
@@ -380,7 +390,10 @@ def format_instant_alert_html(setup: Setup, timeframe: str = "1H", allocation: O
     if edge_bullets:
         lines.append("• <b>Edge:</b> " + " | ".join(edge_bullets))
 
-    lines.append("• <b>Status:</b> 🟢 <b>[ENTER NOW — FRESH]</b>")
+    if getattr(setup, "is_next_session_candidate", False):
+        lines.append("• <b>Status:</b> 🌅 <b>[NEXT-SESSION CANDIDATE — EXECUTE AT NEXT OPEN]</b>")
+    else:
+        lines.append("• <b>Status:</b> 🟢 <b>[ENTER NOW — FRESH]</b>")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
 
     return "\n".join(lines)

@@ -296,6 +296,52 @@ class MarketSessionManager:
                 return duration_hours < 5.0
             return False
 
+    def is_candle_closed(
+        self,
+        bar_start: Union[str, datetime, pd.Timestamp],
+        now: Optional[Union[str, datetime, pd.Timestamp]] = None,
+        timeframe: str = "1h",
+    ) -> bool:
+        """
+        Determines if a candle is genuinely closed, with session-awareness for the final bar.
+        - Mid-session bars: closed if now >= bar_start + bar_length.
+        - Final bar of session: closed if now >= min(bar_start + bar_length, session_close)
+          and now is at or after the session close.
+        """
+        bar_ts = self.to_market_tz(bar_start)
+        now_ts = self.to_market_tz(now) if now is not None else self.to_market_tz(pd.Timestamp.now(tz="UTC"))
+
+        from .providers.validation import parse_timeframe_delta
+        delta = parse_timeframe_delta(timeframe) or timedelta(hours=1)
+
+        session_label = bar_ts.strftime("%Y-%m-%d")
+        _, close_dt = self.get_session_bounds(session_label)
+
+        if close_dt is not None and bar_ts < close_dt:
+            # Check if this bar is the final bar of the session (bar_ts + delta >= close_dt)
+            if (bar_ts + delta) >= close_dt:
+                effective_close = min(bar_ts + delta, close_dt)
+                return bool(now_ts >= effective_close and now_ts >= close_dt)
+
+        # Mid-session bars (or 24/7 markets like Crypto):
+        # Result identical to before: closed when now >= bar_start + delta
+        return bool(now_ts >= (bar_ts + delta))
+
+    def is_final_bar_of_session(
+        self,
+        bar_start: Union[str, datetime, pd.Timestamp],
+        timeframe: str = "1h",
+    ) -> bool:
+        """Returns True if the candle is the final bar of the trading session."""
+        bar_ts = self.to_market_tz(bar_start)
+        from .providers.validation import parse_timeframe_delta
+        delta = parse_timeframe_delta(timeframe) or timedelta(hours=1)
+        session_label = bar_ts.strftime("%Y-%m-%d")
+        _, close_dt = self.get_session_bounds(session_label)
+        if close_dt is not None and bar_ts < close_dt:
+            return bool((bar_ts + delta) >= close_dt)
+        return False
+
     def get_candle_close_schedule(
         self, dt: Union[str, date, datetime, pd.Timestamp], timeframe: str = "1h"
     ) -> List[pd.Timestamp]:
@@ -646,3 +692,57 @@ class MultiMarketOrchestrator:
 
         missed.sort()
         return missed
+
+
+def is_candle_closed(
+    bar_start: Union[str, datetime, pd.Timestamp],
+    now: Optional[Union[str, datetime, pd.Timestamp]] = None,
+    timeframe: str = "1h",
+    market_id: Optional[str] = None,
+    market_session: Optional[MarketSessionManager] = None,
+) -> bool:
+    """
+    Module-level helper to check if a candle is genuinely closed.
+    Resolves market_session from market_id or uses provided market_session.
+    """
+    if market_session is None and market_id:
+        try:
+            market_session = MarketSessionManager.from_market_id(market_id)
+        except Exception:
+            market_session = None
+
+    if market_session is not None:
+        return market_session.is_candle_closed(bar_start, now=now, timeframe=timeframe)
+
+    # Fallback when no market session is configured:
+    from .providers.validation import parse_timeframe_delta
+    delta = parse_timeframe_delta(timeframe) or timedelta(hours=1)
+    bar_ts = pd.Timestamp(bar_start)
+    now_ts = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz="UTC")
+    if bar_ts.tzinfo is not None:
+        if now_ts.tzinfo is None:
+            now_ts = now_ts.tz_localize(bar_ts.tzinfo)
+        else:
+            now_ts = now_ts.tz_convert(bar_ts.tzinfo)
+    else:
+        if now_ts.tzinfo is not None:
+            now_ts = now_ts.tz_convert(None)
+    return bool(now_ts >= (bar_ts + delta))
+
+
+def is_final_bar_of_session(
+    bar_start: Union[str, datetime, pd.Timestamp],
+    timeframe: str = "1h",
+    market_id: Optional[str] = None,
+    market_session: Optional[MarketSessionManager] = None,
+) -> bool:
+    """Module-level helper to check if a candle is the final bar of the trading session."""
+    if market_session is None and market_id:
+        try:
+            market_session = MarketSessionManager.from_market_id(market_id)
+        except Exception:
+            market_session = None
+
+    if market_session is not None:
+        return market_session.is_final_bar_of_session(bar_start, timeframe=timeframe)
+    return False

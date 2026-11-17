@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any
 import pandas as pd
 import numpy as np
 
@@ -29,7 +29,9 @@ def validate_and_clean_candles(
     symbol: str = "UNKNOWN",
     min_bars: int = 50,
     enforce_closed_candle: bool = True,
-    timeframe: str = "1h"
+    timeframe: str = "1h",
+    now: Optional[Any] = None,
+    market_session: Optional[Any] = None,
 ) -> pd.DataFrame:
     """
     Validates, deduplicates, and sanitizes OHLCV candle datasets.
@@ -107,17 +109,30 @@ def validate_and_clean_candles(
         delta = parse_timeframe_delta(timeframe)
         if delta is not None:
             last_bar_time = df.index[-1]
-            # Ensure timezone comparability
-            if last_bar_time.tzinfo is not None:
-                now = datetime.now(last_bar_time.tzinfo)
+            if now is not None:
+                current_time = now
+            elif last_bar_time.tzinfo is not None:
+                current_time = datetime.now(last_bar_time.tzinfo)
             else:
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
+                current_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
-            candle_close_time = last_bar_time + delta
-            # If current time is earlier than the close time of the last candle, the candle is still open
-            if now < candle_close_time:
+            from ..market_session import is_candle_closed
+            sym_clean = (symbol or "").upper().strip()
+            resolved_market_id = (
+                "NSE" if (sym_clean.endswith(".NS") or sym_clean.endswith(".BO"))
+                else ("CRYPTO" if ("-USD" in sym_clean or "-USDT" in sym_clean) else "US")
+            )
+            candle_is_closed = is_candle_closed(
+                last_bar_time,
+                now=current_time,
+                timeframe=timeframe,
+                market_id=resolved_market_id,
+                market_session=market_session,
+            )
+            # If candle is not yet closed, truncate the incomplete candle
+            if not candle_is_closed:
                 logger.debug(
-                    f"[{symbol}] Latest bar {last_bar_time} is still open (closes at {candle_close_time}). "
+                    f"[{symbol}] Latest bar {last_bar_time} is still forming/open. "
                     f"Truncating incomplete candle to ensure closed-bar execution."
                 )
                 df = df.iloc[:-1]
