@@ -177,11 +177,40 @@ class MultiSymbolScanner:
 
                 try:
                     last_bar_dt = pd.to_datetime(last_bar_str)
-                    close_dt = last_bar_dt + pd.Timedelta(hours=1)
-                    last_bar_close_str = close_dt.isoformat()
+                    inv = (interval or "1h").lower()
+                    if inv.endswith("h"):
+                        inv_delta = pd.Timedelta(hours=float(inv[:-1]))
+                    elif inv.endswith("m"):
+                        inv_delta = pd.Timedelta(minutes=float(inv[:-1]))
+                    elif inv.endswith("d"):
+                        inv_delta = pd.Timedelta(days=float(inv[:-1]))
+                    else:
+                        inv_delta = pd.Timedelta(hours=1)
+
+                    theoretical_close = last_bar_dt + inv_delta
+                    actual_close = theoretical_close
+
+                    try:
+                        from breakout_scanner.market_session import MarketSessionManager
+                        msm = MarketSessionManager.from_market_id(market_id)
+                        if msm:
+                            _, sess_close = msm.get_session_bounds(last_bar_dt)
+                            if sess_close is not None:
+                                if last_bar_dt.tzinfo is not None and sess_close.tzinfo is not None:
+                                    sess_close_conv = sess_close.tz_convert(last_bar_dt.tzinfo)
+                                elif last_bar_dt.tzinfo is None and sess_close.tzinfo is not None:
+                                    sess_close_conv = sess_close.tz_convert(msm.tz).tz_localize(None)
+                                else:
+                                    sess_close_conv = sess_close
+                                actual_close = min(theoretical_close, sess_close_conv)
+                    except Exception:
+                        pass
+
+                    last_bar_close_str = actual_close.isoformat()
                     now_utc = datetime.now(timezone.utc)
-                    close_utc = close_dt.tz_localize(timezone.utc) if close_dt.tzinfo is None else close_dt.astimezone(timezone.utc)
-                    data_age_min = round((now_utc - close_utc).total_seconds() / 60.0, 1)
+                    close_utc = actual_close.tz_localize(timezone.utc) if actual_close.tzinfo is None else actual_close.astimezone(timezone.utc)
+                    diff_s = (now_utc - close_utc).total_seconds()
+                    data_age_min = round(max(0.0, diff_s) / 60.0, 1)
                 except Exception:
                     last_bar_close_str = None
                     data_age_min = None
