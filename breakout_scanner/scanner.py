@@ -499,8 +499,15 @@ class MultiSymbolScanner:
             for r_rec in getattr(slate, "rejected_trades", []):
                 rejected_map[r_rec.symbol] = r_rec
 
+            watchlist_map = {}
+            for w_rec in getattr(slate, "watchlist", []):
+                w_sym = getattr(w_rec, "symbol", "") or (w_rec.get("symbol") if isinstance(w_rec, dict) else "")
+                if w_sym:
+                    watchlist_map[w_sym] = w_rec
+
             for tr in traces:
                 sym = tr.get("symbol")
+                st_after = tr.get("engine", {}).get("state_after")
                 if sym in approved_map:
                     t = approved_map[sym]
                     tr["gates/slate"]["status"] = "PROVISIONAL" if getattr(t.setup, "provisional_data_incomplete", False) else "APPROVED"
@@ -517,11 +524,17 @@ class MultiSymbolScanner:
                     if getattr(s_rec, "allocation", None):
                         tr["gates/slate"]["shares"] = s_rec.allocation.shares
                         tr["gates/slate"]["dollar_risk"] = s_rec.allocation.dollar_risk
-                elif sym in rejected_map:
+                elif sym in rejected_map and st_after in ("BUY", "SELL"):
                     r_rec = rejected_map[sym]
                     tr["gates/slate"]["status"] = "REJECTED"
                     tr["gates/slate"]["code"] = getattr(r_rec, "rejection_code", "REJECTED")
                     tr["gates/slate"]["reason"] = getattr(r_rec, "reason", None)
+                elif sym in watchlist_map or st_after == "CONTRACTION":
+                    w_rec = watchlist_map.get(sym)
+                    b_score = getattr(w_rec, "bias_score", None) if w_rec else tr.get("enrich", {}).get("bias_score", 0)
+                    tr["gates/slate"]["status"] = "WATCHLIST"
+                    tr["gates/slate"]["code"] = "WATCHLIST"
+                    tr["gates/slate"]["reason"] = f"CONTRACTION setup (bias {b_score})"
 
         # Flush symbol trace batch to logs/run/<date>/symbol_trace.jsonl
         log_symbol_trace_batch(traces, market=market_id, scan_id=sid)
@@ -568,6 +581,7 @@ class MultiSymbolScanner:
         cnt_trend_ok = 0
         cnt_base_ok = 0
         cnt_contraction = 0
+        cnt_watchlist = 0
         cnt_breakout = 0
         cnt_quality = 0
         cnt_friction = 0
@@ -627,10 +641,12 @@ class MultiSymbolScanner:
                 st_slate = slate_d.get("status")
                 if st_slate in ("APPROVED", "PROVISIONAL"):
                     cnt_approved += 1
+                elif st_slate == "WATCHLIST":
+                    cnt_watchlist += 1
                 elif st_slate == "SUPPRESSED":
                     code = slate_d.get("code") or "SUPPRESSED"
                     suppressed_by_code[code] = suppressed_by_code.get(code, 0) + 1
-                elif st_slate == "REJECTED":
+                elif st_slate == "REJECTED" and st_after in ("BUY", "SELL"):
                     code = slate_d.get("code") or "REJECTED"
                     rejected_by_code[code] = rejected_by_code.get(code, 0) + 1
 
@@ -676,6 +692,7 @@ class MultiSymbolScanner:
                 "trend_ok": cnt_trend_ok,
                 "base_ok": cnt_base_ok,
                 "contraction": cnt_contraction,
+                "watchlist_count": cnt_watchlist,
                 "breakout": cnt_breakout,
                 "passed_quality": cnt_quality,
                 "passed_friction": cnt_friction,

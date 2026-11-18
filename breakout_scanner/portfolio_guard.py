@@ -271,7 +271,7 @@ class DailyRiskBudgetEngine:
         # Filter candidate setups (active trades / fresh entries)
         active_candidates = [
             s for s in setups
-            if s.state in (State.BUY, State.SELL) or (s.state == State.CONTRACTION and s.bias_score >= 3)
+            if s.state in (State.BUY, State.SELL)
         ]
 
         # Step 1: Filter correlation stacking

@@ -86,6 +86,24 @@ class SuppressedRecord:
 
 
 @dataclass
+class WatchlistRecord:
+    """Watchlist record for pre-breakout contraction setups with confirmed bias."""
+    symbol: str
+    bias_score: int
+    resistance: float
+    dist_to_pivot_pct: float
+    setup: Optional[Setup] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "bias_score": self.bias_score,
+            "resistance": self.resistance,
+            "dist_to_pivot_pct": self.dist_to_pivot_pct,
+        }
+
+
+@dataclass
 class ActionableSlate:
     """
     Authoritative, versioned trade decision slate.
@@ -102,6 +120,7 @@ class ActionableSlate:
     selected_trades: List[PositionAllocation] = field(default_factory=list)
     suppressed_trades: List[SuppressedRecord] = field(default_factory=list)
     rejected_trades: List[RejectionRecord] = field(default_factory=list)
+    watchlist: List[WatchlistRecord] = field(default_factory=list)
     total_daily_risk_allocated: float = 0.0
     total_capital_allocated: float = 0.0
     remaining_daily_risk_budget: float = 0.0
@@ -129,6 +148,10 @@ class ActionableSlate:
     @property
     def rejected_count(self) -> int:
         return len(self.rejected_trades)
+
+    @property
+    def watchlist_count(self) -> int:
+        return len(self.watchlist)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -159,6 +182,7 @@ class ActionableSlate:
             ],
             "suppressed_trades": [s.to_dict() for s in self.suppressed_trades],
             "rejected_trades": [r.to_dict() for r in self.rejected_trades],
+            "watchlist": [w.to_dict() if hasattr(w, "to_dict") else w for w in self.watchlist],
             "total_daily_risk_allocated": self.total_daily_risk_allocated,
             "total_capital_allocated": self.total_capital_allocated,
             "remaining_daily_risk_budget": self.remaining_daily_risk_budget,
@@ -318,11 +342,27 @@ class SlatePipeline:
         open_positions = open_positions or []
         scanned_count = total_scanned if total_scanned is not None else len(setups)
 
-        # 1. Separate setups into active candidates (BUY/SELL) vs idle/contraction
+        # 1. Separate setups into active candidates (BUY/SELL) vs watchlist (CONTRACTION with bias >= 3)
         active_candidates = [
             s for s in setups
-            if s.state in (State.BUY, State.SELL) or (s.state == State.CONTRACTION and s.bias_score >= 3)
+            if s.state in (State.BUY, State.SELL)
         ]
+
+        watchlist_records: List[WatchlistRecord] = []
+        for s in setups:
+            if s.state == State.CONTRACTION and (getattr(s, "bias_score", 0) or 0) >= 3:
+                res = float(s.resistance) if s.resistance is not None and s.resistance > 0 else (float(s.breakout_level) if s.breakout_level is not None else 0.0)
+                curr = float(s.current_price) if s.current_price is not None else (float(s.entry) if s.entry is not None else 0.0)
+                dist_pct = round(((res - curr) / res) * 100.0, 2) if res > 0 and curr > 0 else 0.0
+                watchlist_records.append(
+                    WatchlistRecord(
+                        symbol=s.symbol,
+                        bias_score=int(getattr(s, "bias_score", 0) or 0),
+                        resistance=res,
+                        dist_to_pivot_pct=dist_pct,
+                        setup=s,
+                    )
+                )
 
         rejected_records: List[RejectionRecord] = []
         pre_qualified_setups: List[Setup] = []
@@ -437,6 +477,7 @@ class SlatePipeline:
             selected_trades=selected_allocations,
             suppressed_trades=suppressed_records,
             rejected_trades=rejected_records,
+            watchlist=watchlist_records,
             total_daily_risk_allocated=trade_slate.total_daily_risk_allocated,
             total_capital_allocated=trade_slate.total_capital_allocated,
             remaining_daily_risk_budget=trade_slate.remaining_daily_risk_budget,

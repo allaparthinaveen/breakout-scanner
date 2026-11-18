@@ -169,6 +169,7 @@ def generate_eod_summary(
         "trend_ok": sum(s.get("funnel_counts", {}).get("trend_ok", 0) for s in scan_summaries),
         "base_ok": sum(s.get("funnel_counts", {}).get("base_ok", 0) for s in scan_summaries),
         "contraction": sum(s.get("funnel_counts", {}).get("contraction", 0) for s in scan_summaries),
+        "watchlist_count": sum(s.get("funnel_counts", {}).get("watchlist_count", 0) for s in scan_summaries),
         "breakout": sum(s.get("funnel_counts", {}).get("breakout", 0) for s in scan_summaries),
         "passed_quality": sum(s.get("funnel_counts", {}).get("passed_quality", 0) for s in scan_summaries),
         "passed_friction": sum(s.get("funnel_counts", {}).get("passed_friction", 0) for s in scan_summaries),
@@ -199,25 +200,48 @@ def generate_eod_summary(
                     "earnings_unverified": tr.get("enrich", {}).get("earnings_unverified", False),
                 })
 
-    # 8. Every suppressed / rejected candidate with reason
+    # 8. Every suppressed / rejected candidate with reason & watchlist symbols
     suppressed_candidates = []
     rejected_candidates = []
+    seen_suppressed = set()
+    seen_rejected = set()
+    watchlist_symbols: Dict[str, Dict[str, Any]] = {}
+
     for tr in symbol_traces:
         st = tr.get("gates/slate", {}).get("status")
+        sym = tr.get("symbol")
+        code = tr.get("gates/slate", {}).get("code")
+        score = tr.get("score", {}).get("composite_score", 0) or 0
         if st == "SUPPRESSED":
-            suppressed_candidates.append({
-                "symbol": tr.get("symbol"),
-                "scan_id": tr.get("scan_id"),
-                "code": tr.get("gates/slate", {}).get("code"),
-                "reason": tr.get("gates/slate", {}).get("reason"),
-            })
+            key = (sym, code)
+            if key not in seen_suppressed:
+                seen_suppressed.add(key)
+                suppressed_candidates.append({
+                    "symbol": sym,
+                    "scan_id": tr.get("scan_id"),
+                    "code": code,
+                    "reason": tr.get("gates/slate", {}).get("reason"),
+                    "score": score,
+                })
         elif st == "REJECTED":
-            rejected_candidates.append({
-                "symbol": tr.get("symbol"),
-                "scan_id": tr.get("scan_id"),
-                "code": tr.get("gates/slate", {}).get("code"),
-                "reason": tr.get("gates/slate", {}).get("reason"),
-            })
+            key = (sym, code)
+            if key not in seen_rejected:
+                seen_rejected.add(key)
+                rejected_candidates.append({
+                    "symbol": sym,
+                    "scan_id": tr.get("scan_id"),
+                    "code": code,
+                    "reason": tr.get("gates/slate", {}).get("reason"),
+                    "score": score,
+                })
+        elif st == "WATCHLIST":
+            trend_ok = bool(tr.get("engine", {}).get("all_gates", {}).get("trend_sma50", False))
+            if sym not in watchlist_symbols or trend_ok:
+                watchlist_symbols[sym] = {"trend_ok": trend_ok}
+
+    # Sort real rejections by composite score descending
+    rejected_candidates.sort(key=lambda x: x.get("score", 0) or 0, reverse=True)
+    suppressed_candidates.sort(key=lambda x: x.get("score", 0) or 0, reverse=True)
 
     # 9. Telegram send success rate
     tg_events = [
@@ -284,6 +308,11 @@ def generate_eod_summary(
         "signals": signals,
         "suppressed_candidates": suppressed_candidates,
         "rejected_candidates": rejected_candidates,
+        "watchlist": {
+            "count": len(watchlist_symbols),
+            "trend_ok_count": sum(1 for v in watchlist_symbols.values() if v.get("trend_ok")),
+            "symbols": list(watchlist_symbols.keys()),
+        },
         "telegram_delivery": {
             "total_attempts": tg_total,
             "successful": tg_success,
@@ -369,15 +398,20 @@ def format_eod_markdown(summary: Dict[str, Any]) -> str:
     else:
         lines.append("*No playable signals generated during this session.*")
 
+    wl = summary.get("watchlist", {})
+    wl_count = wl.get("count", 0)
+    wl_trend = wl.get("trend_ok_count", 0)
+
     lines.extend([
         "",
         "## 5. Suppressed & Rejected Candidates",
+        f"- **Watchlist:** `{wl_count} names ({wl_trend} trend-OK)`",
         f"- **Suppressed Count:** `{len(summary.get('suppressed_candidates', []))}`",
         f"- **Rejected Count:** `{len(summary.get('rejected_candidates', []))}`",
     ])
-    for supp in summary.get("suppressed_candidates", [])[:10]:
+    for supp in summary.get("suppressed_candidates", []):
         lines.append(f"- [SUPPRESSED] **{supp['symbol']}**: `{supp['code']}` - {supp['reason']}")
-    for rej in summary.get("rejected_candidates", [])[:10]:
+    for rej in summary.get("rejected_candidates", []):
         lines.append(f"- [REJECTED] **{rej['symbol']}**: `{rej['code']}` - {rej['reason']}")
 
     shadow_data = summary.get("late_chase_shadow", {})
