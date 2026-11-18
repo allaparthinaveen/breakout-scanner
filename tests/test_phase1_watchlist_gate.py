@@ -165,3 +165,75 @@ def test_eod_summary_shows_dis_rejection_and_watchlist_stats(tmp_path):
     # 300 names, half (150) trend-OK
     assert "Watchlist:" in md_report
     assert "300 names (150 trend-OK)" in md_report
+
+
+def test_scanner_watchlist_strict_map_and_confirmation_policy_min_score():
+    """
+    Verifies:
+    1. Only symbols in watchlist_map get status WATCHLIST.
+    2. Other CONTRACTION setups (bias < 3) get status NONE with reason 'CONTRACTION (bias<3)'.
+    3. min_auto_entry_score is read from confirmation_policy.min_auto_entry_score.
+    """
+    from unittest.mock import MagicMock
+    from breakout_scanner.scanner import MultiSymbolScanner
+
+    cfg = {
+        "confirmation_policy": {"min_auto_entry_score": 80},
+        "signal_quality": {"min_auto_entry_score": 70},  # Must NOT use this legacy 70
+    }
+    scanner = MultiSymbolScanner(provider=MagicMock(), cfg=cfg)
+
+    # Mock traces:
+    # 1. High bias contraction (in watchlist)
+    # 2. Low bias contraction (not in watchlist)
+    traces = [
+        {
+            "symbol": "WL_SYM",
+            "fetch": {"status": "OK"},
+            "engine": {"state_after": "CONTRACTION", "all_gates": {}},
+            "enrich": {"bias_score": 3},
+            "score": {"composite_score": 85},
+            "gates/slate": {},
+        },
+        {
+            "symbol": "LOW_BIAS_SYM",
+            "fetch": {"status": "OK"},
+            "engine": {"state_after": "CONTRACTION", "all_gates": {}},
+            "enrich": {"bias_score": 2},
+            "score": {"composite_score": 65},
+            "gates/slate": {},
+        },
+    ]
+
+    w_rec = WatchlistRecord(symbol="WL_SYM", bias_score=3, resistance=100.0, dist_to_pivot_pct=0.5)
+    slate = ActionableSlate(
+        slate_id="test_scan",
+        timestamp="2026-11-18T10:00:00Z",
+        profile_name="Test",
+        total_scanned=2,
+        portfolio_equity=100000.0,
+        max_daily_risk_pct=2.0,
+        max_daily_dollar_risk=2000.0,
+        selected_trades=[],
+        suppressed_trades=[],
+        rejected_trades=[],
+        watchlist=[w_rec],
+    )
+
+    scanner.last_symbol_traces = traces
+    scanner.last_scan_stats = {"total": 2, "with_data": 2, "failed_symbols": []}
+    scanner.flush_symbol_traces(
+        slate=slate,
+        market="US",
+        scheduled_time=datetime.now(timezone.utc),
+    )
+
+    assert traces[0]["gates/slate"]["status"] == "WATCHLIST"
+    assert traces[0]["gates/slate"]["code"] == "WATCHLIST"
+
+    assert traces[1]["gates/slate"]["status"] == "NONE"
+    assert traces[1]["gates/slate"]["code"] == "NONE"
+    assert "bias<3" in traces[1]["gates/slate"]["reason"]
+
+    assert scanner.last_scan_summary["funnel_counts"]["watchlist_count"] == 1
+

@@ -558,12 +558,17 @@ class MultiSymbolScanner:
                     tr["gates/slate"]["status"] = "REJECTED"
                     tr["gates/slate"]["code"] = getattr(r_rec, "rejection_code", "REJECTED")
                     tr["gates/slate"]["reason"] = getattr(r_rec, "reason", None)
-                elif sym in watchlist_map or st_after == "CONTRACTION":
-                    w_rec = watchlist_map.get(sym)
-                    b_score = getattr(w_rec, "bias_score", None) if w_rec else tr.get("enrich", {}).get("bias_score", 0)
+                elif sym in watchlist_map:
+                    w_rec = watchlist_map[sym]
+                    b_score = getattr(w_rec, "bias_score", None) or tr.get("enrich", {}).get("bias_score", 0)
                     tr["gates/slate"]["status"] = "WATCHLIST"
                     tr["gates/slate"]["code"] = "WATCHLIST"
                     tr["gates/slate"]["reason"] = f"CONTRACTION setup (bias {b_score})"
+                elif st_after == "CONTRACTION":
+                    b_score = tr.get("enrich", {}).get("bias_score", 0)
+                    tr["gates/slate"]["status"] = "NONE"
+                    tr["gates/slate"]["code"] = "NONE"
+                    tr["gates/slate"]["reason"] = "CONTRACTION (bias<3)"
 
         # Flush symbol trace batch to logs/run/<date>/symbol_trace.jsonl
         log_symbol_trace_batch(traces, market=market_id, scan_id=sid)
@@ -625,7 +630,7 @@ class MultiSymbolScanner:
         aux_sec_fails = 0
         aux_reg_fails = 0
 
-        min_auto_score = float(self.cfg.get('signal_quality', {}).get('min_auto_entry_score', 70)) if self.cfg else 70.0
+        min_auto_score = float(self.cfg.get('confirmation_policy', {}).get('min_auto_entry_score', self.cfg.get('signal_quality', {}).get('min_auto_entry_score', 70))) if self.cfg else 70.0
 
         for tr in traces:
             eng = tr.get("engine", {})
