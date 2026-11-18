@@ -636,7 +636,6 @@ class SessionScheduler:
                         "active_count": len(active_setups),
                         "candle_slot": candle_slot_key
                     })
-                    fresh_alerts_sent += 1
                     # Record fresh playable entries into persistent portfolio state (P0-4)
                     for t in slate.selected_trades:
                         if t.setup and t.setup.is_fresh_entry and not getattr(t.setup, "requires_confirmation", False):
@@ -709,6 +708,26 @@ class SessionScheduler:
                             "delivery_failed": True
                         })
 
+        # Flush per-symbol traces with slate allocations and scan summary (§B, §C)
+        telegram_dispatched = bool(sent if notification_mode == "scan_report" else fresh_alerts_sent > 0)
+        try:
+            self.scanner.flush_symbol_traces(
+                slate=slate,
+                market=self.market_id,
+                scan_id=scan_id,
+                scheduled_time=sched_anchor,
+                telegram_sent=telegram_dispatched,
+            )
+        except Exception:
+            pass
+
+        if notification_mode == "scan_report":
+            if sent:
+                summary_fresh = int(getattr(self.scanner, "last_scan_summary", {}).get("signals_fresh", 0) or 0)
+                fresh_alerts_sent = summary_fresh if summary_fresh > 0 else len(fresh_candidates)
+            else:
+                fresh_alerts_sent = 0
+
         elapsed = time.time() - start_time
         self.deduplicator.prune(max_age_days=7)
         
@@ -717,18 +736,6 @@ class SessionScheduler:
             f"Evaluated {len(symbols)} symbols | Slate Actionable: {len(slate.selected_trades)} | "
             f"Fresh Alerts: {fresh_alerts_sent} | Deduplicated Skipped: {duplicates_skipped}"
         )
-
-        # Flush per-symbol traces with slate allocations and scan summary (§B, §C)
-        try:
-            self.scanner.flush_symbol_traces(
-                slate=slate,
-                market=self.market_id,
-                scan_id=scan_id,
-                scheduled_time=sched_anchor,
-                telegram_sent=bool(fresh_alerts_sent > 0),
-            )
-        except Exception:
-            pass
 
         # Log scan metrics telemetry (Phase 0 Baseline & Safety Net)
         try:
