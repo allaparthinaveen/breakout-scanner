@@ -290,6 +290,13 @@ Goal: know *where* the edge lives instead of guessing.
 **R** = initial risk per trade (entry − stop). **PF** = profit factor (gross win / gross loss). **VDU** = volume dry-up. **CLV** = close location value (where the candle closed within its range). **Friction** = slippage + commission, expressed in R. **Provisional** = signal computed with incomplete external data. **Shadow feature** = value logged but not used for decisions. **Meta-labeling** = a second model that decides whether to take the first model's signal. **OOS** = out-of-sample.
 
 ## 11. Decision log
+- 2026-11-18: Observability & Diagnostics Hardening (US & NSE Session Integrity):
+  - **Watchlist vs Rejection Gate Separation**: CONTRACTION setups with `bias_score >= 3` bypass pre-trade rejection gate and portfolio guard; collected into `ActionableSlate.watchlist` (with `dist_to_pivot_pct`). Trace `gates/slate.status` tagged as `"WATCHLIST"` instead of spurious `"REJECTED" (MISSING_STRUCTURAL_STOP)`.
+  - **CONTRACTION Decision Trace Rebuilt**: `compute_engine_trace` evaluates components in true pipeline order: `setup_bars -> trend -> bull_break -> BullMom -> volume -> density -> clv -> pierced`. Uses `BreakoutVolBenchmark` (hourly median benchmark) and `volume.breakout_multiplier`. Emits `all_failed_gates`, `gate_details`, `dist_to_pivot_pct` (signed), and boolean `all_gates`.
+  - **EOD Report Market Isolation**: `eod_summary.py` filters forward-test ledger rows by market (`US`, `NSE`, `CRYPTO`), preventing cross-market pollution in the "Late-Chase Shadow" table.
+  - **Heartbeat & Telemetry Alert Sync**: Heartbeat "Fresh Alerts" count synced with `scan_summary.signals_fresh` instead of incrementing on every Telegram dispatch.
+  - **Data Age & Session Capping**: `scanner.py` computes `last_bar_close_time = min(bar_start + interval, session_close)` with a 0.0 floor for in-progress open candles.
+  - **Mid-Session Empty Slate Suppression**: Telegram scanner stays quiet when there are zero actionable entries, zero in-progress trades, and zero fresh rejections, preserving alerts only for actionable signals or session open/close boundaries.
 - 2026-11 : costs recalibrated (US 0.02% + 0.005%; NSE 0.03% + 0.10%), long-only, single confirmation policy (70).
 - 2026-11 : stay on yfinance; batch + cache + fail loudly rather than switch vendor.
 - 2026-11 : forward test regardless of in-sample caution; paper/0.25% risk until 100 trades.
