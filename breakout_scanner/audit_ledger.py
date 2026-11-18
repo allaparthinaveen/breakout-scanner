@@ -68,8 +68,9 @@ def record_forward_test_ledger(
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
-    # 1. Load existing signal_ids to enforce strict deduplication
-    existing_signals = set()
+    # 1. Load existing signal_ids to enforce deduplication with status_history tracking
+    existing_signals = {}
+    existing_records = []
     if os.path.exists(ledger_path):
         with open(ledger_path, "r", encoding="utf-8") as lf:
             for line in lf:
@@ -78,9 +79,10 @@ def record_forward_test_ledger(
                     continue
                 try:
                     obj = json.loads(line)
+                    existing_records.append(obj)
                     sig = obj.get("signal_id")
                     if sig:
-                        existing_signals.add(sig)
+                        existing_signals[sig] = obj
                 except Exception:
                     pass
 
@@ -112,167 +114,220 @@ def record_forward_test_ledger(
                 }
 
     records_written = 0
-    with open(ledger_path, "a", encoding="utf-8") as f:
-        for s in setups:
-            # Trade ledger strictly records candidate trade breakouts (BUY/SELL).
-            # Passive VCP bases (CONTRACTION) are intentionally omitted.
-            if s.state not in (State.BUY, State.SELL):
-                continue
+    records_modified = False
+    new_records = []
 
-            entry_price = s.entry or s.current_price
-            stop_price = s.stop
-            # Must possess valid price geometry to prevent 0.0R junk rows
-            if not entry_price or not stop_price or entry_price == stop_price:
-                continue
+    for s in setups:
+        # Trade ledger strictly records candidate trade breakouts (BUY/SELL).
+        # Passive VCP bases (CONTRACTION) are intentionally omitted.
+        if s.state not in (State.BUY, State.SELL):
+            continue
 
-            # Only record fresh breakouts or candidates actively evaluated by slate
-            is_evaluated_by_slate = (
-                s.symbol in approved_symbols
-                or s.symbol in rejected_map
-                or s.symbol in suppressed_map
-            )
-            if not s.is_fresh_entry and not is_evaluated_by_slate:
-                # In-progress setups that broke out in prior closed bars are not new candidates
-                continue
+        entry_price = s.entry or s.current_price
+        stop_price = s.stop
+        # Must possess valid price geometry to prevent 0.0R junk rows
+        if not entry_price or not stop_price or entry_price == stop_price:
+            continue
 
-            dir_str = "BUY" if s.direction == 1 else ("SELL" if s.direction == -1 else "NEUTRAL")
-            sig_time = getattr(s, "breakout_time", None) or timestamp
-            signal_id = f"{s.symbol}_{sig_time}_{dir_str}".replace(" ", "_").replace(":", "-")
+        # Only record fresh breakouts or candidates actively evaluated by slate
+        is_evaluated_by_slate = (
+            s.symbol in approved_symbols
+            or s.symbol in rejected_map
+            or s.symbol in suppressed_map
+        )
+        if not s.is_fresh_entry and not is_evaluated_by_slate:
+            # In-progress setups that broke out in prior closed bars are not new candidates
+            continue
 
-            # Deduplication: Skip if this specific breakout signal was already logged
-            if signal_id in existing_signals:
-                continue
+        dir_str = "BUY" if s.direction == 1 else ("SELL" if s.direction == -1 else "NEUTRAL")
+        sig_time = getattr(s, "breakout_time", None) or timestamp
+        signal_id = f"{s.symbol}_{sig_time}_{dir_str}".replace(" ", "_").replace(":", "-")
 
-            # Classify signal status with dedicated PROVISIONAL quarantine
-            is_provisional = getattr(s, "provisional_data_incomplete", False)
-            quant_score = getattr(s, "composite_score", 0) or 0
-            bucket = "MAIN"
-            is_late_chase_only = False
+        # Classify signal status with dedicated PROVISIONAL quarantine
+        is_provisional = getattr(s, "provisional_data_incomplete", False)
+        quant_score = getattr(s, "composite_score", 0) or 0
+        bucket = "MAIN"
+        is_late_chase_only = False
 
-            if s.symbol in rejected_map:
-                status = "REJECTED"
-                code = rejected_map[s.symbol]["code"]
-                reason = rejected_map[s.symbol]["reason"]
-                rej_details = rejected_map[s.symbol].get("details", {})
-                if rej_details.get("is_late_chase_only") is True:
-                    is_late_chase_only = True
-                elif code == "LATE_CHASE":
-                    failed_codes = rej_details.get("all_failed_codes")
-                    if failed_codes is not None:
-                        is_late_chase_only = (failed_codes == ["LATE_CHASE"])
-                    else:
-                        from .rejection_gate import TradeRejectionGate
-                        gate = TradeRejectionGate(cfg)
-                        is_late_chase_only = gate.is_late_chase_only(s)
-            elif s.symbol in suppressed_map:
-                status = "SUPPRESSED"
-                code = suppressed_map[s.symbol]["code"]
-                reason = suppressed_map[s.symbol]["reason"]
-                if code == "LATE_CHASE":
+        if s.symbol in rejected_map:
+            status = "REJECTED"
+            code = rejected_map[s.symbol]["code"]
+            reason = rejected_map[s.symbol]["reason"]
+            rej_details = rejected_map[s.symbol].get("details", {})
+            if rej_details.get("is_late_chase_only") is True:
+                is_late_chase_only = True
+            elif code == "LATE_CHASE":
+                failed_codes = rej_details.get("all_failed_codes")
+                if failed_codes is not None:
+                    is_late_chase_only = (failed_codes == ["LATE_CHASE"])
+                else:
                     from .rejection_gate import TradeRejectionGate
                     gate = TradeRejectionGate(cfg)
                     is_late_chase_only = gate.is_late_chase_only(s)
-            elif is_provisional:
-                # Technical-only quality gate: throttled setups with low technicals are suppressed
-                if quant_score < 50:
-                    status = "SUPPRESSED"
-                    code = "PROVISIONAL_LOW_TECHNICAL_SCORE"
-                    reason = f"Provisional technical score {quant_score} below minimum quality threshold (50)"
-                else:
-                    status = "PROVISIONAL"
-                    code = "ACTIONABLE_PROVISIONAL_ENTRY" if s.symbol in approved_symbols else "PROVISIONAL_CANDIDATE"
-                    reason = "Provisional technical breakout with incomplete external market data"
-            elif s.symbol in approved_symbols:
-                status = "APPROVED"
-                code = "ACTIONABLE_SLATE_ENTRY"
-                reason = "Approved for execution by unified slate pipeline"
-            elif getattr(s, "requires_confirmation", False):
-                min_score = int(cfg.get("confirmation_policy", {}).get("min_auto_entry_score", 70))
-                status = "SUPPRESSED"
-                code = "AWAITING_CONFIRMATION"
-                reason = f"Score {quant_score} < {min_score} requires follow-through confirmation"
-            elif not s.is_fresh_entry:
-                status = "SUPPRESSED"
-                code = "LATE_CHASE"
-                reason = "Price extended beyond pivot tolerance (Anti-Chase Guard)"
+        elif s.symbol in suppressed_map:
+            status = "SUPPRESSED"
+            code = suppressed_map[s.symbol]["code"]
+            reason = suppressed_map[s.symbol]["reason"]
+            if code == "LATE_CHASE":
                 from .rejection_gate import TradeRejectionGate
                 gate = TradeRejectionGate(cfg)
                 is_late_chase_only = gate.is_late_chase_only(s)
+        elif is_provisional:
+            # Technical-only quality gate: throttled setups with low technicals are suppressed
+            if quant_score < 50:
+                status = "SUPPRESSED"
+                code = "PROVISIONAL_LOW_TECHNICAL_SCORE"
+                reason = f"Provisional technical score {quant_score} below minimum quality threshold (50)"
             else:
-                status = "APPROVED"
-                code = "ACTIONABLE_CANDIDATE"
-                reason = "Pristine technical breakout candidate"
+                status = "PROVISIONAL"
+                code = "ACTIONABLE_PROVISIONAL_ENTRY" if s.symbol in approved_symbols else "PROVISIONAL_CANDIDATE"
+                reason = "Provisional technical breakout with incomplete external market data"
+        elif s.symbol in approved_symbols:
+            status = "APPROVED"
+            code = "ACTIONABLE_SLATE_ENTRY"
+            reason = "Approved for execution by unified slate pipeline"
+        elif getattr(s, "requires_confirmation", False):
+            min_score = int(cfg.get("confirmation_policy", {}).get("min_auto_entry_score", 70))
+            status = "SUPPRESSED"
+            code = "AWAITING_CONFIRMATION"
+            reason = f"Score {quant_score} < {min_score} requires follow-through confirmation"
+        elif not s.is_fresh_entry:
+            status = "SUPPRESSED"
+            code = "LATE_CHASE"
+            reason = "Price extended beyond pivot tolerance (Anti-Chase Guard)"
+            from .rejection_gate import TradeRejectionGate
+            gate = TradeRejectionGate(cfg)
+            is_late_chase_only = gate.is_late_chase_only(s)
+        else:
+            status = "APPROVED"
+            code = "ACTIONABLE_CANDIDATE"
+            reason = "Pristine technical breakout candidate"
 
-            if is_late_chase_only:
-                bucket = "LATE_CHASE_SHADOW"
+        # Populate execution details
+        alloc = None
+        if slate is not None and hasattr(slate, "selected_trades"):
+            alloc = next((a for a in slate.selected_trades if a.symbol == s.symbol), None)
 
-            target_1 = s.tp1
-            target_2 = s.tp2
+        # Deduplication & Status History: if signal already exists, track status updates
+        if signal_id in existing_signals:
+            existing_rec = existing_signals[signal_id]
+            old_status = existing_rec.get("status")
+            if status != old_status:
+                history = existing_rec.setdefault("status_history", [])
+                if not history:
+                    history.append({
+                        "status": old_status,
+                        "code": existing_rec.get("code"),
+                        "reason": existing_rec.get("reason"),
+                        "timestamp": existing_rec.get("timestamp"),
+                    })
+                history.append({
+                    "from_status": old_status,
+                    "to_status": status,
+                    "code": code,
+                    "reason": reason,
+                    "timestamp": timestamp,
+                })
+                existing_rec["status"] = status
+                existing_rec["code"] = code
+                existing_rec["reason"] = reason
+                if status in ("APPROVED", "PROVISIONAL") and alloc is not None:
+                    existing_rec.setdefault("execution", {})["shares"] = int(getattr(alloc, "shares", 0))
+                    existing_rec["execution"]["dollar_risk"] = float(getattr(alloc, "dollar_risk", 0.0))
+                    intended = float(alloc.entry_price) if getattr(alloc, "entry_price", None) else float(entry_price)
+                    existing_rec["execution"]["intended_fill"] = intended
+                    existing_rec["intended_fill"] = intended
+                records_modified = True
+            continue
 
-            target_dir = s.direction if s.direction in (1, -1) else (1 if s.state == State.BUY else -1)
-            pivot = s.breakout_level or (s.resistance if target_dir == 1 else s.support) or entry_price
-            signal_price = s.current_price if s.current_price is not None else entry_price
+        if is_late_chase_only:
+            bucket = "LATE_CHASE_SHADOW"
 
-            ext_pct = 0.0
-            if pivot and pivot > 0 and signal_price:
-                if target_dir == 1 and signal_price > pivot:
-                    ext_pct = round(((signal_price - pivot) / pivot) * 100.0, 2)
-                elif target_dir == -1 and signal_price < pivot:
-                    ext_pct = round(((pivot - signal_price) / pivot) * 100.0, 2)
+        target_1 = s.tp1
+        target_2 = s.tp2
 
-            max_tol = float(cfg.get("rejection_gate", {}).get("max_extension_pct", 1.0))
-            if s.atr is not None and s.atr > 0 and pivot and pivot > 0:
-                atr_tol = (0.5 * s.atr / pivot) * 100.0
-                max_tol = min(max_tol, atr_tol)
-            tolerance_pct = round(max_tol, 2)
+        target_dir = s.direction if s.direction in (1, -1) else (1 if s.state == State.BUY else -1)
+        pivot = s.breakout_level or (s.resistance if target_dir == 1 else s.support) or entry_price
+        signal_price = s.current_price if s.current_price is not None else entry_price
 
-            # Populate execution details
-            alloc = None
-            if slate is not None and hasattr(slate, "selected_trades"):
-                alloc = next((a for a in slate.selected_trades if a.symbol == s.symbol), None)
+        ext_pct = 0.0
+        if pivot and pivot > 0 and signal_price:
+            if target_dir == 1 and signal_price > pivot:
+                ext_pct = round(((signal_price - pivot) / pivot) * 100.0, 2)
+            elif target_dir == -1 and signal_price < pivot:
+                ext_pct = round(((pivot - signal_price) / pivot) * 100.0, 2)
 
-            if status in ("APPROVED", "PROVISIONAL") and alloc is not None:
-                intended_fill = float(alloc.entry_price) if getattr(alloc, "entry_price", None) else float(entry_price)
-                actual_fill = float(s.current_price) if s.current_price is not None else intended_fill
-                slippage_pct = round(((actual_fill - intended_fill) / intended_fill) * 100.0, 3) if intended_fill > 0 else 0.0
-                shares = int(getattr(alloc, "shares", 0))
-                dollar_risk = float(getattr(alloc, "dollar_risk", 0.0))
-            else:
-                intended_fill = float(entry_price)
-                actual_fill = None
-                slippage_pct = None
-                shares = 0
-                dollar_risk = 0.0
+        max_tol = float(cfg.get("rejection_gate", {}).get("max_extension_pct", 1.0))
+        if s.atr is not None and s.atr > 0 and pivot and pivot > 0:
+            atr_tol = (0.5 * s.atr / pivot) * 100.0
+            max_tol = min(max_tol, atr_tol)
+        tolerance_pct = round(max_tol, 2)
 
-            execution_dict = {
-                "intended_fill": intended_fill,
-                "actual_fill": actual_fill,
-                "slippage_pct": slippage_pct,
-                "shares": shares,
-                "dollar_risk": dollar_risk,
-                "exit_price": None,
-                "exit_reason": None,
-                "realized_r": None,
-            }
+        if status in ("APPROVED", "PROVISIONAL") and alloc is not None:
+            intended_fill = float(alloc.entry_price) if getattr(alloc, "entry_price", None) else float(entry_price)
+            actual_fill = None
+            modeled_fill = None
+            fill_bar_ts = None
+            fill_basis = None
+            slippage_pct = None
+            shares = int(getattr(alloc, "shares", 0))
+            dollar_risk = float(getattr(alloc, "dollar_risk", 0.0))
+        else:
+            intended_fill = float(entry_price)
+            actual_fill = None
+            modeled_fill = None
+            fill_bar_ts = None
+            fill_basis = None
+            slippage_pct = None
+            shares = 0
+            dollar_risk = 0.0
 
-            record = {
-                "schema_version": "v1.1",
-                "scan_id": scan_id,
-                "signal_id": signal_id,
-                "git_sha": git_sha,
-                "timestamp": timestamp,
-                "breakout_time": getattr(s, "breakout_time", None) or timestamp,
-                "config_hash": config_hash,
-                "profile_name": cfg.get("profile_name", "Standard"),
-                "symbol": s.symbol,
-                "direction": dir_str,
-                "state": s.state.value if hasattr(s.state, "value") else str(s.state),
-                "status": status,
-                "code": code,
-                "reason": reason,
-                "bucket": bucket,
-                "pivot": pivot,
-                "signal_price": signal_price,
+        execution_dict = {
+            "signal_price": signal_price,
+            "intended_fill": intended_fill,
+            "modeled_fill": modeled_fill,
+            "fill_bar_ts": fill_bar_ts,
+            "fill_basis": fill_basis,
+            "actual_fill": actual_fill,
+            "slippage_pct": slippage_pct,
+            "shares": shares,
+            "dollar_risk": dollar_risk,
+            "exit_price": None,
+            "exit_reason": None,
+            "realized_r": None,
+        }
+
+        record = {
+            "schema_version": "v1.1",
+            "scan_id": scan_id,
+            "signal_id": signal_id,
+            "git_sha": git_sha,
+            "timestamp": timestamp,
+            "breakout_time": getattr(s, "breakout_time", None) or timestamp,
+            "config_hash": config_hash,
+            "profile_name": cfg.get("profile_name", "Standard"),
+            "symbol": s.symbol,
+            "direction": dir_str,
+            "state": s.state.value if hasattr(s.state, "value") else str(s.state),
+            "status": status,
+            "code": code,
+            "reason": reason,
+            "status_history": [
+                {
+                    "status": status,
+                    "code": code,
+                    "reason": reason,
+                    "timestamp": timestamp,
+                }
+            ],
+            "bucket": bucket,
+            "pivot": pivot,
+            "signal_price": signal_price,
+            "intended_fill": intended_fill,
+            "modeled_fill": modeled_fill,
+            "fill_bar_ts": fill_bar_ts,
+            "fill_basis": fill_basis,
+            "actual_fill": actual_fill,
                 "extension_pct": ext_pct,
                 "tolerance_pct": tolerance_pct,
                 "atr": s.atr,
@@ -322,10 +377,22 @@ def record_forward_test_ledger(
                     "hit_tp1": False,
                     "hit_stop": False,
                 },
-            }
+        }
 
-            f.write(json.dumps(record) + "\n")
-            existing_signals.add(signal_id)
-            records_written += 1
+        new_records.append(record)
+        existing_signals[signal_id] = record
+        records_written += 1
+
+    if records_modified:
+        tmp_ledger_path = ledger_path + ".tmp"
+        all_records = existing_records + new_records
+        with open(tmp_ledger_path, "w", encoding="utf-8") as f:
+            for rec in all_records:
+                f.write(json.dumps(rec) + "\n")
+        os.replace(tmp_ledger_path, ledger_path)
+    elif new_records:
+        with open(ledger_path, "a", encoding="utf-8") as f:
+            for rec in new_records:
+                f.write(json.dumps(rec) + "\n")
 
     return records_written
