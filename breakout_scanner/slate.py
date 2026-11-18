@@ -121,6 +121,7 @@ class ActionableSlate:
     suppressed_trades: List[SuppressedRecord] = field(default_factory=list)
     rejected_trades: List[RejectionRecord] = field(default_factory=list)
     watchlist: List[WatchlistRecord] = field(default_factory=list)
+    open_positions: List[Dict[str, Any]] = field(default_factory=list)
     total_daily_risk_allocated: float = 0.0
     total_capital_allocated: float = 0.0
     remaining_daily_risk_budget: float = 0.0
@@ -478,6 +479,7 @@ class SlatePipeline:
             suppressed_trades=suppressed_records,
             rejected_trades=rejected_records,
             watchlist=watchlist_records,
+            open_positions=open_positions or [],
             total_daily_risk_allocated=trade_slate.total_daily_risk_allocated,
             total_capital_allocated=trade_slate.total_capital_allocated,
             remaining_daily_risk_budget=trade_slate.remaining_daily_risk_budget,

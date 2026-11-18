@@ -176,15 +176,46 @@ def evaluate_setup_outcome_from_df(
         # Evaluation path begins from fill bar up to max_hold_bars
         eval_window = df.iloc[fill_idx: fill_idx + max_hold_bars]
 
+        from .exit_rules import evaluate_position_bar
+
+        pivot_val = (
+            record.get("pivot")
+            or price_info.get("pivot")
+            or (resistance if direction == 1 else support)
+            or price_info.get("entry")
+            or entry
+        )
+
+        pos = {
+            "symbol": sym,
+            "direction": direction,
+            "status": "OPEN",
+            "entry_price": entry,
+            "modeled_fill": entry,
+            "fill_bar_ts": str(fill_bar.name if hasattr(fill_bar, 'name') else fill_idx),
+            "fill_basis": fill_basis,
+            "stop_loss": stop,
+            "initial_stop": stop,
+            "initial_risk": initial_risk,
+            "pivot": float(pivot_val),
+            "take_profit_1": tp1,
+            "take_profit_2": tp2,
+            "shares": 100,
+            "bars_held": 0,
+            "events": [],
+        }
+
+        cfg_eval = {
+            "management": {
+                "failed_breakout_max_bars": 3,
+                "use_failed_breakout_exit": True,
+                "max_hold_bars": max_hold_bars,
+                "breakeven_offset_pct": 0.0,
+            }
+        }
+
         mfe_r = 0.0
         mae_r = 0.0
-        hit_tp1 = False
-        hit_stop = False
-        hit_tp2 = False
-        failed_breakout = False
-        exit_r = 0.0
-        exit_reason = "OPEN_TRADE"
-        active_stop = stop
 
         for bar_idx, (_, row) in enumerate(eval_window.iterrows()):
             open_px = float(row["Open"])
@@ -193,96 +224,38 @@ def evaluate_setup_outcome_from_df(
             close = float(row["Close"])
 
             if direction == 1:
-                # Favorable & Adverse Excursion
                 curr_fe_r = (high - entry) / initial_risk
                 if curr_fe_r > mfe_r:
                     mfe_r = curr_fe_r
-
                 curr_ae_r = (entry - low) / initial_risk
                 if curr_ae_r > mae_r:
                     mae_r = curr_ae_r
-
-                # 1. Stop Hit Check (Stop wins inside a bar!)
-                if low <= active_stop:
-                    hit_stop = True
-                    if hit_tp1:
-                        # Banked 50% at TP1 (+1.0R), stopped out at breakeven on remaining 50% (+0.0R) -> +0.50R total
-                        exit_r = 0.50
-                        exit_reason = "BREAKEVEN_STOP"
-                    else:
-                        exit_reason = "STOP_LOSS"
-                        if open_px <= active_stop:
-                            # Gap-down open below stop: exit at open
-                            exit_r = round((open_px - entry) / initial_risk, 2)
-                        else:
-                            exit_r = -1.00
-                    break
-
-                # 2. Early Failed Breakout Exit (First 3 bars post-fill fall back below resistance)
-                if bar_idx <= 2 and resistance and close < resistance:
-                    failed_breakout = True
-                    exit_reason = "FAILED_BREAKOUT"
-                    exit_r = round((close - entry) / initial_risk, 2)
-                    break
-
-                # 3. TP1 Hit Check (1.0R)
-                if tp1 and high >= tp1 and not hit_tp1:
-                    hit_tp1 = True
-                    active_stop = entry  # Trail stop to breakeven for remaining 50%
-
-                # 4. TP2 Hit Check (2.0R)
-                if tp2 and high >= tp2 and hit_tp1:
-                    hit_tp2 = True
-                    # 50% banked at TP1 (+1.0R) + 50% banked at TP2 (+2.0R) -> +1.50R total
-                    exit_r = 1.50
-                    exit_reason = "TP2_HIT"
-                    break
-
-            elif direction == -1:
+            else:
                 curr_fe_r = (entry - low) / initial_risk
                 if curr_fe_r > mfe_r:
                     mfe_r = curr_fe_r
-
                 curr_ae_r = (high - entry) / initial_risk
                 if curr_ae_r > mae_r:
                     mae_r = curr_ae_r
 
-                # 1. Stop Hit Check (Stop wins inside a bar!)
-                if high >= active_stop:
-                    hit_stop = True
-                    if hit_tp1:
-                        exit_r = 0.50
-                        exit_reason = "BREAKEVEN_STOP"
-                    else:
-                        exit_reason = "STOP_LOSS"
-                        if open_px >= active_stop:
-                            # Gap-up open above stop: exit at open
-                            exit_r = round((entry - open_px) / initial_risk, 2)
-                        else:
-                            exit_r = -1.00
-                    break
+            bar_dict = {
+                "Open": open_px,
+                "High": high,
+                "Low": low,
+                "Close": close,
+                "bar_ts": str(row.name if hasattr(row, 'name') else bar_idx),
+            }
+            evaluate_position_bar(pos, bar_dict, cfg=cfg_eval)
+            if pos.get("status") == "CLOSED":
+                break
 
-                # 2. Early Failed Breakout Exit
-                if bar_idx <= 2 and support and close > support:
-                    failed_breakout = True
-                    exit_reason = "FAILED_BREAKOUT"
-                    exit_r = round((entry - close) / initial_risk, 2)
-                    break
-
-                # 3. TP1 Hit Check
-                if tp1 and low <= tp1 and not hit_tp1:
-                    hit_tp1 = True
-                    active_stop = entry
-
-                # 4. TP2 Hit Check
-                if tp2 and low <= tp2 and hit_tp1:
-                    hit_tp2 = True
-                    exit_r = 1.50
-                    exit_reason = "TP2_HIT"
-                    break
-
-        # Terminal determination
-        is_terminal = hit_stop or hit_tp2 or failed_breakout
+        is_terminal = (pos.get("status") == "CLOSED")
+        exit_reason = pos.get("exit_reason", "OPEN_TRADE")
+        exit_r = float(pos.get("realized_r", 0.0) or 0.0)
+        hit_tp1 = bool(pos.get("tp1_hit", False))
+        hit_stop = (exit_reason in ("STOP_LOSS", "BREAKEVEN_STOP"))
+        hit_tp2 = (exit_reason == "TP2_EXIT")
+        failed_breakout = (exit_reason == "FAILED_BREAKOUT")
 
         # If not stopped or TP2, evaluate whether max hold horizon (10 days) reached
         last_close = float(eval_window["Close"].iloc[-1])

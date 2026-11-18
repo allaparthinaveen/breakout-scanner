@@ -577,6 +577,16 @@ class SessionScheduler:
 
             fresh_candidates.append(s)
 
+        # Open position immediately when slate APPROVES (before/independent of Telegram delivery)
+        approved_opened_symbols = []
+        for t in slate.selected_trades:
+            s = t.setup
+            if s and s.is_fresh_entry and not getattr(s, "requires_confirmation", False):
+                if not getattr(s, "is_next_session_candidate", False):
+                    opened = self.portfolio_state.record_entry(t, delivery_status="PENDING")
+                    if opened:
+                        approved_opened_symbols.append(t.symbol)
+
         # Active setups across entire scan (both Section 2A Fresh and Section 2B In Progress)
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
 
@@ -661,6 +671,7 @@ class SessionScheduler:
                     slate=slate,
                     exit_events=exit_events,
                     scan_stats=scan_stats,
+                    open_positions=self.portfolio_state.get_open_positions(),
                 )
                 self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
                 self.logger.info("\n" + report_html)
@@ -671,11 +682,8 @@ class SessionScheduler:
                         "active_count": len(active_setups),
                         "candle_slot": candle_slot_key
                     })
-                    # Record fresh playable entries into persistent portfolio state (P0-4)
-                    for t in slate.selected_trades:
-                        if t.setup and t.setup.is_fresh_entry and not getattr(t.setup, "requires_confirmation", False):
-                            if not getattr(t.setup, "is_next_session_candidate", False):
-                                self.portfolio_state.record_entry(t)
+                    # Update delivery status to DELIVERED
+                    self.portfolio_state.update_delivery_status(approved_opened_symbols, "DELIVERED")
                 else:
                     self.logger.warning(f"⚠️ Telegram dispatch failed for {report_signature}, recorded locally.")
                     self.deduplicator.record_alert(report_signature, {
@@ -683,6 +691,8 @@ class SessionScheduler:
                         "active_count": len(active_setups),
                         "delivery_failed": True
                     })
+                    # Update delivery status to FAILED
+                    self.portfolio_state.update_delivery_status(approved_opened_symbols, "FAILED")
 
             # Record individual setup signatures in deduplication cache for state tracking
             for s in active_setups:

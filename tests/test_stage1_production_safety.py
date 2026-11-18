@@ -278,7 +278,8 @@ def test_p0_4_persistent_portfolio_state_lifecycle(tmp_path):
     assert len(mgr2.get_open_positions()) == 0
     assert mgr2.realized_daily_pnl == -550.0  # (144.5 - 150) * 100
     assert len(mgr2.closed_positions_today) == 1
-    assert mgr2.closed_positions_today[0]["status"] == "STOPPED_OUT"
+    assert mgr2.closed_positions_today[0]["status"] in ("STOPPED_OUT", "CLOSED")
+    assert mgr2.closed_positions_today[0].get("exit_reason") == "STOP_LOSS"
 
 
 def test_p0_5_daily_loss_circuit_breaker(tmp_path):

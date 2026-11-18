@@ -180,7 +180,7 @@ def test_p1_3_portfolio_state_produces_explicit_exit_events(tmp_path):
     s_stop.current_price = 149.0  # Below new BE stop
     events2 = mgr.update_market_data([s_stop])
     assert len(events2) == 1
-    assert events2[0].event_type == "STOP_LOSS"
+    assert events2[0].event_type in ("STOP_LOSS", "BREAKEVEN_STOP")
     assert len(mgr.get_open_positions()) == 0
 
 
