@@ -124,6 +124,7 @@ def format_scan_report_html(
     slate: Optional[Any] = None,
     exit_events: Optional[List[Any]] = None,
     scan_stats: Optional[Any] = None,
+    open_positions: Optional[List[Any]] = None,
 ) -> str:
     """
     Full multi-symbol market scan report formatted for Telegram.
@@ -220,9 +221,14 @@ def format_scan_report_html(
                 if sp_sym and sp_sym not in rejected_map:
                     rejected_map[sp_sym] = str(sp_reason)
 
+    effective_open_positions = open_positions
+    if effective_open_positions is None and slate is not None and hasattr(slate, "open_positions"):
+        effective_open_positions = slate.open_positions
+
     fresh_setups: List[Setup] = []
     fresh_rejected_setups: List[Tuple[Setup, str]] = []
     progress_setups: List[Tuple[Setup, bool]] = []  # (Setup, is_risk_blocked)
+    fresh_syms = set()
 
     for s in active_setups:
         # P0-1 Risk Filtering Gate:
@@ -245,6 +251,7 @@ def format_scan_report_html(
         # Section 2A Criteria: Fresh + Confirmed + Risk Approved
         if s.is_fresh_entry and is_confirmed and is_risk_approved:
             fresh_setups.append(s)
+            fresh_syms.add(s.symbol)
         else:
             is_fresh_candle = (s.bars_since_breakout is None or s.bars_since_breakout <= 1)
             if (s.is_fresh_entry or is_fresh_candle) and is_confirmed and not is_risk_approved:
@@ -256,8 +263,52 @@ def format_scan_report_html(
                         or "REJECTED_BY_SAFEGUARDS"
                     )
                     fresh_rejected_setups.append((s, rej_msg))
-            # Everything else belongs to Section 2B (Trades In Progress / Awaiting / Blocked)
-            progress_setups.append((s, not is_risk_approved and s.is_fresh_entry))
+
+    # Section 2B: TRADES IN PROGRESS (Holders Only — Do Not Chase)
+    # Reads the persisted paper positions store only.
+    # Rejected and suppressed setups NEVER appear in 2B as trades.
+    if effective_open_positions is not None:
+        open_sym_map = {
+            p.get("symbol"): p
+            for p in effective_open_positions
+            if p.get("status") in ("OPEN", "TP1_HIT", "AWAITING_FILL") and p.get("symbol")
+        }
+        setup_dict = {s.symbol: s for s in setups}
+        for pos_sym, pos_dict in open_sym_map.items():
+            if pos_sym in fresh_syms:
+                continue
+            s_obj = setup_dict.get(pos_sym)
+            if s_obj is not None:
+                if pos_dict.get("status") == "TP1_HIT" or pos_dict.get("tp1_hit"):
+                    s_obj.tp1_hit = True
+                progress_setups.append((s_obj, False))
+            else:
+                s_synth = Setup(symbol=pos_sym)
+                s_synth.direction = pos_dict.get("direction", 1)
+                s_synth.entry = pos_dict.get("modeled_fill") or pos_dict.get("entry_price")
+                s_synth.stop = pos_dict.get("stop_loss") or pos_dict.get("stop")
+                s_synth.tp1 = pos_dict.get("take_profit_1")
+                s_synth.tp2 = pos_dict.get("take_profit_2")
+                s_synth.current_price = pos_dict.get("current_price") or s_synth.entry
+                s_synth.pnl_pct = pos_dict.get("pnl_pct", 0.0)
+                s_synth.composite_score = pos_dict.get("score")
+                s_synth.composite_grade = pos_dict.get("grade")
+                s_synth.tp1_hit = bool(pos_dict.get("tp1_hit", False) or pos_dict.get("status") == "TP1_HIT")
+                s_synth.bars_since_breakout = 5
+                progress_setups.append((s_synth, False))
+    else:
+        # Legacy fallback when neither slate nor positions store is provided:
+        for s in active_setups:
+            if s.symbol in fresh_syms:
+                continue
+            is_risk_appr = (
+                not getattr(s, "earnings_warning", False)
+                and (s.risk_pct is None or s.risk_pct <= 5.0)
+                and (getattr(s, "friction_r", None) is None or s.friction_r <= 0.15)
+                and not getattr(s, "safeguard_rejected", False)
+                and s.symbol not in rejected_map
+            )
+            progress_setups.append((s, not is_risk_appr and s.is_fresh_entry))
 
     def safe_sort_active(s: Setup):
         score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
@@ -307,6 +358,7 @@ def format_scan_report_html(
         lines.append("")
         lines.append("🔔 <b>SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS</b>")
         lines.append("────────────────────")
+        curr_sym = "₹" if market_upper == "NSE" else "$"
         for ev in exit_events:
             sym = html.escape(str(getattr(ev, "symbol", "")))
             ev_type = str(getattr(ev, "event_type", "EXIT"))
@@ -323,16 +375,18 @@ def format_scan_report_html(
                 badge = "🎯 <b>[TP2 HIT — FULL EXIT]</b>"
             elif ev_type == "TP1_SCALE":
                 badge = "🔄 <b>[TP1 HIT — SCALED 50% & TRAILED BE]</b>"
-            elif ev_type == "TIME_EXIT":
+            elif ev_type in ("TIME_EXIT", "TIME_STOP_10D"):
                 badge = "⏱️ <b>[TIME EXIT — MAX HOLD]</b>"
             elif ev_type == "BREAKEVEN_STOP":
                 badge = "🛡️ <b>[BREAKEVEN STOP HIT]</b>"
+            elif ev_type == "FAILED_BREAKOUT":
+                badge = "⚠️ <b>[FAILED BREAKOUT EXIT]</b>"
             else:
                 badge = f"⚠️ <b>[{ev_type}]</b>"
 
             lines.append(
                 f"• <b>{sym}</b> | {badge} | Exit: <code>{exit_px}</code> | Entry: <code>{entry_px}</code> | "
-                f"P&L: <code>{sign}{pnl_pct:.2f}% ({dollar_sign}${realized:,.2f})</code>"
+                f"P&L: <code>{sign}{pnl_pct:.2f}% ({dollar_sign}{curr_sym}{realized:,.2f})</code>"
             )
 
     lines.append("━━━━━━━━━━━━━━━━━━━━")
