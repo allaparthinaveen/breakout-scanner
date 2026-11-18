@@ -101,6 +101,7 @@ def compute_indicators(raw: pd.DataFrame, cfg: dict) -> pd.DataFrame:
             hourly_benchmark.loc[mask] = h_vols.rolling(lookback, min_periods=3).median()
         benchmark_vol = hourly_benchmark.combine_first(df['AvgVolume'])
 
+    df['BreakoutVolBenchmark'] = benchmark_vol
     df['VolExpansion'] = df['Volume'] >= (benchmark_vol * c_vol['breakout_multiplier'])
     df['BreakoutVolOK'] = df['VolExpansion'] if c_vol.get('use_breakout_volume', True) else True
     
@@ -155,6 +156,7 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
                 "state_after": state_after,
                 "first_failed_gate": "none",
                 "gate_details": None,
+                "all_failed_gates": [],
                 "all_gates": {
                     "trend_sma50": True,
                     "base_range": True,
@@ -166,7 +168,8 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
                     "min_stop": True,
                     "max_stop": True,
                     "rr": True,
-                }
+                },
+                "dist_to_pivot_pct": None,
             }
 
         if df is None or df.empty:
@@ -175,7 +178,9 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
                 "state_after": state_after,
                 "first_failed_gate": "empty_frame",
                 "gate_details": None,
+                "all_failed_gates": ["empty_frame"],
                 "all_gates": {},
+                "dist_to_pivot_pct": None,
             }
 
         all_gates = {}
@@ -216,9 +221,9 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
         # 5. breakout_volume
         break_vol_ok = bool(df['BreakoutVolOK'].iloc[-1]) if 'BreakoutVolOK' in df else False
         vol_curr = float(df['Volume'].iloc[-1]) if 'Volume' in df else 0.0
-        vol_avg = float(df['AvgVolume'].iloc[-1]) if 'AvgVolume' in df and is_finite_num(df['AvgVolume'].iloc[-1]) and df['AvgVolume'].iloc[-1] > 0 else 1.0
-        vol_ratio = round(vol_curr / vol_avg, 2)
-        vol_mult = float(c_break.get('volume_multiplier', 1.5))
+        vol_bench = float(df['BreakoutVolBenchmark'].iloc[-1]) if ('BreakoutVolBenchmark' in df and is_finite_num(df['BreakoutVolBenchmark'].iloc[-1]) and df['BreakoutVolBenchmark'].iloc[-1] > 0) else (float(df['AvgVolume'].iloc[-1]) if ('AvgVolume' in df and is_finite_num(df['AvgVolume'].iloc[-1]) and df['AvgVolume'].iloc[-1] > 0) else 1.0)
+        vol_ratio = round(vol_curr / vol_bench, 2) if vol_bench > 0 else 0.0
+        vol_mult = float(c_vol.get('breakout_multiplier', 1.20))
         all_gates["breakout_volume"] = break_vol_ok
 
         # 6. clv
@@ -229,7 +234,8 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
         all_gates["clv"] = clv_ok
 
         # 7. base_trap
-        failed_breakouts = getattr(setup, "failed_breakouts_in_base", 0)
+        raw_failed = getattr(setup, "failed_breakouts_in_base", None)
+        failed_breakouts = int(raw_failed) if raw_failed is not None else 0
         max_failed = c_qual.get('max_failed_breakouts_in_base', None)
         base_trap_ok = (failed_breakouts <= max_failed) if max_failed is not None else True
         all_gates["base_trap"] = base_trap_ok
@@ -247,10 +253,67 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
         rr_ok = True
         all_gates["rr"] = rr_ok
 
+        dist_to_pivot_pct = None
+
         # Determine first_failed_gate in pipeline order
         if setup.state == State.CONTRACTION:
-            first_failed = "breakout_volume"
-            gate_details = {"gate": "breakout_volume", "value": vol_ratio, "threshold": vol_mult}
+            # CONTRACTION pipeline order:
+            # setup_bars -> trend -> bull_break -> BullMom -> volume -> density -> clv -> pierced
+            cons_idx = getattr(setup, "cons_index", None)
+            setup_bars = (len(df) - 1 - cons_idx) if cons_idx is not None else (int(setup.setup_bars) if getattr(setup, "setup_bars", None) is not None else int(c_base.get('min_setup_bars', 3)))
+            min_setup_bars = int(c_base.get('min_setup_bars', 3))
+            setup_bars_ok = setup_bars >= min_setup_bars
+
+            buf_pct = float(c_break.get('buffer_pct', 0.10))
+            res_val = float(setup.resistance) if (getattr(setup, "resistance", None) is not None and setup.resistance > 0) else (float(setup.breakout_level) if getattr(setup, "breakout_level", None) is not None else 0.0)
+            pivot_price = res_val * (1.0 + buf_pct / 100.0) if res_val > 0 else 0.0
+            bull_break_ok = (close_val >= pivot_price) if pivot_price > 0 else False
+            dist_to_pivot_pct = round(((pivot_price - close_val) / close_val * 100.0), 2) if (close_val > 0 and pivot_price > 0) else None
+
+            bull_mom_ok = bool(df['BullMom'].iloc[-1]) if 'BullMom' in df else True
+
+            min_density = float(c_base.get('min_box_density_pct', 75.0))
+            raw_dens = getattr(setup, "cons_density_pct", None)
+            density_val = float(raw_dens) if raw_dens is not None else 100.0
+            density_ok = bool(getattr(setup, "cons_density_confirmed", True)) if getattr(setup, "cons_density_confirmed", None) is not None else (density_val >= min_density)
+
+            pierced_ok = (failed_breakouts <= max_failed) if max_failed is not None else True
+
+            ordered_contraction_gates = [
+                ("setup_bars", setup_bars_ok, int(setup_bars), min_setup_bars),
+                ("trend", trend_ok, trend_ratio, 1.0),
+                ("bull_break", bull_break_ok, close_val, round(pivot_price, 2)),
+                ("BullMom", bull_mom_ok, bull_mom_ok, True),
+                ("volume", break_vol_ok, vol_ratio, vol_mult),
+                ("density", density_ok, density_val, min_density),
+                ("clv", clv_ok, clv_val, min_clv),
+                ("pierced", pierced_ok, failed_breakouts, max_failed if max_failed is not None else 0),
+            ]
+
+            all_failed_gates = [g_name for g_name, g_pass, _, _ in ordered_contraction_gates if not g_pass]
+            if all_failed_gates:
+                first_failed = all_failed_gates[0]
+                for g_name, g_pass, g_val, g_thresh in ordered_contraction_gates:
+                    if g_name == first_failed:
+                        gate_details = {"gate": g_name, "value": g_val, "threshold": g_thresh}
+                        break
+            else:
+                first_failed = "none"
+                gate_details = None
+
+            all_gates = {
+                "setup_bars": setup_bars_ok,
+                "trend": trend_ok,
+                "trend_sma50": trend_ok,
+                "bull_break": bull_break_ok,
+                "BullMom": bull_mom_ok,
+                "volume": break_vol_ok,
+                "breakout_volume": break_vol_ok,
+                "density": density_ok,
+                "base_range": True,
+                "clv": clv_ok,
+                "pierced": pierced_ok,
+            }
         else:
             ordered_gates = [
                 ("trend_sma50", trend_ok, trend_ratio, 1.0),
@@ -263,6 +326,7 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
                 ("min_stop", min_stop_ok, risk_pct, min_stop_thresh),
                 ("max_stop", max_stop_ok, risk_pct, max_stop_thresh),
             ]
+            all_failed_gates = [g_name for g_name, g_pass, _, _ in ordered_gates if not g_pass]
             for g_name, g_pass, g_val, g_thresh in ordered_gates:
                 if not g_pass:
                     first_failed = g_name
@@ -277,7 +341,9 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
             "state_after": state_after,
             "first_failed_gate": first_failed,
             "gate_details": gate_details,
+            "all_failed_gates": all_failed_gates,
             "all_gates": all_gates,
+            "dist_to_pivot_pct": dist_to_pivot_pct,
         }
     except Exception:
         return {
@@ -285,7 +351,9 @@ def compute_engine_trace(df: pd.DataFrame, setup: Setup, cfg: dict, initial_stat
             "state_after": setup.state.name if hasattr(setup.state, "name") else str(setup.state),
             "first_failed_gate": "none",
             "gate_details": None,
+            "all_failed_gates": [],
             "all_gates": {},
+            "dist_to_pivot_pct": None,
         }
 
 
@@ -399,16 +467,14 @@ class BreakoutEngine:
                     require_clv = c_quality.get('require_clv_confirmation', False)
                     min_clv = float(c_quality.get('min_clv_threshold', 0.65))
 
-                    clv_long_ok = True
-                    clv_short_ok = True
                     bar_rng = row['High'] - row['Low']
-                    if require_clv and is_finite_num(bar_rng) and bar_rng > 1e-9:
-                        clv_val = (row['Close'] - row['Low']) / bar_rng
+                    clv_val = (row['Close'] - row['Low']) / bar_rng if (is_finite_num(bar_rng) and bar_rng > 1e-9) else 0.5
+                    if require_clv:
                         clv_long_ok = (clv_val >= min_clv)
                         clv_short_ok = (clv_val <= (1.0 - min_clv))
-                    elif require_clv:
-                        clv_long_ok = False
-                        clv_short_ok = False
+                    else:
+                        clv_long_ok = True
+                        clv_short_ok = True
 
                     # Phase 2 Pierced Base Gate (False Breakout Memory)
                     max_pierced = c_quality.get('max_failed_breakouts_in_base', None)
@@ -425,6 +491,33 @@ class BreakoutEngine:
                         self.setup.failed_breakouts_in_base = failed_in_base
                         if failed_in_base > max_pierced:
                             pierced_ok = False
+
+                    if i == len(df) - 1:
+                        res_val = float(self.setup.resistance) if (self.setup.resistance is not None and self.setup.resistance > 0) else (float(self.setup.breakout_level) if (self.setup.breakout_level is not None and self.setup.breakout_level > 0) else 0.0)
+                        buf_val = float(c_break.get('buffer_pct', 0.10)) / 100.0
+                        piv_val = res_val * (1.0 + buf_val) if res_val > 0 else 0.0
+                        cls_val = float(row['Close']) if 'Close' in row else 0.0
+                        d_pivot = round(((piv_val - cls_val) / cls_val * 100.0), 2) if (cls_val > 0 and piv_val > 0) else None
+
+                        b_bench = float(row['BreakoutVolBenchmark']) if ('BreakoutVolBenchmark' in row and is_finite_num(row['BreakoutVolBenchmark']) and row['BreakoutVolBenchmark'] > 0) else (float(row['AvgVolume']) if ('AvgVolume' in row and is_finite_num(row['AvgVolume']) and row['AvgVolume'] > 0) else 1.0)
+                        vol_c = float(row['Volume']) if 'Volume' in row else 0.0
+                        v_ratio = round(vol_c / b_bench, 2) if b_bench > 0 else 0.0
+                        v_mult = float(c_vol.get('breakout_multiplier', 1.20))
+                        tr_sma = float(row['SMA']) if ('SMA' in row and is_finite_num(row['SMA']) and row['SMA'] > 0) else cls_val
+                        tr_ratio = round(cls_val / tr_sma, 3) if tr_sma > 0 else 1.0
+                        m_bars = int(c_base.get('min_setup_bars', 3))
+
+                        self.setup.engine_trace_components = {
+                            "setup_bars": {"pass": bool(setup_bars >= m_bars), "count": int(setup_bars), "min_bars": m_bars},
+                            "trend": {"pass": bool(row.get('LongTrendOK', True)), "value": tr_ratio, "threshold": 1.0},
+                            "bull_break": {"pass": bool(bull_break), "close": cls_val, "pivot": piv_val, "dist_to_pivot_pct": d_pivot},
+                            "BullMom": {"pass": bool(row.get('BullMom', False)), "value": bool(row.get('BullMom', False)), "threshold": True},
+                            "volume": {"pass": bool(row.get('BreakoutVolOK', False)), "ratio": v_ratio, "threshold": v_mult},
+                            "cons_density_confirmed": {"pass": bool(self.setup.cons_density_confirmed), "pct": float(cons_density), "min_density": float(min_density)},
+                            "clv_long_ok": {"pass": bool(clv_long_ok), "value": round(float(clv_val), 3) if is_finite_num(clv_val) else 0.5, "min_clv": float(min_clv)},
+                            "pierced_ok": {"pass": bool(pierced_ok), "failed_count": int(getattr(self.setup, 'failed_breakouts_in_base', 0) or 0), "max_pierced": max_pierced},
+                            "dist_to_pivot_pct": d_pivot,
+                        }
 
                     long_signal = (setup_bars >= c_base['min_setup_bars'] and bull_break and 
                                    row['BullMom'] and row['LongTrendOK'] and row['BreakoutVolOK'] and

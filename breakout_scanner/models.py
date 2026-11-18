@@ -108,6 +108,7 @@ class Setup:
     # Phase 4: Risk & Portfolio Guard
     position_allocation: Optional[Any] = None
     engine_trace: Optional[Dict[str, Any]] = None
+    engine_trace_components: Optional[Dict[str, Any]] = None
 
     @property
     def breakout_score(self) -> int:
