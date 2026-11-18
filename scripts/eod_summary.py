@@ -82,10 +82,31 @@ def generate_eod_summary(
     ]
 
     # Filter ledger rows for this market and date if possible
+    def is_ledger_row_for_market(row: dict, m_upper: str) -> bool:
+        r_market = str(row.get("market", "")).upper()
+        if r_market:
+            return r_market == m_upper or m_upper in r_market
+        prof = str(row.get("profile_name", "")).upper()
+        if m_upper in prof:
+            return True
+        scan_id = str(row.get("scan_id", "")).upper()
+        if f"_{m_upper}_" in scan_id or scan_id.startswith(f"SCAN_{m_upper}"):
+            return True
+        sym = str(row.get("symbol", "")).upper()
+        if not sym:
+            return False
+        if m_upper == "NSE":
+            return sym.endswith(".NS") or sym.endswith(".BO")
+        elif m_upper == "CRYPTO":
+            return "-USD" in sym or "USDT" in sym
+        elif m_upper == "US":
+            return not (sym.endswith(".NS") or sym.endswith(".BO") or "-USD" in sym or "USDT" in sym)
+        return True
+
     market_ledger = []
     for row in ledger_rows:
-        row_time = str(row.get("breakout_time") or row.get("recorded_at") or "")
-        if date_str in row_time or market.lower() in str(row.get("symbol", "")).lower():
+        row_time = str(row.get("breakout_time") or row.get("recorded_at") or row.get("timestamp") or "")
+        if (date_str in row_time) and is_ledger_row_for_market(row, market_upper):
             market_ledger.append(row)
 
     outcomes_path = os.path.join(os.path.dirname(ledger_path), "forward_test_outcomes.jsonl")
