@@ -614,10 +614,45 @@ class SessionScheduler:
                         self.send_telegram_alert(f"⚠️ SCAN INCOMPLETE {market_label.upper()} {wd_s}/{tot_s}")
                         self.deduplicator.record_alert(incomplete_sig, {"market": market_label})
 
+            is_session_boundary = False
+            if self.market_session is not None:
+                try:
+                    schedule = self.market_session.get_candle_close_schedule(now_utc, timeframe="1h")
+                    last_closed = self.market_session.get_last_closed_candle(now_utc, timeframe="1h")
+                    if schedule and last_closed is not None:
+                        if last_closed == schedule[0] or last_closed == schedule[-1]:
+                            is_session_boundary = True
+                        elif self.market_session.is_final_bar_of_session(last_closed, timeframe="1h"):
+                            is_session_boundary = True
+                except Exception:
+                    pass
+
+            has_actionable = len(slate.selected_trades) > 0
+            has_in_progress = any(
+                s.state in (State.BUY, State.SELL) and (not s.is_fresh_entry or (s.bars_since_breakout is not None and s.bars_since_breakout > 1))
+                for s in setups
+            )
+            has_fresh_rejected = any(
+                getattr(r.setup, "is_fresh_entry", False) or (getattr(r.setup, "bars_since_breakout", None) is not None and r.setup.bars_since_breakout <= 1)
+                for r in getattr(slate, "rejected_trades", [])
+            )
+            has_exit_events = bool(exit_events)
+
+            should_send_report = (
+                force
+                or has_actionable
+                or has_in_progress
+                or has_fresh_rejected
+                or has_exit_events
+                or is_session_boundary
+            )
+
             sent = False
             if self.deduplicator.is_duplicate(report_signature) and not force:
                 duplicates_skipped += 1
                 self.logger.debug(f"[DEDUP] Already alerted scan report for {report_signature}, skipping.")
+            elif not should_send_report:
+                self.logger.info(f"🤫 [QUIET] No actionable trades, in-progress trades, or fresh rejections for {market_label} mid-session. Suppressing empty Telegram report.")
             else:
                 report_html = format_scan_report_html(
                     setups,
