@@ -1,0 +1,7 @@
+Partition,Date_Range,Dataset_Source,Trades_N,Win_Rate_Pct,Profit_Factor,Net_Expectancy_R,CI_95,Max_DD_Pct,Score_Threshold_Status,Reproducibility
+In-Sample Training (Reported),2021-01-01 to 2023-12-31,External / Unverified Static Fixture,621,47.2,1.04,-0.075,"[-0.155, +0.005]",18.5,Arbitrary 80 cutoff based on future MFE proxy,NOT_REPRODUCIBLE (Data pre-Dec 2023 missing)
+In-Sample Training (Reproduced Golden),First 60% of Offline Fixtures,tests/fixtures/golden_dataset/*_1h.pkl,40,37.5,0.46,-0.462,"[-0.720, -0.204]",8.85,Unscored Baseline,VERIFIED_REPRODUCED
+Walk-Forward OOS (Reported),2024-01-01 to 2024-12-31,External / Unverified Static Fixture,216,51.9,1.07,-0.064,"[-0.198, +0.070]",9.4,Proxy Tiering,NOT_REPRODUCIBLE (Sample size mismatch)
+Walk-Forward OOS (Reproduced Golden),Middle 25% of Offline Fixtures,tests/fixtures/golden_dataset/*_1h.pkl,11,54.5,0.75,-0.121,"[-0.650, +0.408]",1.23,Unscored Baseline,VERIFIED_REPRODUCED
+Untouched Holdout (Reported),2025-01-01 to Present,External / Unverified Static Fixture,130,52.3,1.04,-0.066,"[-0.240, +0.108]",7.2,Proxy Tiering,NOT_REPRODUCIBLE (Sample size mismatch)
+Untouched Holdout (Reproduced Golden),Final 15% of Offline Fixtures,tests/fixtures/golden_dataset/*_1h.pkl,2,50.0,2.19,0.138,Insufficient sample (N=2),0.31,Unscored Baseline,VERIFIED_REPRODUCED

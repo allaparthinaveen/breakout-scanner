@@ -1,0 +1,5 @@
+Exit_Policy,Trades_N,Winning_Trades,Losing_Trades,Win_Rate_Pct,Total_Portfolio_R,Expectancy_R,Profit_Factor,Max_Drawdown_R,Verdict
+Production Waterfall (TP1 50% + BE Trail + TP2 50% + Failed Breakout),58,31,27,53.4,6.88,0.15,1.3,7.28,BASE_PRODUCTION (Optimal balance of win rate and expectancy)
+"All-or-Nothing Hold to TP2 (No Partial Scale, No BE Trail)",58,14,44,24.1,-14.0,-0.241,0.81,14.8,SEVERE_LOSS (17 breakeven winners reverse to full -1R losses)
+"All-or-Nothing with Breakeven Trail (100% to TP2, Trail Stop to BE at TP1)",58,14,27,24.1,-2.0,-0.034,0.96,10.5,SUBOPTIMAL (17 trades forfeit +0.50R profit to exit flat at 0.0R)
+Production without Failed Breakout Rule (Hold All Losers to Full Stop),58,31,27,53.4,3.95,0.099,1.15,9.85,INFERIOR (Failed breakout defense saves +2.93R across 5 trades)

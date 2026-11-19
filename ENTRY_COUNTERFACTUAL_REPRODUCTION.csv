@@ -1,0 +1,6 @@
+Execution_Method,Eligible_Trades_N,Executable_Fills_N,Unfilled_Rate_Pct,Win_Rate_Pct,Avg_Gross_R,Avg_Net_R,Profit_Factor,Realism_Verdict
+Signal Price (Theoretical Close),77,77,0.0,28.6,-0.52,-0.545,0.38,UNREALISTIC (Lookahead: candle not settled at order time)
+Next-Bar Open (Raw Open),77,77,0.0,24.7,-0.56,-0.585,0.34,EXECUTABLE (Ignores market-maker bid/ask spread)
+Next-Bar Open with Slippage (+5 bps),77,77,0.0,23.4,-0.58,-0.605,0.31,INSTITUTIONAL STANDARD (Realistic execution model)
+Valid Pullback to Pivot (Limit Order),77,31,59.7,38.7,-0.15,-0.185,0.81,HIGH UNFILLED DRAG (59.7% of orders never filled)
+Rejection Gate (Do Not Trade),77,0,100.0,0.0,0.0,0.0,N/A (Zero trades),OPTIMAL (Saves +46.5R in toxic flow avoidance)
