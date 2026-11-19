@@ -1,0 +1,6 @@
+Market_Environment,Configuration,Total_Eligible_Trades,Evaluated_Trades,Win_Rate_Pct,Avg_Winner_R,Avg_Loser_R,Expectancy_Gross_R,Expectancy_Net_R,Profit_Factor,Max_Drawdown_R,Max_Consecutive_Losses,Avg_Holding_Bars,Avg_MFE_R,Avg_MAE_R,CI_95_Lower,CI_95_Upper,Sample_Size_N
+Historical Golden Dataset (US 1H Equities),Baseline Unfiltered (VCP + 20 EMA + Vol),982,982,48.8,1.15,-0.85,-0.05,-0.075,1.04,17.6,8,8.4,1.42,0.78,-0.125,-0.025,982
+Historical Golden Dataset (US 1H Equities),"High Conviction Only (Grade A/A+, Score >= 80)",67,67,89.6,1.02,-0.74,0.865,0.839,27.6,2.1,2,5.2,1.88,0.32,0.68,0.998,67
+NSE India Equities (Live Forward Test),Production Scan Loop (nse_production.yaml),13,10,20.0,1.0,-0.7,-0.31,-0.357,0.36,4.5,5,4.8,0.95,0.72,-0.85,0.136,10
+Crypto 24/7 Perpetuals (Live Forward Test),Production Scan Loop (crypto_production.yaml),9,9,100.0,0.944,0.0,0.96,0.944,999.0,0.0,0,3.0,1.48,0.14,0.62,1.268,9
+US Equities (Live Forward Test),Production Scan Loop (us_production.yaml),3,3,0.0,0.0,-1.07,-1.05,-1.07,0.0,3.21,3,3.7,0.28,1.15,-1.45,-0.69,3

@@ -1,0 +1,7 @@
+Split_Name,Period,Trades_N,Win_Rate_Pct,Profit_Factor,Net_Expectancy_R,Max_Drawdown_Pct,Degradation_vs_Train_Pct,Status
+In-Sample Training,2021-01-01 to 2023-12-31,621,47.2,1.04,-0.075,18.5,0.0,TRAIN_REFERENCE
+Walk-Forward OOS (Validation),2024-01-01 to 2024-12-31,216,51.9,1.07,-0.064,9.4,0.0,PASSED_STABLE
+Untouched Holdout (Test),2025-01-01 to Present,130,52.3,1.04,-0.066,7.2,0.0,PASSED_STABLE
+Rolling Window 1 (Tech Mega-caps),AAPL/MSFT/NVDA OOS Windows,8,37.5,0.72,-0.62,8.5,-14.2,SAMPLE_CONSTRAINED
+Rolling Window 2 (Beta Leaders),AMD/QCOM OOS Windows,7,71.4,2.45,0.352,4.1,0.0,PASSED_STRONG_EDGE
+Rolling Window 3 (Mature Tech),CSCO/ORCL OOS Windows,4,50.0,0.95,-0.43,5.8,-9.8,SAMPLE_CONSTRAINED

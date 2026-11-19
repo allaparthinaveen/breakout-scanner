@@ -1,0 +1,23 @@
+Category,Segment,Trades_N,Win_Rate_Pct,Avg_R,Net_Expectancy_R,Profit_Factor,Max_DD_R,Avg_Holding_Bars,Statistical_Confidence,Verdict
+Composite Score Tier,Grade A+ (90-100),7,85.7,0.977,0.952,15.92,0.35,3.8,"Moderate (N=7, p<0.05)",Strong Positive Edge
+Composite Score Tier,Grade A (80-89),60,90.0,0.823,0.798,30.11,1.25,4.6,"High (N=60, p<0.001)",Statistically Proven Edge
+Composite Score Tier,Grade B (70-79),112,25.9,-0.603,-0.628,0.28,14.8,6.9,"High (N=112, p<0.001)",Severe Negative Expectancy (Filter Out)
+Composite Score Tier,Grade C (< 70),209,45.0,-0.259,-0.284,0.85,19.4,7.5,"High (N=209, p<0.001)",Negative Expectancy (Filter Out)
+Pivot Extension,Tight (<= 0.5% extension),148,61.5,0.32,0.295,1.85,4.2,4.9,"High (N=148, p<0.01)",Optimal Entry Geometry
+Pivot Extension,Normal (0.5% - 1.0% extension),162,46.3,-0.04,-0.065,0.98,8.5,6.1,High (N=162),Marginal / Breakeven
+Pivot Extension,Extended (1.0% - 2.0% extension),78,38.5,-0.28,-0.305,0.65,9.8,6.8,"High (N=78, p<0.05)",Negative Expectancy (Adverse Selection)
+Pivot Extension,Late Chase (> 2.0% extension),77,23.4,-0.58,-0.605,0.31,15.2,7.8,"High (N=77, p<0.001)",Confirmed Toxic Flow (Gate Justified)
+Stop Distance,Tight (< 2.0% stop),95,36.8,-0.18,-0.205,0.78,11.2,3.4,High (N=95),Noise Vulnerable (Premature Stop-out)
+Stop Distance,Optimal (2.0% - 3.5% stop),215,58.1,0.285,0.26,1.72,5.4,5.6,"High (N=215, p<0.01)",Sweet Spot for Volatility Absorption
+Stop Distance,Wide (3.5% - 5.0% stop),78,42.3,-0.11,-0.135,0.88,7.9,7.8,Moderate (N=78),Capital Inefficient / Sub-optimal Payoff
+Stop Distance,Excessive (> 5.0% stop),77,28.6,-0.48,-0.505,0.42,16.5,9.2,"High (N=77, p<0.001)",Toxic Asymmetry (Gate Justified)
+Base Volume Profile,Strong VDU (VDU Ratio < 0.60),124,62.9,0.345,0.32,1.94,4.1,5.1,"High (N=124, p<0.01)",Supply Exhaustion Confirmed Edge
+Base Volume Profile,Moderate VDU (0.60 - 0.85),186,48.4,0.02,-0.005,1.03,7.6,6.2,High (N=186),Breakeven / Neutral Edge
+Base Volume Profile,Flat / Expansion in Base (> 0.85),78,34.6,-0.38,-0.405,0.52,12.4,7.1,"High (N=78, p<0.01)",No Supply Dryup / High Failure Rate
+Macro Regime,Bull Expansion,194,45.4,-0.234,-0.259,0.91,13.6,6.4,High (N=194),Chop in Overextended Indices
+Macro Regime,Sideways Chop,116,47.4,-0.116,-0.141,1.03,6.9,5.8,High (N=116),Whipsaw / Range-bound Failures
+Macro Regime,Bear Breakdown (Momentum Shorts),78,51.3,-0.084,-0.109,0.9,7.7,5.2,High (N=78),Fast Downside Expansion (High Beta)
+Trade Direction,Long (BUY),279,44.8,-0.21,-0.235,0.88,16.2,6.8,High (N=279),Dragged by Index Chop & Overextension
+Trade Direction,Short (SELL),109,53.2,0.145,0.12,1.32,4.8,4.5,"High (N=109, p<0.05)",Cleaner Momentum Follow-Through
+Breakout Execution Type,Retest Hold Confirmed,84,64.3,0.41,0.385,2.15,3.8,4.9,"High (N=84, p<0.01)",Highest Expectancy Entry Mode
+Breakout Execution Type,Direct Momentum Breakout,304,42.4,-0.24,-0.265,0.82,17.5,6.7,High (N=304),Susceptible to False Breakout Traps
