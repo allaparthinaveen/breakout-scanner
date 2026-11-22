@@ -1,0 +1,3372 @@
+{
+  "stage_executed": 2,
+  "US": {
+    "n_symbols": 211,
+    "stage1_dev": {
+      "verdict": "PASS",
+      "checks": {
+        "q5_minus_ew_cagr_1x_ge_1pct": true,
+        "q5_minus_q1_mean_1x_gt_0": true
+      },
+      "q5_cagr_1x": 0.3636,
+      "ew_m0_cagr_1x": 0.28291,
+      "excess_cagr_1x": 0.08069,
+      "q5_minus_q1_monthly_mean_1x": 0.00284,
+      "q5_minus_q1_t_stat": 0.444,
+      "quintile_metrics": {
+        "Q1": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.32437,
+            "ann_vol": 0.24927,
+            "sharpe_rf0": 1.262,
+            "sharpe_rf4": 1.102,
+            "max_dd": 0.24937,
+            "avg_monthly_turnover": 0.2614,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.34458,
+              "2017": 0.39677,
+              "2018": -0.09715,
+              "2019": 0.56041,
+              "2020": 0.60759,
+              "2021": 0.26859
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.31622,
+            "ann_vol": 0.2494,
+            "sharpe_rf0": 1.236,
+            "sharpe_rf4": 1.076,
+            "max_dd": 0.2513,
+            "avg_monthly_turnover": 0.2614,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.33633,
+              "2017": 0.38841,
+              "2018": -0.10283,
+              "2019": 0.5513,
+              "2020": 0.59662,
+              "2021": 0.26113
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.30811,
+            "ann_vol": 0.24952,
+            "sharpe_rf0": 1.211,
+            "sharpe_rf4": 1.05,
+            "max_dd": 0.25323,
+            "avg_monthly_turnover": 0.2614,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.32813,
+              "2017": 0.3801,
+              "2018": -0.10847,
+              "2019": 0.54224,
+              "2020": 0.58571,
+              "2021": 0.25372
+            }
+          }
+        },
+        "Q2": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.24703,
+            "ann_vol": 0.18737,
+            "sharpe_rf0": 1.282,
+            "sharpe_rf4": 1.068,
+            "max_dd": 0.23765,
+            "avg_monthly_turnover": 0.4859,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.20992,
+              "2017": 0.40497,
+              "2018": -0.05016,
+              "2019": 0.39473,
+              "2020": 0.37791,
+              "2021": 0.2119
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.2328,
+            "ann_vol": 0.1874,
+            "sharpe_rf0": 1.22,
+            "sharpe_rf4": 1.006,
+            "max_dd": 0.23959,
+            "avg_monthly_turnover": 0.4859,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.19666,
+              "2017": 0.38916,
+              "2018": -0.06079,
+              "2019": 0.37864,
+              "2020": 0.36052,
+              "2021": 0.19868
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.21871,
+            "ann_vol": 0.18743,
+            "sharpe_rf0": 1.157,
+            "sharpe_rf4": 0.944,
+            "max_dd": 0.24153,
+            "avg_monthly_turnover": 0.4859,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18353,
+              "2017": 0.37352,
+              "2018": -0.07132,
+              "2019": 0.36272,
+              "2020": 0.34333,
+              "2021": 0.1856
+            }
+          }
+        },
+        "Q3": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.22897,
+            "ann_vol": 0.1679,
+            "sharpe_rf0": 1.322,
+            "sharpe_rf4": 1.083,
+            "max_dd": 0.20923,
+            "avg_monthly_turnover": 0.5266,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.15814,
+              "2017": 0.20605,
+              "2018": -0.0108,
+              "2019": 0.38372,
+              "2020": 0.37226,
+              "2021": 0.31325
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.21379,
+            "ann_vol": 0.16779,
+            "sharpe_rf0": 1.247,
+            "sharpe_rf4": 1.009,
+            "max_dd": 0.21091,
+            "avg_monthly_turnover": 0.5266,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.14397,
+              "2017": 0.19168,
+              "2018": -0.02301,
+              "2019": 0.36662,
+              "2020": 0.35507,
+              "2021": 0.29656
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.19879,
+            "ann_vol": 0.16768,
+            "sharpe_rf0": 1.173,
+            "sharpe_rf4": 0.934,
+            "max_dd": 0.21259,
+            "avg_monthly_turnover": 0.5266,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.12996,
+              "2017": 0.17747,
+              "2018": -0.03509,
+              "2019": 0.34971,
+              "2020": 0.33808,
+              "2021": 0.28006
+            }
+          }
+        },
+        "Q4": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.23478,
+            "ann_vol": 0.16009,
+            "sharpe_rf0": 1.409,
+            "sharpe_rf4": 1.159,
+            "max_dd": 0.206,
+            "avg_monthly_turnover": 0.4816,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.09075,
+              "2017": 0.48743,
+              "2018": -0.09701,
+              "2019": 0.3453,
+              "2020": 0.33431,
+              "2021": 0.3478
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.22083,
+            "ann_vol": 0.16005,
+            "sharpe_rf0": 1.337,
+            "sharpe_rf4": 1.087,
+            "max_dd": 0.20762,
+            "avg_monthly_turnover": 0.4816,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.07748,
+              "2017": 0.47043,
+              "2018": -0.10668,
+              "2019": 0.33047,
+              "2020": 0.31889,
+              "2021": 0.33307
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.20701,
+            "ann_vol": 0.16001,
+            "sharpe_rf0": 1.265,
+            "sharpe_rf4": 1.015,
+            "max_dd": 0.20924,
+            "avg_monthly_turnover": 0.4816,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.06436,
+              "2017": 0.4536,
+              "2018": -0.11625,
+              "2019": 0.31579,
+              "2020": 0.30363,
+              "2021": 0.31848
+            }
+          }
+        },
+        "Q5": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.37177,
+            "ann_vol": 0.24384,
+            "sharpe_rf0": 1.429,
+            "sharpe_rf4": 1.265,
+            "max_dd": 0.22662,
+            "avg_monthly_turnover": 0.2546,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.13296,
+              "2017": 0.51317,
+              "2018": 0.04079,
+              "2019": 0.54464,
+              "2020": 1.01469,
+              "2021": 0.19998
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.3636,
+            "ann_vol": 0.24385,
+            "sharpe_rf0": 1.404,
+            "sharpe_rf4": 1.24,
+            "max_dd": 0.22774,
+            "avg_monthly_turnover": 0.2546,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.125,
+              "2017": 0.50426,
+              "2018": 0.03534,
+              "2019": 0.53544,
+              "2020": 1.0025,
+              "2021": 0.19336
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.35549,
+            "ann_vol": 0.24385,
+            "sharpe_rf0": 1.379,
+            "sharpe_rf4": 1.215,
+            "max_dd": 0.22885,
+            "avg_monthly_turnover": 0.2546,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.11709,
+              "2017": 0.49539,
+              "2018": 0.0299,
+              "2019": 0.52628,
+              "2020": 0.99038,
+              "2021": 0.18677
+            }
+          }
+        },
+        "EW_M0": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.28411,
+            "ann_vol": 0.18754,
+            "sharpe_rf0": 1.439,
+            "sharpe_rf4": 1.226,
+            "max_dd": 0.21513,
+            "avg_monthly_turnover": 0.0393,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18803,
+              "2017": 0.4004,
+              "2018": -0.04146,
+              "2019": 0.44799,
+              "2020": 0.52729,
+              "2021": 0.27126
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.28291,
+            "ann_vol": 0.18759,
+            "sharpe_rf0": 1.434,
+            "sharpe_rf4": 1.221,
+            "max_dd": 0.21526,
+            "avg_monthly_turnover": 0.0393,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18601,
+              "2017": 0.3995,
+              "2018": -0.04216,
+              "2019": 0.44693,
+              "2020": 0.52584,
+              "2021": 0.27019
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.28171,
+            "ann_vol": 0.18765,
+            "sharpe_rf0": 1.428,
+            "sharpe_rf4": 1.215,
+            "max_dd": 0.21539,
+            "avg_monthly_turnover": 0.0393,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18398,
+              "2017": 0.39861,
+              "2018": -0.04287,
+              "2019": 0.44587,
+              "2020": 0.52439,
+              "2021": 0.26912
+            }
+          }
+        },
+        "BENCH": {
+          "n_months": 72,
+          "cagr": 0.17647,
+          "ann_vol": 0.16006,
+          "sharpe_rf0": 1.102,
+          "sharpe_rf4": 0.853,
+          "max_dd": 0.22903,
+          "avg_monthly_turnover": 0.0,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 83.33,
+          "positive_years": 5,
+          "total_years": 6,
+          "yearly_returns": {
+            "2016": 0.14655,
+            "2017": 0.21333,
+            "2018": -0.06417,
+            "2019": 0.34022,
+            "2020": 0.18167,
+            "2021": 0.286
+          }
+        }
+      }
+    },
+    "stage2_metrics": {
+      "DEV": {
+        "M0": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.37177,
+            "ann_vol": 0.24384,
+            "sharpe_rf0": 1.429,
+            "sharpe_rf4": 1.265,
+            "max_dd": 0.22662,
+            "avg_monthly_turnover": 0.2546,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.13296,
+              "2017": 0.51317,
+              "2018": 0.04079,
+              "2019": 0.54464,
+              "2020": 1.01469,
+              "2021": 0.19998
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.3636,
+            "ann_vol": 0.24385,
+            "sharpe_rf0": 1.404,
+            "sharpe_rf4": 1.24,
+            "max_dd": 0.22774,
+            "avg_monthly_turnover": 0.2546,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.125,
+              "2017": 0.50426,
+              "2018": 0.03534,
+              "2019": 0.53544,
+              "2020": 1.0025,
+              "2021": 0.19336
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.35549,
+            "ann_vol": 0.24385,
+            "sharpe_rf0": 1.379,
+            "sharpe_rf4": 1.215,
+            "max_dd": 0.22885,
+            "avg_monthly_turnover": 0.2546,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.11709,
+              "2017": 0.49539,
+              "2018": 0.0299,
+              "2019": 0.52628,
+              "2020": 0.99038,
+              "2021": 0.18677
+            }
+          }
+        },
+        "M1": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.21018,
+            "ann_vol": 0.13879,
+            "sharpe_rf0": 1.453,
+            "sharpe_rf4": 1.245,
+            "max_dd": 0.1304,
+            "avg_monthly_turnover": 0.2026,
+            "avg_exposure": 0.719,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.12571,
+              "2017": 0.47138,
+              "2018": 0.04303,
+              "2019": 0.30662,
+              "2020": 0.27424,
+              "2021": 0.09207
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.20438,
+            "ann_vol": 0.13886,
+            "sharpe_rf0": 1.418,
+            "sharpe_rf4": 1.21,
+            "max_dd": 0.13114,
+            "avg_monthly_turnover": 0.2026,
+            "avg_exposure": 0.719,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.11811,
+              "2017": 0.46301,
+              "2018": 0.03914,
+              "2019": 0.29975,
+              "2020": 0.26911,
+              "2021": 0.08849
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.19861,
+            "ann_vol": 0.13894,
+            "sharpe_rf0": 1.382,
+            "sharpe_rf4": 1.174,
+            "max_dd": 0.13198,
+            "avg_monthly_turnover": 0.2026,
+            "avg_exposure": 0.719,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.11056,
+              "2017": 0.45467,
+              "2018": 0.03527,
+              "2019": 0.2929,
+              "2020": 0.264,
+              "2021": 0.08493
+            }
+          }
+        },
+        "M2": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.18303,
+            "ann_vol": 0.12242,
+            "sharpe_rf0": 1.442,
+            "sharpe_rf4": 1.238,
+            "max_dd": 0.13953,
+            "avg_monthly_turnover": 0.2006,
+            "avg_exposure": 0.6387,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.15204,
+              "2017": 0.47138,
+              "2018": 0.03207,
+              "2019": 0.0865,
+              "2020": 0.32065,
+              "2021": 0.09207
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.17742,
+            "ann_vol": 0.12243,
+            "sharpe_rf0": 1.402,
+            "sharpe_rf4": 1.199,
+            "max_dd": 0.14106,
+            "avg_monthly_turnover": 0.2006,
+            "avg_exposure": 0.6387,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.14613,
+              "2017": 0.46301,
+              "2018": 0.02774,
+              "2019": 0.07949,
+              "2020": 0.31578,
+              "2021": 0.08849
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.17183,
+            "ann_vol": 0.12244,
+            "sharpe_rf0": 1.363,
+            "sharpe_rf4": 1.159,
+            "max_dd": 0.14334,
+            "avg_monthly_turnover": 0.2006,
+            "avg_exposure": 0.6387,
+            "pct_positive_years": 100.0,
+            "positive_years": 6,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.14024,
+              "2017": 0.45467,
+              "2018": 0.02341,
+              "2019": 0.07252,
+              "2020": 0.31092,
+              "2021": 0.08493
+            }
+          }
+        },
+        "EW_M0": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.28411,
+            "ann_vol": 0.18754,
+            "sharpe_rf0": 1.439,
+            "sharpe_rf4": 1.226,
+            "max_dd": 0.21513,
+            "avg_monthly_turnover": 0.0393,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18803,
+              "2017": 0.4004,
+              "2018": -0.04146,
+              "2019": 0.44799,
+              "2020": 0.52729,
+              "2021": 0.27126
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.28291,
+            "ann_vol": 0.18759,
+            "sharpe_rf0": 1.434,
+            "sharpe_rf4": 1.221,
+            "max_dd": 0.21526,
+            "avg_monthly_turnover": 0.0393,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18601,
+              "2017": 0.3995,
+              "2018": -0.04216,
+              "2019": 0.44693,
+              "2020": 0.52584,
+              "2021": 0.27019
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.28171,
+            "ann_vol": 0.18765,
+            "sharpe_rf0": 1.428,
+            "sharpe_rf4": 1.215,
+            "max_dd": 0.21539,
+            "avg_monthly_turnover": 0.0393,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.18398,
+              "2017": 0.39861,
+              "2018": -0.04287,
+              "2019": 0.44587,
+              "2020": 0.52439,
+              "2021": 0.26912
+            }
+          }
+        },
+        "EW_M1": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.1936,
+            "ann_vol": 0.14612,
+            "sharpe_rf0": 1.293,
+            "sharpe_rf4": 1.051,
+            "max_dd": 0.1918,
+            "avg_monthly_turnover": 0.0553,
+            "avg_exposure": 0.8754,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.14386,
+              "2017": 0.4004,
+              "2018": -0.02157,
+              "2019": 0.31974,
+              "2020": 0.12457,
+              "2021": 0.24312
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.19202,
+            "ann_vol": 0.1462,
+            "sharpe_rf0": 1.283,
+            "sharpe_rf4": 1.042,
+            "max_dd": 0.192,
+            "avg_monthly_turnover": 0.0553,
+            "avg_exposure": 0.8754,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.14142,
+              "2017": 0.3995,
+              "2018": -0.02281,
+              "2019": 0.31831,
+              "2020": 0.12268,
+              "2021": 0.24172
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.19044,
+            "ann_vol": 0.14628,
+            "sharpe_rf0": 1.273,
+            "sharpe_rf4": 1.032,
+            "max_dd": 0.19221,
+            "avg_monthly_turnover": 0.0553,
+            "avg_exposure": 0.8754,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.13899,
+              "2017": 0.39861,
+              "2018": -0.02404,
+              "2019": 0.31689,
+              "2020": 0.1208,
+              "2021": 0.24031
+            }
+          }
+        },
+        "EW_M2": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.16501,
+            "ann_vol": 0.12049,
+            "sharpe_rf0": 1.335,
+            "sharpe_rf4": 1.079,
+            "max_dd": 0.19751,
+            "avg_monthly_turnover": 0.0841,
+            "avg_exposure": 0.7809,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.13449,
+              "2017": 0.4004,
+              "2018": -0.05077,
+              "2019": 0.08411,
+              "2020": 0.23018,
+              "2021": 0.24312
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.16267,
+            "ann_vol": 0.12064,
+            "sharpe_rf0": 1.316,
+            "sharpe_rf4": 1.061,
+            "max_dd": 0.20201,
+            "avg_monthly_turnover": 0.0841,
+            "avg_exposure": 0.7809,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.13292,
+              "2017": 0.3995,
+              "2018": -0.05337,
+              "2019": 0.07972,
+              "2020": 0.22759,
+              "2021": 0.24172
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.16033,
+            "ann_vol": 0.1208,
+            "sharpe_rf0": 1.298,
+            "sharpe_rf4": 1.043,
+            "max_dd": 0.20648,
+            "avg_monthly_turnover": 0.0841,
+            "avg_exposure": 0.7809,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.13135,
+              "2017": 0.39861,
+              "2018": -0.05596,
+              "2019": 0.07534,
+              "2020": 0.225,
+              "2021": 0.24031
+            }
+          }
+        },
+        "BENCH": {
+          "n_months": 72,
+          "cagr": 0.17647,
+          "ann_vol": 0.16006,
+          "sharpe_rf0": 1.102,
+          "sharpe_rf4": 0.853,
+          "max_dd": 0.22903,
+          "avg_monthly_turnover": 0.0,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 83.33,
+          "positive_years": 5,
+          "total_years": 6,
+          "yearly_returns": {
+            "2016": 0.14655,
+            "2017": 0.21333,
+            "2018": -0.06417,
+            "2019": 0.34022,
+            "2020": 0.18167,
+            "2021": 0.286
+          }
+        }
+      },
+      "HOLDOUT": {
+        "M0": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.32723,
+            "ann_vol": 0.35264,
+            "sharpe_rf0": 0.979,
+            "sharpe_rf4": 0.866,
+            "max_dd": 0.24487,
+            "avg_monthly_turnover": 0.2522,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.17438,
+              "2023": 0.47091,
+              "2024": 0.75116,
+              "2025": 0.61364,
+              "2026": 0.14483
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.31934,
+            "ann_vol": 0.35271,
+            "sharpe_rf0": 0.962,
+            "sharpe_rf4": 0.849,
+            "max_dd": 0.24899,
+            "avg_monthly_turnover": 0.2522,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.17993,
+              "2023": 0.46149,
+              "2024": 0.74113,
+              "2025": 0.60524,
+              "2026": 0.13948
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.31149,
+            "ann_vol": 0.35279,
+            "sharpe_rf0": 0.945,
+            "sharpe_rf4": 0.831,
+            "max_dd": 0.2531,
+            "avg_monthly_turnover": 0.2522,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.18545,
+              "2023": 0.45213,
+              "2024": 0.73116,
+              "2025": 0.59688,
+              "2026": 0.13416
+            }
+          }
+        },
+        "M1": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.17077,
+            "ann_vol": 0.15979,
+            "sharpe_rf0": 1.07,
+            "sharpe_rf4": 0.94,
+            "max_dd": 0.14257,
+            "avg_monthly_turnover": 0.1474,
+            "avg_exposure": 0.5205,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.08006,
+              "2023": 0.34007,
+              "2024": 0.35204,
+              "2025": 0.22001,
+              "2026": 0.05367
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.16668,
+            "ann_vol": 0.15983,
+            "sharpe_rf0": 1.047,
+            "sharpe_rf4": 0.918,
+            "max_dd": 0.14564,
+            "avg_monthly_turnover": 0.1474,
+            "avg_exposure": 0.5205,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.08429,
+              "2023": 0.33317,
+              "2024": 0.34771,
+              "2025": 0.21733,
+              "2026": 0.05184
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.1626,
+            "ann_vol": 0.15987,
+            "sharpe_rf0": 1.025,
+            "sharpe_rf4": 0.896,
+            "max_dd": 0.1487,
+            "avg_monthly_turnover": 0.1474,
+            "avg_exposure": 0.5205,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.0885,
+              "2023": 0.32631,
+              "2024": 0.3434,
+              "2025": 0.21465,
+              "2026": 0.05001
+            }
+          }
+        },
+        "M2": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.09857,
+            "ann_vol": 0.1463,
+            "sharpe_rf0": 0.715,
+            "sharpe_rf4": 0.611,
+            "max_dd": 0.15511,
+            "avg_monthly_turnover": 0.1486,
+            "avg_exposure": 0.3893,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.14122,
+              "2023": 0.21723,
+              "2024": 0.35204,
+              "2025": 0.13521,
+              "2026": -0.0182
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.09469,
+            "ann_vol": 0.1463,
+            "sharpe_rf0": 0.691,
+            "sharpe_rf4": 0.586,
+            "max_dd": 0.15901,
+            "avg_monthly_turnover": 0.1486,
+            "avg_exposure": 0.3893,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.14381,
+              "2023": 0.20936,
+              "2024": 0.34771,
+              "2025": 0.13262,
+              "2026": -0.02027
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.09082,
+            "ann_vol": 0.1463,
+            "sharpe_rf0": 0.666,
+            "sharpe_rf4": 0.562,
+            "max_dd": 0.1629,
+            "avg_monthly_turnover": 0.1486,
+            "avg_exposure": 0.3893,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.14639,
+              "2023": 0.20153,
+              "2024": 0.3434,
+              "2025": 0.13003,
+              "2026": -0.02235
+            }
+          }
+        },
+        "EW_M0": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.24606,
+            "ann_vol": 0.21944,
+            "sharpe_rf0": 1.117,
+            "sharpe_rf4": 0.935,
+            "max_dd": 0.24684,
+            "avg_monthly_turnover": 0.0489,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.19272,
+              "2023": 0.43678,
+              "2024": 0.65214,
+              "2025": 0.35747,
+              "2026": 0.1132
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.24462,
+            "ann_vol": 0.21945,
+            "sharpe_rf0": 1.112,
+            "sharpe_rf4": 0.93,
+            "max_dd": 0.24731,
+            "avg_monthly_turnover": 0.0489,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.19368,
+              "2023": 0.43537,
+              "2024": 0.65028,
+              "2025": 0.35581,
+              "2026": 0.11202
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.24318,
+            "ann_vol": 0.21945,
+            "sharpe_rf0": 1.107,
+            "sharpe_rf4": 0.924,
+            "max_dd": 0.24779,
+            "avg_monthly_turnover": 0.0489,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.19463,
+              "2023": 0.43396,
+              "2024": 0.64843,
+              "2025": 0.35416,
+              "2026": 0.11084
+            }
+          }
+        },
+        "EW_M1": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.18433,
+            "ann_vol": 0.15778,
+            "sharpe_rf0": 1.155,
+            "sharpe_rf4": 0.972,
+            "max_dd": 0.15024,
+            "avg_monthly_turnover": 0.0564,
+            "avg_exposure": 0.7299,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.11769,
+              "2023": 0.30121,
+              "2024": 0.52742,
+              "2025": 0.21567,
+              "2026": 0.0626
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.18275,
+            "ann_vol": 0.15775,
+            "sharpe_rf0": 1.147,
+            "sharpe_rf4": 0.963,
+            "max_dd": 0.1509,
+            "avg_monthly_turnover": 0.0564,
+            "avg_exposure": 0.7299,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.11875,
+              "2023": 0.29977,
+              "2024": 0.52517,
+              "2025": 0.21358,
+              "2026": 0.06161
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.18118,
+            "ann_vol": 0.15772,
+            "sharpe_rf0": 1.139,
+            "sharpe_rf4": 0.955,
+            "max_dd": 0.15156,
+            "avg_monthly_turnover": 0.0564,
+            "avg_exposure": 0.7299,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.11981,
+              "2023": 0.29833,
+              "2024": 0.52291,
+              "2025": 0.2115,
+              "2026": 0.06062
+            }
+          }
+        },
+        "EW_M2": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.11252,
+            "ann_vol": 0.14344,
+            "sharpe_rf0": 0.815,
+            "sharpe_rf4": 0.648,
+            "max_dd": 0.16266,
+            "avg_monthly_turnover": 0.1054,
+            "avg_exposure": 0.6114,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.15448,
+              "2023": 0.12138,
+              "2024": 0.52742,
+              "2025": 0.15834,
+              "2026": -0.00194
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.10974,
+            "ann_vol": 0.1434,
+            "sharpe_rf0": 0.798,
+            "sharpe_rf4": 0.63,
+            "max_dd": 0.16569,
+            "avg_monthly_turnover": 0.1054,
+            "avg_exposure": 0.6114,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.1567,
+              "2023": 0.1175,
+              "2024": 0.52517,
+              "2025": 0.15554,
+              "2026": -0.00405
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.10696,
+            "ann_vol": 0.14337,
+            "sharpe_rf0": 0.78,
+            "sharpe_rf4": 0.613,
+            "max_dd": 0.16871,
+            "avg_monthly_turnover": 0.1054,
+            "avg_exposure": 0.6114,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": -0.15891,
+              "2023": 0.11363,
+              "2024": 0.52291,
+              "2025": 0.15274,
+              "2026": -0.00615
+            }
+          }
+        },
+        "BENCH": {
+          "n_months": 58,
+          "cagr": 0.11588,
+          "ann_vol": 0.15126,
+          "sharpe_rf0": 0.803,
+          "sharpe_rf4": 0.538,
+          "max_dd": 0.23313,
+          "avg_monthly_turnover": 0.0,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.17992,
+            "2023": 0.24707,
+            "2024": 0.2643,
+            "2025": 0.17709,
+            "2026": 0.11619
+          }
+        }
+      }
+    },
+    "stage2_graduation": {
+      "verdict": "FAIL",
+      "candidates": {
+        "M1": {
+          "matched_control": "EW_M1",
+          "passed": false,
+          "checks": {
+            "c1_sharpe_1x_ge_050_and_2x_ge_040": true,
+            "c2_matched_excess_dev_and_holdout": false,
+            "c3_beats_spy_sharpe_or_dd_5pp": true,
+            "c4_pos_years_ge_60pct_and_concentration": false,
+            "c5_max_dd_le_25pct": true
+          },
+          "dev_excess_cagr_1x": 0.01236,
+          "dev_excess_cagr_2x": 0.00817,
+          "ho_excess_cagr_1x": -0.01607,
+          "ho_excess_cagr_2x": -0.01858,
+          "concentration": {
+            "best_year_dropped": 2024,
+            "excess_cagr_without_best_year": 0.01675,
+            "survives_drop_best_year": true,
+            "top_stock_dropped": "SMCI",
+            "top_stock_total_contrib": 0.06169,
+            "excess_cagr_without_top_stock": -0.02783,
+            "survives_drop_top_stock": false
+          }
+        },
+        "M2": {
+          "matched_control": "EW_M2",
+          "passed": false,
+          "checks": {
+            "c1_sharpe_1x_ge_050_and_2x_ge_040": true,
+            "c2_matched_excess_dev_and_holdout": false,
+            "c3_beats_spy_sharpe_or_dd_5pp": true,
+            "c4_pos_years_ge_60pct_and_concentration": false,
+            "c5_max_dd_le_25pct": true
+          },
+          "dev_excess_cagr_1x": 0.01475,
+          "dev_excess_cagr_2x": 0.0115,
+          "ho_excess_cagr_1x": -0.01505,
+          "ho_excess_cagr_2x": -0.01614,
+          "concentration": {
+            "best_year_dropped": 2024,
+            "excess_cagr_without_best_year": 0.01549,
+            "survives_drop_best_year": true,
+            "top_stock_dropped": "SMCI",
+            "top_stock_total_contrib": 0.04946,
+            "excess_cagr_without_top_stock": -0.02419,
+            "survives_drop_top_stock": false
+          }
+        }
+      }
+    },
+    "holdout_quintiles": {
+      "Q1": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.33972,
+          "ann_vol": 0.41728,
+          "sharpe_rf0": 0.898,
+          "sharpe_rf4": 0.802,
+          "max_dd": 0.37547,
+          "avg_monthly_turnover": 0.2712,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 60.0,
+          "positive_years": 3,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.36958,
+            "2023": 0.69072,
+            "2024": 1.85581,
+            "2025": 0.37478,
+            "2026": -0.01773
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.33121,
+          "ann_vol": 0.41721,
+          "sharpe_rf0": 0.883,
+          "sharpe_rf4": 0.787,
+          "max_dd": 0.37792,
+          "avg_monthly_turnover": 0.2712,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 60.0,
+          "positive_years": 3,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.37369,
+            "2023": 0.68098,
+            "2024": 1.83747,
+            "2025": 0.36586,
+            "2026": -0.02314
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.32275,
+          "ann_vol": 0.41714,
+          "sharpe_rf0": 0.867,
+          "sharpe_rf4": 0.771,
+          "max_dd": 0.38035,
+          "avg_monthly_turnover": 0.2712,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 60.0,
+          "positive_years": 3,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.37777,
+            "2023": 0.6713,
+            "2024": 1.81923,
+            "2025": 0.357,
+            "2026": -0.02853
+          }
+        }
+      },
+      "Q2": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.14624,
+          "ann_vol": 0.18756,
+          "sharpe_rf0": 0.823,
+          "sharpe_rf4": 0.61,
+          "max_dd": 0.23491,
+          "avg_monthly_turnover": 0.4507,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.21521,
+            "2023": 0.40907,
+            "2024": 0.24309,
+            "2025": 0.25739,
+            "2026": 0.11902
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.13402,
+          "ann_vol": 0.18756,
+          "sharpe_rf0": 0.766,
+          "sharpe_rf4": 0.552,
+          "max_dd": 0.24106,
+          "avg_monthly_turnover": 0.4507,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.22331,
+            "2023": 0.39405,
+            "2024": 0.23029,
+            "2025": 0.24371,
+            "2026": 0.10855
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.12193,
+          "ann_vol": 0.18756,
+          "sharpe_rf0": 0.708,
+          "sharpe_rf4": 0.495,
+          "max_dd": 0.24717,
+          "avg_monthly_turnover": 0.4507,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.23133,
+            "2023": 0.37917,
+            "2024": 0.21761,
+            "2025": 0.23015,
+            "2026": 0.09817
+          }
+        }
+      },
+      "Q3": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.18175,
+          "ann_vol": 0.14864,
+          "sharpe_rf0": 1.204,
+          "sharpe_rf4": 0.934,
+          "max_dd": 0.19789,
+          "avg_monthly_turnover": 0.5133,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.08023,
+            "2023": 0.32292,
+            "2024": 0.32748,
+            "2025": 0.26337,
+            "2026": 0.09842
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.16744,
+          "ann_vol": 0.14874,
+          "sharpe_rf0": 1.12,
+          "sharpe_rf4": 0.851,
+          "max_dd": 0.20387,
+          "avg_monthly_turnover": 0.5133,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.09222,
+            "2023": 0.30648,
+            "2024": 0.31289,
+            "2025": 0.248,
+            "2026": 0.08754
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.1533,
+          "ann_vol": 0.14883,
+          "sharpe_rf0": 1.037,
+          "sharpe_rf4": 0.768,
+          "max_dd": 0.21117,
+          "avg_monthly_turnover": 0.5133,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.10406,
+            "2023": 0.29023,
+            "2024": 0.29846,
+            "2025": 0.2328,
+            "2026": 0.07676
+          }
+        }
+      },
+      "Q4": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.16756,
+          "ann_vol": 0.17584,
+          "sharpe_rf0": 0.973,
+          "sharpe_rf4": 0.746,
+          "max_dd": 0.22595,
+          "avg_monthly_turnover": 0.4757,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.12455,
+            "2023": 0.26094,
+            "2024": 0.32725,
+            "2025": 0.24283,
+            "2026": 0.16114
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.15443,
+          "ann_vol": 0.17595,
+          "sharpe_rf0": 0.908,
+          "sharpe_rf4": 0.68,
+          "max_dd": 0.23372,
+          "avg_monthly_turnover": 0.4757,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.13535,
+            "2023": 0.24529,
+            "2024": 0.31307,
+            "2025": 0.23033,
+            "2026": 0.15085
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.14143,
+          "ann_vol": 0.17607,
+          "sharpe_rf0": 0.842,
+          "sharpe_rf4": 0.615,
+          "max_dd": 0.24142,
+          "avg_monthly_turnover": 0.4757,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.14604,
+            "2023": 0.22981,
+            "2024": 0.29903,
+            "2025": 0.21795,
+            "2026": 0.14064
+          }
+        }
+      },
+      "Q5": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.32723,
+          "ann_vol": 0.35264,
+          "sharpe_rf0": 0.979,
+          "sharpe_rf4": 0.866,
+          "max_dd": 0.24487,
+          "avg_monthly_turnover": 0.2522,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.17438,
+            "2023": 0.47091,
+            "2024": 0.75116,
+            "2025": 0.61364,
+            "2026": 0.14483
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.31934,
+          "ann_vol": 0.35271,
+          "sharpe_rf0": 0.962,
+          "sharpe_rf4": 0.849,
+          "max_dd": 0.24899,
+          "avg_monthly_turnover": 0.2522,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.17993,
+            "2023": 0.46149,
+            "2024": 0.74113,
+            "2025": 0.60524,
+            "2026": 0.13948
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.31149,
+          "ann_vol": 0.35279,
+          "sharpe_rf0": 0.945,
+          "sharpe_rf4": 0.831,
+          "max_dd": 0.2531,
+          "avg_monthly_turnover": 0.2522,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.18545,
+            "2023": 0.45213,
+            "2024": 0.73116,
+            "2025": 0.59688,
+            "2026": 0.13416
+          }
+        }
+      },
+      "EW_M0": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.24606,
+          "ann_vol": 0.21944,
+          "sharpe_rf0": 1.117,
+          "sharpe_rf4": 0.935,
+          "max_dd": 0.24684,
+          "avg_monthly_turnover": 0.0489,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.19272,
+            "2023": 0.43678,
+            "2024": 0.65214,
+            "2025": 0.35747,
+            "2026": 0.1132
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.24462,
+          "ann_vol": 0.21945,
+          "sharpe_rf0": 1.112,
+          "sharpe_rf4": 0.93,
+          "max_dd": 0.24731,
+          "avg_monthly_turnover": 0.0489,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.19368,
+            "2023": 0.43537,
+            "2024": 0.65028,
+            "2025": 0.35581,
+            "2026": 0.11202
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.24318,
+          "ann_vol": 0.21945,
+          "sharpe_rf0": 1.107,
+          "sharpe_rf4": 0.924,
+          "max_dd": 0.24779,
+          "avg_monthly_turnover": 0.0489,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": -0.19463,
+            "2023": 0.43396,
+            "2024": 0.64843,
+            "2025": 0.35416,
+            "2026": 0.11084
+          }
+        }
+      },
+      "BENCH": {
+        "n_months": 58,
+        "cagr": 0.11588,
+        "ann_vol": 0.15126,
+        "sharpe_rf0": 0.803,
+        "sharpe_rf4": 0.538,
+        "max_dd": 0.23313,
+        "avg_monthly_turnover": 0.0,
+        "avg_exposure": 1.0,
+        "pct_positive_years": 80.0,
+        "positive_years": 4,
+        "total_years": 5,
+        "yearly_returns": {
+          "2022": -0.17992,
+          "2023": 0.24707,
+          "2024": 0.2643,
+          "2025": 0.17709,
+          "2026": 0.11619
+        }
+      }
+    }
+  },
+  "NSE": {
+    "n_symbols": 187,
+    "stage1_dev": {
+      "verdict": "PASS",
+      "checks": {
+        "q5_minus_ew_cagr_1x_ge_1pct": true,
+        "q5_minus_q1_mean_1x_gt_0": true
+      },
+      "q5_cagr_1x": 0.29993,
+      "ew_m0_cagr_1x": 0.22084,
+      "excess_cagr_1x": 0.07909,
+      "q5_minus_q1_monthly_mean_1x": 0.00979,
+      "q5_minus_q1_t_stat": 1.478,
+      "quintile_metrics": {
+        "Q1": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.14713,
+            "ann_vol": 0.30593,
+            "sharpe_rf0": 0.603,
+            "sharpe_rf4": 0.472,
+            "max_dd": 0.55058,
+            "avg_monthly_turnover": 0.263,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.03319,
+              "2017": 0.39539,
+              "2018": -0.21222,
+              "2019": -0.09931,
+              "2020": 0.555,
+              "2021": 0.43246
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.13456,
+            "ann_vol": 0.30608,
+            "sharpe_rf0": 0.566,
+            "sharpe_rf4": 0.436,
+            "max_dd": 0.56135,
+            "avg_monthly_turnover": 0.263,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.02053,
+              "2017": 0.38203,
+              "2018": -0.22068,
+              "2019": -0.10863,
+              "2020": 0.5389,
+              "2021": 0.41464
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.12212,
+            "ann_vol": 0.30623,
+            "sharpe_rf0": 0.53,
+            "sharpe_rf4": 0.399,
+            "max_dd": 0.57187,
+            "avg_monthly_turnover": 0.263,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.00801,
+              "2017": 0.36878,
+              "2018": -0.22905,
+              "2019": -0.11786,
+              "2020": 0.52295,
+              "2021": 0.39702
+            }
+          }
+        },
+        "Q2": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.15099,
+            "ann_vol": 0.24077,
+            "sharpe_rf0": 0.714,
+            "sharpe_rf4": 0.547,
+            "max_dd": 0.46347,
+            "avg_monthly_turnover": 0.4846,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.09755,
+              "2017": 0.35992,
+              "2018": -0.05474,
+              "2019": -0.03947,
+              "2020": 0.20208,
+              "2021": 0.42725
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.12797,
+            "ann_vol": 0.2408,
+            "sharpe_rf0": 0.629,
+            "sharpe_rf4": 0.463,
+            "max_dd": 0.48787,
+            "avg_monthly_turnover": 0.4846,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.07504,
+              "2017": 0.33529,
+              "2018": -0.07391,
+              "2019": -0.05815,
+              "2020": 0.17687,
+              "2021": 0.39772
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.10537,
+            "ann_vol": 0.24083,
+            "sharpe_rf0": 0.544,
+            "sharpe_rf4": 0.378,
+            "max_dd": 0.5112,
+            "avg_monthly_turnover": 0.4846,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.05295,
+              "2017": 0.31108,
+              "2018": -0.09272,
+              "2019": -0.0765,
+              "2020": 0.15214,
+              "2021": 0.36875
+            }
+          }
+        },
+        "Q3": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.23202,
+            "ann_vol": 0.20287,
+            "sharpe_rf0": 1.142,
+            "sharpe_rf4": 0.944,
+            "max_dd": 0.2681,
+            "avg_monthly_turnover": 0.5334,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.07035,
+              "2017": 0.4731,
+              "2018": -0.03318,
+              "2019": 0.09734,
+              "2020": 0.40575,
+              "2021": 0.48714
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.20512,
+            "ann_vol": 0.20285,
+            "sharpe_rf0": 1.031,
+            "sharpe_rf4": 0.834,
+            "max_dd": 0.29403,
+            "avg_monthly_turnover": 0.5334,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.04814,
+              "2017": 0.44311,
+              "2018": -0.05482,
+              "2019": 0.07328,
+              "2020": 0.3737,
+              "2021": 0.45324
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.17875,
+            "ann_vol": 0.20283,
+            "sharpe_rf0": 0.921,
+            "sharpe_rf4": 0.724,
+            "max_dd": 0.31908,
+            "avg_monthly_turnover": 0.5334,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.02635,
+              "2017": 0.41368,
+              "2018": -0.07603,
+              "2019": 0.04971,
+              "2020": 0.34233,
+              "2021": 0.42005
+            }
+          }
+        },
+        "Q4": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.26255,
+            "ann_vol": 0.19216,
+            "sharpe_rf0": 1.323,
+            "sharpe_rf4": 1.115,
+            "max_dd": 0.23925,
+            "avg_monthly_turnover": 0.4809,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.00052,
+              "2017": 0.60291,
+              "2018": -0.08103,
+              "2019": 0.12192,
+              "2020": 0.31843,
+              "2021": 0.85796
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.23778,
+            "ann_vol": 0.19194,
+            "sharpe_rf0": 1.219,
+            "sharpe_rf4": 1.011,
+            "max_dd": 0.24716,
+            "avg_monthly_turnover": 0.4809,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.02047,
+              "2017": 0.57277,
+              "2018": -0.09709,
+              "2019": 0.09946,
+              "2020": 0.29309,
+              "2021": 0.81852
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.21345,
+            "ann_vol": 0.19171,
+            "sharpe_rf0": 1.115,
+            "sharpe_rf4": 0.907,
+            "max_dd": 0.27897,
+            "avg_monthly_turnover": 0.4809,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.04106,
+              "2017": 0.54315,
+              "2018": -0.1129,
+              "2019": 0.07742,
+              "2020": 0.26821,
+              "2021": 0.77984
+            }
+          }
+        },
+        "Q5": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.31293,
+            "ann_vol": 0.22178,
+            "sharpe_rf0": 1.357,
+            "sharpe_rf4": 1.177,
+            "max_dd": 0.26624,
+            "avg_monthly_turnover": 0.2415,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.0063,
+              "2017": 0.81695,
+              "2018": -0.05131,
+              "2019": 0.08471,
+              "2020": 0.3321,
+              "2021": 1.04369
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.29993,
+            "ann_vol": 0.22183,
+            "sharpe_rf0": 1.311,
+            "sharpe_rf4": 1.131,
+            "max_dd": 0.278,
+            "avg_monthly_turnover": 0.2415,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.00523,
+              "2017": 0.80071,
+              "2018": -0.05936,
+              "2019": 0.07328,
+              "2020": 0.32012,
+              "2021": 1.02114
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.28704,
+            "ann_vol": 0.22189,
+            "sharpe_rf0": 1.265,
+            "sharpe_rf4": 1.085,
+            "max_dd": 0.28996,
+            "avg_monthly_turnover": 0.2415,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.01664,
+              "2017": 0.78461,
+              "2018": -0.06735,
+              "2019": 0.06196,
+              "2020": 0.30825,
+              "2021": 0.99883
+            }
+          }
+        },
+        "EW_M0": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.22307,
+            "ann_vol": 0.21982,
+            "sharpe_rf0": 1.037,
+            "sharpe_rf4": 0.855,
+            "max_dd": 0.35126,
+            "avg_monthly_turnover": 0.0436,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.04278,
+              "2017": 0.52446,
+              "2018": -0.08797,
+              "2019": 0.03084,
+              "2020": 0.36987,
+              "2021": 0.63502
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.22084,
+            "ann_vol": 0.21991,
+            "sharpe_rf0": 1.028,
+            "sharpe_rf4": 0.847,
+            "max_dd": 0.35341,
+            "avg_monthly_turnover": 0.0436,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.03956,
+              "2017": 0.52253,
+              "2018": -0.08929,
+              "2019": 0.02929,
+              "2020": 0.36717,
+              "2021": 0.63228
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.21861,
+            "ann_vol": 0.22001,
+            "sharpe_rf0": 1.02,
+            "sharpe_rf4": 0.838,
+            "max_dd": 0.35555,
+            "avg_monthly_turnover": 0.0436,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.03634,
+              "2017": 0.5206,
+              "2018": -0.09061,
+              "2019": 0.02774,
+              "2020": 0.36447,
+              "2021": 0.62954
+            }
+          }
+        },
+        "BENCH": {
+          "n_months": 72,
+          "cagr": 0.13992,
+          "ann_vol": 0.17916,
+          "sharpe_rf0": 0.828,
+          "sharpe_rf4": 0.605,
+          "max_dd": 0.29651,
+          "avg_monthly_turnover": 0.0,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 6,
+          "total_years": 6,
+          "yearly_returns": {
+            "2016": 0.03603,
+            "2017": 0.27618,
+            "2018": 0.03735,
+            "2019": 0.12267,
+            "2020": 0.14702,
+            "2021": 0.24229
+          }
+        }
+      }
+    },
+    "stage2_metrics": {
+      "DEV": {
+        "M0": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.31293,
+            "ann_vol": 0.22178,
+            "sharpe_rf0": 1.357,
+            "sharpe_rf4": 1.177,
+            "max_dd": 0.26624,
+            "avg_monthly_turnover": 0.2415,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.0063,
+              "2017": 0.81695,
+              "2018": -0.05131,
+              "2019": 0.08471,
+              "2020": 0.3321,
+              "2021": 1.04369
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.29993,
+            "ann_vol": 0.22183,
+            "sharpe_rf0": 1.311,
+            "sharpe_rf4": 1.131,
+            "max_dd": 0.278,
+            "avg_monthly_turnover": 0.2415,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.00523,
+              "2017": 0.80071,
+              "2018": -0.05936,
+              "2019": 0.07328,
+              "2020": 0.32012,
+              "2021": 1.02114
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.28704,
+            "ann_vol": 0.22189,
+            "sharpe_rf0": 1.265,
+            "sharpe_rf4": 1.085,
+            "max_dd": 0.28996,
+            "avg_monthly_turnover": 0.2415,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.01664,
+              "2017": 0.78461,
+              "2018": -0.06735,
+              "2019": 0.06196,
+              "2020": 0.30825,
+              "2021": 0.99883
+            }
+          }
+        },
+        "M1": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.20269,
+            "ann_vol": 0.18631,
+            "sharpe_rf0": 1.096,
+            "sharpe_rf4": 0.918,
+            "max_dd": 0.26599,
+            "avg_monthly_turnover": 0.2251,
+            "avg_exposure": 0.8207,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.00024,
+              "2017": 0.62593,
+              "2018": -0.05958,
+              "2019": 0.06541,
+              "2020": 0.10454,
+              "2021": 0.68154
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.19148,
+            "ann_vol": 0.18649,
+            "sharpe_rf0": 1.045,
+            "sharpe_rf4": 0.867,
+            "max_dd": 0.27782,
+            "avg_monthly_turnover": 0.2251,
+            "avg_exposure": 0.8207,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.01089,
+              "2017": 0.61231,
+              "2018": -0.06737,
+              "2019": 0.05473,
+              "2020": 0.09503,
+              "2021": 0.66554
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.18037,
+            "ann_vol": 0.18669,
+            "sharpe_rf0": 0.993,
+            "sharpe_rf4": 0.815,
+            "max_dd": 0.28947,
+            "avg_monthly_turnover": 0.2251,
+            "avg_exposure": 0.8207,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": -0.0219,
+              "2017": 0.5988,
+              "2018": -0.07509,
+              "2019": 0.04414,
+              "2020": 0.08559,
+              "2021": 0.64968
+            }
+          }
+        },
+        "M2": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.20402,
+            "ann_vol": 0.13504,
+            "sharpe_rf0": 1.452,
+            "sharpe_rf4": 1.264,
+            "max_dd": 0.20973,
+            "avg_monthly_turnover": 0.2236,
+            "avg_exposure": 0.6535,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.07673,
+              "2017": 0.50732,
+              "2018": -0.13796,
+              "2019": -0.01854,
+              "2020": 0.31939,
+              "2021": 0.68154
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.19293,
+            "ann_vol": 0.13502,
+            "sharpe_rf0": 1.383,
+            "sharpe_rf4": 1.195,
+            "max_dd": 0.22478,
+            "avg_monthly_turnover": 0.2236,
+            "avg_exposure": 0.6535,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.06936,
+              "2017": 0.4935,
+              "2018": -0.14775,
+              "2019": -0.02923,
+              "2020": 0.30954,
+              "2021": 0.66554
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.18193,
+            "ann_vol": 0.13502,
+            "sharpe_rf0": 1.313,
+            "sharpe_rf4": 1.124,
+            "max_dd": 0.23955,
+            "avg_monthly_turnover": 0.2236,
+            "avg_exposure": 0.6535,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.06202,
+              "2017": 0.47979,
+              "2018": -0.15745,
+              "2019": -0.03981,
+              "2020": 0.29975,
+              "2021": 0.64968
+            }
+          }
+        },
+        "EW_M0": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.22307,
+            "ann_vol": 0.21982,
+            "sharpe_rf0": 1.037,
+            "sharpe_rf4": 0.855,
+            "max_dd": 0.35126,
+            "avg_monthly_turnover": 0.0436,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.04278,
+              "2017": 0.52446,
+              "2018": -0.08797,
+              "2019": 0.03084,
+              "2020": 0.36987,
+              "2021": 0.63502
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.22084,
+            "ann_vol": 0.21991,
+            "sharpe_rf0": 1.028,
+            "sharpe_rf4": 0.847,
+            "max_dd": 0.35341,
+            "avg_monthly_turnover": 0.0436,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.03956,
+              "2017": 0.52253,
+              "2018": -0.08929,
+              "2019": 0.02929,
+              "2020": 0.36717,
+              "2021": 0.63228
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.21861,
+            "ann_vol": 0.22001,
+            "sharpe_rf0": 1.02,
+            "sharpe_rf4": 0.838,
+            "max_dd": 0.35555,
+            "avg_monthly_turnover": 0.0436,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.03634,
+              "2017": 0.5206,
+              "2018": -0.09061,
+              "2019": 0.02774,
+              "2020": 0.36447,
+              "2021": 0.62954
+            }
+          }
+        },
+        "EW_M1": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.15084,
+            "ann_vol": 0.188,
+            "sharpe_rf0": 0.849,
+            "sharpe_rf4": 0.66,
+            "max_dd": 0.33781,
+            "avg_monthly_turnover": 0.0588,
+            "avg_exposure": 0.8846,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.01098,
+              "2017": 0.49493,
+              "2018": -0.09842,
+              "2019": 0.02029,
+              "2020": 0.08494,
+              "2021": 0.54027
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.14801,
+            "ann_vol": 0.18809,
+            "sharpe_rf0": 0.836,
+            "sharpe_rf4": 0.646,
+            "max_dd": 0.34077,
+            "avg_monthly_turnover": 0.0588,
+            "avg_exposure": 0.8846,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.0068,
+              "2017": 0.49274,
+              "2018": -0.09994,
+              "2019": 0.01812,
+              "2020": 0.08143,
+              "2021": 0.53702
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.14519,
+            "ann_vol": 0.18819,
+            "sharpe_rf0": 0.822,
+            "sharpe_rf4": 0.633,
+            "max_dd": 0.34372,
+            "avg_monthly_turnover": 0.0588,
+            "avg_exposure": 0.8846,
+            "pct_positive_years": 83.33,
+            "positive_years": 5,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.00263,
+              "2017": 0.49056,
+              "2018": -0.10145,
+              "2019": 0.01594,
+              "2020": 0.07792,
+              "2021": 0.53379
+            }
+          }
+        },
+        "EW_M2": {
+          "gross": {
+            "n_months": 72,
+            "cagr": 0.1399,
+            "ann_vol": 0.14007,
+            "sharpe_rf0": 1.008,
+            "sharpe_rf4": 0.808,
+            "max_dd": 0.29665,
+            "avg_monthly_turnover": 0.1096,
+            "avg_exposure": 0.7095,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.07277,
+              "2017": 0.4173,
+              "2018": -0.1686,
+              "2019": -0.10054,
+              "2020": 0.25267,
+              "2021": 0.54027
+            }
+          },
+          "net_1x": {
+            "n_months": 72,
+            "cagr": 0.13472,
+            "ann_vol": 0.14006,
+            "sharpe_rf0": 0.976,
+            "sharpe_rf4": 0.775,
+            "max_dd": 0.30816,
+            "avg_monthly_turnover": 0.1096,
+            "avg_exposure": 0.7095,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.06999,
+              "2017": 0.41167,
+              "2018": -0.17483,
+              "2019": -0.1067,
+              "2020": 0.24735,
+              "2021": 0.53702
+            }
+          },
+          "net_2x": {
+            "n_months": 72,
+            "cagr": 0.12955,
+            "ann_vol": 0.14008,
+            "sharpe_rf0": 0.943,
+            "sharpe_rf4": 0.742,
+            "max_dd": 0.31949,
+            "avg_monthly_turnover": 0.1096,
+            "avg_exposure": 0.7095,
+            "pct_positive_years": 66.67,
+            "positive_years": 4,
+            "total_years": 6,
+            "yearly_returns": {
+              "2016": 0.06721,
+              "2017": 0.40606,
+              "2018": -0.18103,
+              "2019": -0.11282,
+              "2020": 0.24206,
+              "2021": 0.53379
+            }
+          }
+        },
+        "BENCH": {
+          "n_months": 72,
+          "cagr": 0.13992,
+          "ann_vol": 0.17916,
+          "sharpe_rf0": 0.828,
+          "sharpe_rf4": 0.605,
+          "max_dd": 0.29651,
+          "avg_monthly_turnover": 0.0,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 6,
+          "total_years": 6,
+          "yearly_returns": {
+            "2016": 0.03603,
+            "2017": 0.27618,
+            "2018": 0.03735,
+            "2019": 0.12267,
+            "2020": 0.14702,
+            "2021": 0.24229
+          }
+        }
+      },
+      "HOLDOUT": {
+        "M0": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.39846,
+            "ann_vol": 0.2573,
+            "sharpe_rf0": 1.445,
+            "sharpe_rf4": 1.29,
+            "max_dd": 0.25303,
+            "avg_monthly_turnover": 0.2275,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.16471,
+              "2023": 1.24901,
+              "2024": 0.73185,
+              "2025": 0.01246,
+              "2026": 0.10123
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.3855,
+            "ann_vol": 0.25727,
+            "sharpe_rf0": 1.408,
+            "sharpe_rf4": 1.253,
+            "max_dd": 0.25434,
+            "avg_monthly_turnover": 0.2275,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.15361,
+              "2023": 1.23004,
+              "2024": 0.71876,
+              "2025": 0.00098,
+              "2026": 0.0925
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.37265,
+            "ann_vol": 0.25724,
+            "sharpe_rf0": 1.371,
+            "sharpe_rf4": 1.216,
+            "max_dd": 0.25565,
+            "avg_monthly_turnover": 0.2275,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.14259,
+              "2023": 1.21122,
+              "2024": 0.70576,
+              "2025": -0.01038,
+              "2026": 0.08383
+            }
+          }
+        },
+        "M1": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.27015,
+            "ann_vol": 0.18179,
+            "sharpe_rf0": 1.415,
+            "sharpe_rf4": 1.262,
+            "max_dd": 0.1493,
+            "avg_monthly_turnover": 0.1774,
+            "avg_exposure": 0.7051,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.11415,
+              "2023": 1.0549,
+              "2024": 0.38239,
+              "2025": -0.02701,
+              "2026": 0.03155
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.26088,
+            "ann_vol": 0.18182,
+            "sharpe_rf0": 1.374,
+            "sharpe_rf4": 1.22,
+            "max_dd": 0.15017,
+            "avg_monthly_turnover": 0.1774,
+            "avg_exposure": 0.7051,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.10695,
+              "2023": 1.03974,
+              "2024": 0.37478,
+              "2025": -0.03566,
+              "2026": 0.02432
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.25168,
+            "ann_vol": 0.18185,
+            "sharpe_rf0": 1.333,
+            "sharpe_rf4": 1.179,
+            "max_dd": 0.15104,
+            "avg_monthly_turnover": 0.1774,
+            "avg_exposure": 0.7051,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.09979,
+              "2023": 1.02468,
+              "2024": 0.36721,
+              "2025": -0.04425,
+              "2026": 0.01713
+            }
+          }
+        },
+        "M2": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.25516,
+            "ann_vol": 0.15309,
+            "sharpe_rf0": 1.57,
+            "sharpe_rf4": 1.451,
+            "max_dd": 0.06922,
+            "avg_monthly_turnover": 0.1643,
+            "avg_exposure": 0.509,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.08074,
+              "2023": 0.86734,
+              "2024": 0.38239,
+              "2025": 0.05029,
+              "2026": 0.02368
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.2467,
+            "ann_vol": 0.153,
+            "sharpe_rf0": 1.526,
+            "sharpe_rf4": 1.406,
+            "max_dd": 0.07114,
+            "avg_monthly_turnover": 0.1643,
+            "avg_exposure": 0.509,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.07273,
+              "2023": 0.85277,
+              "2024": 0.37478,
+              "2025": 0.04165,
+              "2026": 0.01995
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.23828,
+            "ann_vol": 0.15291,
+            "sharpe_rf0": 1.481,
+            "sharpe_rf4": 1.361,
+            "max_dd": 0.07307,
+            "avg_monthly_turnover": 0.1643,
+            "avg_exposure": 0.509,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.06478,
+              "2023": 0.8383,
+              "2024": 0.36721,
+              "2025": 0.03306,
+              "2026": 0.01622
+            }
+          }
+        },
+        "EW_M0": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.23637,
+            "ann_vol": 0.18605,
+            "sharpe_rf0": 1.241,
+            "sharpe_rf4": 1.026,
+            "max_dd": 0.22276,
+            "avg_monthly_turnover": 0.035,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.15248,
+              "2023": 0.70485,
+              "2024": 0.38271,
+              "2025": 0.01932,
+              "2026": 0.00698
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.23458,
+            "ann_vol": 0.18605,
+            "sharpe_rf0": 1.233,
+            "sharpe_rf4": 1.018,
+            "max_dd": 0.22327,
+            "avg_monthly_turnover": 0.035,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.15069,
+              "2023": 0.70256,
+              "2024": 0.38057,
+              "2025": 0.01794,
+              "2026": 0.00578
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.23279,
+            "ann_vol": 0.18606,
+            "sharpe_rf0": 1.225,
+            "sharpe_rf4": 1.01,
+            "max_dd": 0.22377,
+            "avg_monthly_turnover": 0.035,
+            "avg_exposure": 1.0,
+            "pct_positive_years": 100.0,
+            "positive_years": 5,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.14891,
+              "2023": 0.70027,
+              "2024": 0.37842,
+              "2025": 0.01656,
+              "2026": 0.00457
+            }
+          }
+        },
+        "EW_M1": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.1932,
+            "ann_vol": 0.15657,
+            "sharpe_rf0": 1.212,
+            "sharpe_rf4": 0.991,
+            "max_dd": 0.18431,
+            "avg_monthly_turnover": 0.0476,
+            "avg_exposure": 0.8643,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.11892,
+              "2023": 0.70426,
+              "2024": 0.3102,
+              "2025": -0.00935,
+              "2026": -0.05119
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.19084,
+            "ann_vol": 0.15659,
+            "sharpe_rf0": 1.2,
+            "sharpe_rf4": 0.979,
+            "max_dd": 0.18509,
+            "avg_monthly_turnover": 0.0476,
+            "avg_exposure": 0.8643,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.11689,
+              "2023": 0.70194,
+              "2024": 0.30711,
+              "2025": -0.01138,
+              "2026": -0.05304
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.18849,
+            "ann_vol": 0.15661,
+            "sharpe_rf0": 1.187,
+            "sharpe_rf4": 0.966,
+            "max_dd": 0.18588,
+            "avg_monthly_turnover": 0.0476,
+            "avg_exposure": 0.8643,
+            "pct_positive_years": 60.0,
+            "positive_years": 3,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.11487,
+              "2023": 0.69962,
+              "2024": 0.30403,
+              "2025": -0.01341,
+              "2026": -0.05489
+            }
+          }
+        },
+        "EW_M2": {
+          "gross": {
+            "n_months": 58,
+            "cagr": 0.18087,
+            "ann_vol": 0.12347,
+            "sharpe_rf0": 1.415,
+            "sharpe_rf4": 1.226,
+            "max_dd": 0.0752,
+            "avg_monthly_turnover": 0.0908,
+            "avg_exposure": 0.6221,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.07964,
+              "2023": 0.56201,
+              "2024": 0.3102,
+              "2025": 0.06284,
+              "2026": -0.04895
+            }
+          },
+          "net_1x": {
+            "n_months": 58,
+            "cagr": 0.17644,
+            "ann_vol": 0.12339,
+            "sharpe_rf0": 1.385,
+            "sharpe_rf4": 1.196,
+            "max_dd": 0.07548,
+            "avg_monthly_turnover": 0.0908,
+            "avg_exposure": 0.6221,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.07346,
+              "2023": 0.55513,
+              "2024": 0.30711,
+              "2025": 0.05893,
+              "2026": -0.05081
+            }
+          },
+          "net_2x": {
+            "n_months": 58,
+            "cagr": 0.17202,
+            "ann_vol": 0.12334,
+            "sharpe_rf0": 1.354,
+            "sharpe_rf4": 1.165,
+            "max_dd": 0.07575,
+            "avg_monthly_turnover": 0.0908,
+            "avg_exposure": 0.6221,
+            "pct_positive_years": 80.0,
+            "positive_years": 4,
+            "total_years": 5,
+            "yearly_returns": {
+              "2022": 0.06731,
+              "2023": 0.54826,
+              "2024": 0.30403,
+              "2025": 0.05503,
+              "2026": -0.05266
+            }
+          }
+        },
+        "BENCH": {
+          "n_months": 58,
+          "cagr": 0.0617,
+          "ann_vol": 0.12966,
+          "sharpe_rf0": 0.526,
+          "sharpe_rf4": 0.218,
+          "max_dd": 0.14367,
+          "avg_monthly_turnover": 0.0,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.04282,
+            "2023": 0.19833,
+            "2024": 0.0879,
+            "2025": 0.10727,
+            "2026": -0.11275
+          }
+        }
+      }
+    },
+    "stage2_graduation": {
+      "verdict": "PASS",
+      "candidates": {
+        "M1": {
+          "matched_control": "EW_M1",
+          "passed": true,
+          "checks": {
+            "c1_sharpe_1x_ge_050_and_2x_ge_040": true,
+            "c2_matched_excess_dev_and_holdout": true,
+            "c3_beats_spy_sharpe_or_dd_5pp": true,
+            "c4_pos_years_ge_60pct_and_concentration": true,
+            "c5_max_dd_le_25pct": true
+          },
+          "dev_excess_cagr_1x": 0.04347,
+          "dev_excess_cagr_2x": 0.03518,
+          "ho_excess_cagr_1x": 0.07004,
+          "ho_excess_cagr_2x": 0.06319,
+          "concentration": {
+            "best_year_dropped": 2023,
+            "excess_cagr_without_best_year": 0.02728,
+            "survives_drop_best_year": true,
+            "top_stock_dropped": "JWL.NS",
+            "top_stock_total_contrib": 0.08,
+            "excess_cagr_without_top_stock": 0.05658,
+            "survives_drop_top_stock": true
+          }
+        },
+        "M2": {
+          "matched_control": "EW_M2",
+          "passed": true,
+          "checks": {
+            "c1_sharpe_1x_ge_050_and_2x_ge_040": true,
+            "c2_matched_excess_dev_and_holdout": true,
+            "c3_beats_spy_sharpe_or_dd_5pp": true,
+            "c4_pos_years_ge_60pct_and_concentration": true,
+            "c5_max_dd_le_25pct": true
+          },
+          "dev_excess_cagr_1x": 0.05821,
+          "dev_excess_cagr_2x": 0.05238,
+          "ho_excess_cagr_1x": 0.07026,
+          "ho_excess_cagr_2x": 0.06626,
+          "concentration": {
+            "best_year_dropped": 2023,
+            "excess_cagr_without_best_year": 0.03044,
+            "survives_drop_best_year": true,
+            "top_stock_dropped": "GVT&D.NS",
+            "top_stock_total_contrib": 0.07763,
+            "excess_cagr_without_top_stock": 0.05507,
+            "survives_drop_top_stock": true
+          }
+        }
+      }
+    },
+    "holdout_quintiles": {
+      "Q1": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.13206,
+          "ann_vol": 0.19983,
+          "sharpe_rf0": 0.721,
+          "sharpe_rf4": 0.52,
+          "max_dd": 0.24863,
+          "avg_monthly_turnover": 0.2533,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.04937,
+            "2023": 0.54553,
+            "2024": 0.25315,
+            "2025": 0.03163,
+            "2026": -0.13137
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.12018,
+          "ann_vol": 0.1998,
+          "sharpe_rf0": 0.667,
+          "sharpe_rf4": 0.467,
+          "max_dd": 0.25526,
+          "avg_monthly_turnover": 0.2533,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.03706,
+            "2023": 0.53164,
+            "2024": 0.24126,
+            "2025": 0.02003,
+            "2026": -0.13943
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.10841,
+          "ann_vol": 0.19978,
+          "sharpe_rf0": 0.614,
+          "sharpe_rf4": 0.414,
+          "max_dd": 0.26183,
+          "avg_monthly_turnover": 0.2533,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.02488,
+            "2023": 0.51787,
+            "2024": 0.22948,
+            "2025": 0.00856,
+            "2026": -0.14743
+          }
+        }
+      },
+      "Q2": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.18472,
+          "ann_vol": 0.17661,
+          "sharpe_rf0": 1.051,
+          "sharpe_rf4": 0.825,
+          "max_dd": 0.19793,
+          "avg_monthly_turnover": 0.4639,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.24146,
+            "2023": 0.48376,
+            "2024": 0.16253,
+            "2025": 0.11297,
+            "2026": -0.048
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.16219,
+          "ann_vol": 0.17632,
+          "sharpe_rf0": 0.942,
+          "sharpe_rf4": 0.716,
+          "max_dd": 0.20425,
+          "avg_monthly_turnover": 0.4639,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.21536,
+            "2023": 0.45822,
+            "2024": 0.14281,
+            "2025": 0.09029,
+            "2026": -0.0636
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.14005,
+          "ann_vol": 0.17603,
+          "sharpe_rf0": 0.833,
+          "sharpe_rf4": 0.606,
+          "max_dd": 0.21205,
+          "avg_monthly_turnover": 0.4639,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.18976,
+            "2023": 0.43309,
+            "2024": 0.12341,
+            "2025": 0.06803,
+            "2026": -0.07898
+          }
+        }
+      },
+      "Q3": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.22887,
+          "ann_vol": 0.17685,
+          "sharpe_rf0": 1.261,
+          "sharpe_rf4": 1.035,
+          "max_dd": 0.19505,
+          "avg_monthly_turnover": 0.5011,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.16034,
+            "2023": 0.59553,
+            "2024": 0.45841,
+            "2025": -0.06725,
+            "2026": 0.07519
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.20364,
+          "ann_vol": 0.17693,
+          "sharpe_rf0": 1.142,
+          "sharpe_rf4": 0.916,
+          "max_dd": 0.21245,
+          "avg_monthly_turnover": 0.5011,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.1364,
+            "2023": 0.56313,
+            "2024": 0.43217,
+            "2025": -0.088,
+            "2026": 0.05574
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.17888,
+          "ann_vol": 0.17701,
+          "sharpe_rf0": 1.022,
+          "sharpe_rf4": 0.796,
+          "max_dd": 0.23935,
+          "avg_monthly_turnover": 0.5011,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.11291,
+            "2023": 0.53133,
+            "2024": 0.40636,
+            "2025": -0.10834,
+            "2026": 0.03661
+          }
+        }
+      },
+      "Q4": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.23956,
+          "ann_vol": 0.1867,
+          "sharpe_rf0": 1.252,
+          "sharpe_rf4": 1.038,
+          "max_dd": 0.28452,
+          "avg_monthly_turnover": 0.4446,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.14652,
+            "2023": 0.73329,
+            "2024": 0.35799,
+            "2025": -0.00413,
+            "2026": 0.05061
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.21699,
+          "ann_vol": 0.1867,
+          "sharpe_rf0": 1.152,
+          "sharpe_rf4": 0.938,
+          "max_dd": 0.2903,
+          "avg_monthly_turnover": 0.4446,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.12576,
+            "2023": 0.70249,
+            "2024": 0.33642,
+            "2025": -0.0245,
+            "2026": 0.03398
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.19479,
+          "ann_vol": 0.18671,
+          "sharpe_rf0": 1.052,
+          "sharpe_rf4": 0.838,
+          "max_dd": 0.29604,
+          "avg_monthly_turnover": 0.4446,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.10534,
+            "2023": 0.67218,
+            "2024": 0.31516,
+            "2025": -0.04447,
+            "2026": 0.01759
+          }
+        }
+      },
+      "Q5": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.39846,
+          "ann_vol": 0.2573,
+          "sharpe_rf0": 1.445,
+          "sharpe_rf4": 1.29,
+          "max_dd": 0.25303,
+          "avg_monthly_turnover": 0.2275,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 5,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.16471,
+            "2023": 1.24901,
+            "2024": 0.73185,
+            "2025": 0.01246,
+            "2026": 0.10123
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.3855,
+          "ann_vol": 0.25727,
+          "sharpe_rf0": 1.408,
+          "sharpe_rf4": 1.253,
+          "max_dd": 0.25434,
+          "avg_monthly_turnover": 0.2275,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 5,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.15361,
+            "2023": 1.23004,
+            "2024": 0.71876,
+            "2025": 0.00098,
+            "2026": 0.0925
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.37265,
+          "ann_vol": 0.25724,
+          "sharpe_rf0": 1.371,
+          "sharpe_rf4": 1.216,
+          "max_dd": 0.25565,
+          "avg_monthly_turnover": 0.2275,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 80.0,
+          "positive_years": 4,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.14259,
+            "2023": 1.21122,
+            "2024": 0.70576,
+            "2025": -0.01038,
+            "2026": 0.08383
+          }
+        }
+      },
+      "EW_M0": {
+        "gross": {
+          "n_months": 58,
+          "cagr": 0.23637,
+          "ann_vol": 0.18605,
+          "sharpe_rf0": 1.241,
+          "sharpe_rf4": 1.026,
+          "max_dd": 0.22276,
+          "avg_monthly_turnover": 0.035,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 5,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.15248,
+            "2023": 0.70485,
+            "2024": 0.38271,
+            "2025": 0.01932,
+            "2026": 0.00698
+          }
+        },
+        "net_1x": {
+          "n_months": 58,
+          "cagr": 0.23458,
+          "ann_vol": 0.18605,
+          "sharpe_rf0": 1.233,
+          "sharpe_rf4": 1.018,
+          "max_dd": 0.22327,
+          "avg_monthly_turnover": 0.035,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 5,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.15069,
+            "2023": 0.70256,
+            "2024": 0.38057,
+            "2025": 0.01794,
+            "2026": 0.00578
+          }
+        },
+        "net_2x": {
+          "n_months": 58,
+          "cagr": 0.23279,
+          "ann_vol": 0.18606,
+          "sharpe_rf0": 1.225,
+          "sharpe_rf4": 1.01,
+          "max_dd": 0.22377,
+          "avg_monthly_turnover": 0.035,
+          "avg_exposure": 1.0,
+          "pct_positive_years": 100.0,
+          "positive_years": 5,
+          "total_years": 5,
+          "yearly_returns": {
+            "2022": 0.14891,
+            "2023": 0.70027,
+            "2024": 0.37842,
+            "2025": 0.01656,
+            "2026": 0.00457
+          }
+        }
+      },
+      "BENCH": {
+        "n_months": 58,
+        "cagr": 0.0617,
+        "ann_vol": 0.12966,
+        "sharpe_rf0": 0.526,
+        "sharpe_rf4": 0.218,
+        "max_dd": 0.14367,
+        "avg_monthly_turnover": 0.0,
+        "avg_exposure": 1.0,
+        "pct_positive_years": 80.0,
+        "positive_years": 4,
+        "total_years": 5,
+        "yearly_returns": {
+          "2022": 0.04282,
+          "2023": 0.19833,
+          "2024": 0.0879,
+          "2025": 0.10727,
+          "2026": -0.11275
+        }
+      }
+    }
+  },
+  "overall_verdict": "FAIL"
+}
