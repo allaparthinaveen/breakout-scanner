@@ -22,12 +22,17 @@ def format_price(val: Optional[float]) -> str:
 
 def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = False) -> str:
     """
-    Formats a single active setup into a streamlined, high-signal Telegram line:
-    • SYMBOL | DIR [ACTION] | CP | Entry | Stop | Risk | [HTF] | Grade | [Status (2B)] | Targets
+    Formats a single breakout candidate into a Telegram line for manual review:
+    • SYMBOL | DIR [ACTION] | CP | Entry | Stop | Risk | [HTF] | [Status (2B)] | Targets
     """
     sym = html.escape(s.symbol)
     tag = "🔄 RETEST" if s.retest_confirmed else "🚀 BREAKOUT"
-    dir_arrow = "▲ BUY" if s.direction == 1 else "▼ SELL"
+    if s.direction == 1:
+        dir_arrow = "▲ BUY"
+    elif s.direction == -1:
+        dir_arrow = "▼ SELL"
+    else:
+        dir_arrow = "• WATCH"
     dir_str = f"{dir_arrow} [{tag}]"
 
     cp_val = f"{s.current_price:.5g}" if s.current_price is not None else (f"{s.entry:.5g}" if s.entry is not None else "N/A")
@@ -58,8 +63,6 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
     else:
         htf = ""
 
-    grade_badge = f"🏆 {s.composite_grade} [{s.composite_score}]" if s.composite_grade else ""
-
     targets = f"TP1: {s.tp1:.5g} | TP2: {s.tp2:.5g}" if (s.tp1 is not None and s.tp2 is not None) else ""
 
     parts = [
@@ -73,8 +76,6 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
         parts.append(risk_val)
     if htf:
         parts.append(htf)
-    if grade_badge:
-        parts.append(grade_badge)
     if getattr(s, "earnings_unverified", False):
         parts.append("⚠️ EARNINGS UNVERIFIED — check broker calendar")
     if getattr(s, "provisional_data_incomplete", False):
@@ -82,9 +83,9 @@ def format_setup_telegram_line(s: Setup, is_fresh: bool, risk_blocked: bool = Fa
 
     if is_fresh:
         if getattr(s, "is_next_session_candidate", False):
-            parts.append("🌅 [NEXT-SESSION CANDIDATE — MARKET CLOSED]")
+            parts.append("🌅 [NEXT-SESSION CANDIDATE — MANUAL REVIEW]")
         else:
-            parts.append("🟢 [ENTER NOW]")
+            parts.append("🟢 [BREAKOUT CANDIDATE — MANUAL REVIEW]")
 
     if not is_fresh:
         pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
@@ -125,17 +126,22 @@ def format_scan_report_html(
     exit_events: Optional[List[Any]] = None,
     scan_stats: Optional[Any] = None,
     open_positions: Optional[List[Any]] = None,
+    allow_shorts: bool = True,
 ) -> str:
     """
-    Full multi-symbol market scan report formatted for Telegram.
-    Strictly includes only actionable trades (Section 2A and Section 2B).
+    Full multi-symbol market scan report formatted for Telegram (paper / manual review).
+    Strictly includes only actionable candidates (Section 2A and Section 2B).
     Section 2A ONLY admits setups that are risk-approved and confirmed (P0-1 & P0-2).
     Section 2C reports explicit trade exits and management events (P1-3).
     Excludes Section 1 (VCP Bases) to eliminate non-trade noise.
     Enriched with timezone-aware scan timestamp (Market Local + IST/UTC).
     """
     market_upper = market.upper() if market and market.upper() not in ("DEFAULT", "NONE") else None
-    title = f"📡 <b>{market_upper} MARKET SIGNALS</b>" if market_upper else "📡 <b>MARKET SCANNER SIGNALS</b>"
+    title = (
+        f"📡 <b>{market_upper} BREAKOUT CANDIDATES (MANUAL REVIEW)</b>"
+        if market_upper
+        else "📡 <b>BREAKOUT CANDIDATES (MANUAL REVIEW)</b>"
+    )
 
     ts_utc = timestamp or datetime.now(timezone.utc)
     if ts_utc.tzinfo is None:
@@ -189,6 +195,7 @@ def format_scan_report_html(
     lines.extend([
         title,
         time_line,
+        "<i>Paper / manual review only — no demonstrated statistical edge</i>",
         "━━━━━━━━━━━━━━━━━━━━",
     ])
 
@@ -197,7 +204,13 @@ def format_scan_report_html(
         lines.append(f"⚠️ <b>DATA DEGRADED:</b> {prov_count}/{len(setups)} symbol(s) evaluated on provisional technicals.")
         lines.append("━━━━━━━━━━━━━━━━━━━━")
 
-    active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
+    if allow_shorts:
+        active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
+    else:
+        active_setups = [
+            s for s in setups
+            if s.state == State.BUY and s.direction == 1 and s.entry is not None
+        ]
 
     # Approved and rejected symbols from institutional ActionableSlate / TradeSlate
     approved_symbols = set()
@@ -277,19 +290,32 @@ def format_scan_report_html(
         for pos_sym, pos_dict in open_sym_map.items():
             if pos_sym in fresh_syms:
                 continue
+            pos_dir = int(pos_dict.get("direction", 1) or 1)
+            pos_entry = pos_dict.get("modeled_fill") or pos_dict.get("entry_price")
+            if not allow_shorts and (pos_dir != 1 or pos_entry is None):
+                continue
             s_obj = setup_dict.get(pos_sym)
-            if s_obj is not None:
+            # Only use live setup object directly when it still carries valid active
+            # direction & entry matching the position; otherwise synthesize from the
+            # persisted position so an IDLE/CONTRACTION setup never renders "SELL, Entry N/A".
+            if (
+                s_obj is not None
+                and s_obj.direction == pos_dir
+                and s_obj.entry is not None
+                and s_obj.state in (State.BUY, State.SELL)
+            ):
                 if pos_dict.get("status") == "TP1_HIT" or pos_dict.get("tp1_hit"):
                     s_obj.tp1_hit = True
                 progress_setups.append((s_obj, False))
             else:
                 s_synth = Setup(symbol=pos_sym)
-                s_synth.direction = pos_dict.get("direction", 1)
-                s_synth.entry = pos_dict.get("modeled_fill") or pos_dict.get("entry_price")
+                s_synth.direction = pos_dir
+                s_synth.entry = pos_entry
                 s_synth.stop = pos_dict.get("stop_loss") or pos_dict.get("stop")
                 s_synth.tp1 = pos_dict.get("take_profit_1")
                 s_synth.tp2 = pos_dict.get("take_profit_2")
-                s_synth.current_price = pos_dict.get("current_price") or s_synth.entry
+                live_cp = getattr(s_obj, "current_price", None) if s_obj is not None else None
+                s_synth.current_price = live_cp or pos_dict.get("current_price") or s_synth.entry
                 s_synth.pnl_pct = pos_dict.get("pnl_pct", 0.0)
                 s_synth.composite_score = pos_dict.get("score")
                 s_synth.composite_grade = pos_dict.get("grade")
@@ -416,10 +442,11 @@ def format_instant_alert_html(setup: Setup, timeframe: str = "1H", allocation: O
 
     lines = [
         headline,
+        "<i>Breakout candidate (manual review) — paper only</i>",
         "━━━━━━━━━━━━━━━━━━━━",
         f"💎 <b>{setup.symbol}</b>  •  {dir_emoji} <b>{dir_badge} [{action_type}]</b>",
         f"• <b>Entry:</b> <code>{entry_str}</code> | <b>Stop:</b> <code>{stop_str}</code> | <b>Risk:</b> <code>{risk_str}</code>",
-        f"• <b>Grade:</b> <code>{grade_str}</code>" + ("  •  ⭐ <b>1D Macro</b>" if setup.htf_confirmed else ""),
+        f"• <b>Checklist Ref (non-predictive):</b> <code>{grade_str}</code>" + ("  •  ⭐ <b>1D Macro</b>" if setup.htf_confirmed else ""),
         f"• <b>Triggered:</b> <i>Just now ({timeframe} candle close)</i>",
         f"• <b>Current Price:</b> <code>{cp_str}</code>",
     ]
@@ -432,22 +459,22 @@ def format_instant_alert_html(setup: Setup, timeframe: str = "1H", allocation: O
     if setup.tp1 is not None and setup.tp2 is not None:
         lines.append(f"• <b>Targets:</b> TP1: <code>{format_price(setup.tp1)}</code> | TP2: <code>{format_price(setup.tp2)}</code>")
 
-    # Quant indicators
-    edge_bullets = []
+    # Technical context (descriptive only)
+    context_bullets = []
     if setup.rvol is not None:
-        edge_bullets.append(f"<code>Vol: {setup.rvol:.1f}x RVOL</code> 🔥")
+        context_bullets.append(f"<code>Vol: {setup.rvol:.1f}x RVOL</code>")
     if setup.sector_name:
         trend = f" {setup.rs_trend}" if setup.rs_trend else ""
         rs_pct = f" RS: {setup.sector_rs_pct:+.1f}%" if setup.sector_rs_pct is not None else ""
-        edge_bullets.append(f"<code>{setup.sector_name}{rs_pct}{trend}</code>")
+        context_bullets.append(f"<code>{setup.sector_name}{rs_pct}{trend}</code>")
 
-    if edge_bullets:
-        lines.append("• <b>Edge:</b> " + " | ".join(edge_bullets))
+    if context_bullets:
+        lines.append("• <b>Context:</b> " + " | ".join(context_bullets))
 
     if getattr(setup, "is_next_session_candidate", False):
-        lines.append("• <b>Status:</b> 🌅 <b>[NEXT-SESSION CANDIDATE — EXECUTE AT NEXT OPEN]</b>")
+        lines.append("• <b>Status:</b> 🌅 <b>[NEXT-SESSION CANDIDATE — MANUAL REVIEW]</b>")
     else:
-        lines.append("• <b>Status:</b> 🟢 <b>[ENTER NOW — FRESH]</b>")
+        lines.append("• <b>Status:</b> 🟢 <b>[BREAKOUT CANDIDATE — MANUAL REVIEW]</b>")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
 
     return "\n".join(lines)
@@ -481,13 +508,12 @@ def format_daily_briefing_html(
             dir_str = "BUY" if s.direction == 1 else "SELL"
             pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
             pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
-            status = "🟢 <b>[ENTER NOW]</b>" if s.is_fresh_entry else (
+            status = "🟢 <b>[BREAKOUT CANDIDATE — MANUAL REVIEW]</b>" if s.is_fresh_entry else (
                 f"🛑 <b>[TP1 HIT: {pnl_val}]</b>" if s.is_tp1_reached else f"⚠️ <b>[EXTENDED: {pnl_val}]</b>"
             )
             vol_str = f" | Vol: <code>{s.rvol:.1f}x</code>" if s.rvol is not None else ""
-            grade = f" | 🏆 <b>{s.composite_grade} [{s.composite_score}]</b>" if s.composite_grade else ""
             card = (
-                f"🎯 <b>{s.symbol}</b>  {dir_emoji} <b>{dir_str}</b>{grade}\n"
+                f"🎯 <b>{s.symbol}</b>  {dir_emoji} <b>{dir_str}</b>\n"
                 f"• <b>Price:</b> <code>{format_price(s.current_price)}</code> | <b>In:</b> <code>{format_price(s.entry)}</code> | <b>SL:</b> <code>{format_price(s.stop)}</code>{vol_str}\n"
                 f"• <b>Status:</b> {status}\n"
             )
@@ -504,12 +530,11 @@ def format_daily_briefing_html(
             dir_str = "BUY" if s.direction == 1 else "SELL"
             pnl_sign = "+" if (s.pnl_pct and s.pnl_pct >= 0) else ""
             pnl_val = f"{pnl_sign}{s.pnl_pct:.1f}%" if s.pnl_pct is not None else ""
-            status = "🟢 <b>[ENTER NOW]</b>" if s.is_fresh_entry else (
+            status = "🟢 <b>[BREAKOUT CANDIDATE — MANUAL REVIEW]</b>" if s.is_fresh_entry else (
                 f"🛑 <b>[TP1 HIT: {pnl_val}]</b>" if s.is_tp1_reached else f"⚠️ <b>[EXTENDED: {pnl_val}]</b>"
             )
-            grade = f" | 🏆 <b>{s.composite_grade} [{s.composite_score}]</b>" if s.composite_grade else ""
             card = (
-                f"🔄 <b>{s.symbol}</b>  {dir_emoji} <b>{dir_str} [RETEST]</b>{grade}\n"
+                f"🔄 <b>{s.symbol}</b>  {dir_emoji} <b>{dir_str} [RETEST]</b>\n"
                 f"• <b>Price:</b> <code>{format_price(s.current_price)}</code> | <b>In:</b> <code>{format_price(s.entry)}</code> | <b>SL:</b> <code>{format_price(s.stop)}</code>\n"
                 f"• <b>Status:</b> {status}\n"
             )
@@ -526,11 +551,10 @@ def format_daily_briefing_html(
             coil_str = f" | 🗜️ <code>{s.decay_ratio:.1f}x</code>" if (s.decay_ratio is not None and s.tightening_confirmed) else ""
             vdu_str = f" | 💧 <code>{s.vdu_ratio:.1f}x</code>" if s.vdu_confirmed else ""
             htf_str = " | ⭐ 1D" if s.htf_confirmed else ""
-            grade_str = f" | 🏆 <b>{s.composite_grade} [{s.composite_score}]</b>" if s.composite_grade else ""
             res_str = format_price(s.resistance)
             sup_str = format_price(s.support)
             lines.append(
-                f"• <b>{s.symbol:8}</b> | {w_str}{coil_str}{vdu_str}{htf_str}{grade_str}\n"
+                f"• <b>{s.symbol:8}</b> | {w_str}{coil_str}{vdu_str}{htf_str}\n"
                 f"  <i>Range:</i> <code>{sup_str} – {res_str}</code>"
             )
     else:
@@ -586,7 +610,6 @@ def format_actionable_slate_html(slate: Any) -> str:
             shares_str = f"{t.shares:,} shares" if t.shares > 0 else "N/A"
             pos_val = f"${t.position_value:,.0f}" if t.position_value > 0 else "N/A"
             risk_val = f"${t.dollar_risk:,.0f}" if t.dollar_risk > 0 else "N/A"
-            grade_str = f"🏆 {t.grade} [{t.score}]" if t.grade else f"[{t.score}]"
 
             tp_str = ""
             if t.take_profit_1 > 0 and t.take_profit_2 > 0:
@@ -594,7 +617,7 @@ def format_actionable_slate_html(slate: Any) -> str:
 
             lines.append(
                 f"• <b>{sym}</b> {dir_arrow} | <b>In:</b> <code>{format_price(t.entry_price)}</code> | <b>SL:</b> <code>{format_price(t.stop_loss)}</code>\n"
-                f"  <i>Size:</i> <code>{shares_str} ({pos_val})</code> | <i>Risk:</i> <code>{risk_val}</code> | {grade_str}{tp_str}"
+                f"  <i>Size:</i> <code>{shares_str} ({pos_val})</code> | <i>Risk:</i> <code>{risk_val}</code>{tp_str}"
             )
 
     suppressed = getattr(slate, "suppressed_trades", [])
