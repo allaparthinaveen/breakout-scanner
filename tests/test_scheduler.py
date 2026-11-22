@@ -65,7 +65,7 @@ def test_format_instant_alert_buy():
     assert "Entry:" in alert_text and "1.2815" in alert_text
     assert "Stop:" in alert_text and "1.2650" in alert_text
     assert "Risk:" in alert_text and "1.2%" in alert_text
-    assert "Grade:" in alert_text and "B [79]" in alert_text
+    assert "Checklist Ref (non-predictive):" in alert_text and "B [79]" in alert_text
     assert "Triggered:" in alert_text and "(1H candle close)" in alert_text
     assert "▲ BUY [BREAKOUT]" in alert_text
     assert "Targets:" in alert_text and "TP1:" in alert_text and "1.3012" in alert_text

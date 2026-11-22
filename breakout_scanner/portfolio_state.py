@@ -97,6 +97,7 @@ class PortfolioStateManager:
                 self.circuit_breaker_reason = data.get("circuit_breaker_reason")
 
             self.unrealized_daily_pnl = sum(float(p.get("unrealized_pnl", 0.0)) for p in self.active_positions.values())
+            self._normalize_legacy_positions()
         except Exception as e:
             logger.error(f"⚠️ Failed to parse portfolio state file {self.state_file}: {e}. Initializing fresh state.")
             self.date_str = today_str
@@ -136,9 +137,52 @@ class PortfolioStateManager:
         except Exception as e:
             logger.error(f"❌ Failed to save persistent portfolio state: {e}")
 
+    @staticmethod
+    def _is_legacy_position(pos: Dict[str, Any]) -> bool:
+        """
+        A position is marked legacy=True if explicitly flagged or if it lacks
+        a valid pivot level or signal_bar_ts (pre-unification persisted records).
+        """
+        if pos.get("legacy") is True:
+            return True
+        pivot = pos.get("pivot")
+        has_valid_pivot = pivot is not None and float(pivot) > 0
+        has_signal_bar_ts = bool(pos.get("signal_bar_ts"))
+        return not (has_valid_pivot and has_signal_bar_ts)
+
+    def _normalize_legacy_positions(self) -> None:
+        """Flag legacy positions lacking pivot or signal_bar_ts across active & closed stores."""
+        for pos in self.active_positions.values():
+            pos["legacy"] = self._is_legacy_position(pos)
+        for pos in self.closed_positions_today:
+            pos["legacy"] = self._is_legacy_position(pos)
+
     def get_open_positions(self) -> List[Dict[str, Any]]:
         """Returns open positions formatted for DailyRiskBudgetEngine consumption."""
         return list(self.active_positions.values())
+
+    def get_r_stats(self) -> Dict[str, Any]:
+        """
+        Compute realized R statistics over closed positions, strictly excluding
+        legacy=True positions that lack pivot/signal_bar_ts provenance.
+        """
+        self._normalize_legacy_positions()
+        valid_r: List[float] = []
+        legacy_excluded = 0
+        for pos in self.closed_positions_today:
+            if pos.get("legacy") is True:
+                legacy_excluded += 1
+                continue
+            r_val = pos.get("realized_r")
+            if r_val is not None:
+                valid_r.append(float(r_val))
+        count = len(valid_r)
+        return {
+            "count": count,
+            "avg_r": round(sum(valid_r) / count, 3) if count > 0 else 0.0,
+            "total_r": round(sum(valid_r), 3),
+            "legacy_excluded_count": legacy_excluded,
+        }
 
     def record_entry(
         self,
@@ -165,10 +209,18 @@ class PortfolioStateManager:
             calc_pivot = alloc.entry_price
 
         calc_sig_id = signal_id or getattr(setup_obj, "signal_id", None) or f"{sym}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        opened_at_iso = datetime.now(timezone.utc).isoformat()
+        sig_bar_ts = (
+            getattr(setup_obj, "breakout_time", None)
+            or getattr(setup_obj, "retest_time", None)
+            or opened_at_iso
+        )
 
         pos_dict = {
             "position_id": f"pos_{sym}_{calc_sig_id}",
             "signal_id": calc_sig_id,
+            "signal_bar_ts": str(sig_bar_ts),
+            "legacy": False,
             "symbol": sym,
             "direction": alloc.direction,
             "pivot": float(calc_pivot),
@@ -188,7 +240,7 @@ class PortfolioStateManager:
             "sector": alloc.sector or "Broad Market",
             "score": alloc.score,
             "grade": alloc.grade,
-            "opened_at": datetime.now(timezone.utc).isoformat(),
+            "opened_at": opened_at_iso,
             "current_price": alloc.entry_price,
             "unrealized_pnl": 0.0,
             "realized_pnl": 0.0,
@@ -248,6 +300,15 @@ class PortfolioStateManager:
             if pos.get("status") == "CLOSED" or pos.get("exit_reason") is not None:
                 continue
 
+            pos["legacy"] = self._is_legacy_position(pos)
+            pos_cfg = cfg
+            if pos["legacy"]:
+                base_cfg = dict(cfg) if isinstance(cfg, dict) else {}
+                mgmt_cfg = dict(base_cfg.get("management", {}))
+                mgmt_cfg["use_failed_breakout_exit"] = False
+                base_cfg["management"] = mgmt_cfg
+                pos_cfg = base_cfg
+
             bars_to_eval = []
             df = None
             if symbol_dfs and sym in symbol_dfs:
@@ -293,7 +354,7 @@ class PortfolioStateManager:
                 continue
 
             for bar in bars_to_eval:
-                emitted = evaluate_position_bar(pos, bar, cfg=cfg)
+                emitted = evaluate_position_bar(pos, bar, cfg=pos_cfg)
                 for ev in emitted:
                     ev_type = ev.get("event_type", "EXIT")
                     if ev_type in ("STOP_LOSS", "BREAKEVEN_STOP", "FAILED_BREAKOUT", "TP2_EXIT", "TIME_EXIT", "TP1_SCALE"):

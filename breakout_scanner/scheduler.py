@@ -664,6 +664,7 @@ class SessionScheduler:
             elif not should_send_report:
                 self.logger.info(f"🤫 [QUIET] No actionable trades, in-progress trades, or fresh rejections for {market_label} mid-session. Suppressing empty Telegram report.")
             else:
+                allow_shorts = bool(self.cfg.get("breakout", {}).get("allow_shorts", True)) if isinstance(self.cfg, dict) else True
                 report_html = format_scan_report_html(
                     setups,
                     market=self.market_id,
@@ -672,6 +673,7 @@ class SessionScheduler:
                     exit_events=exit_events,
                     scan_stats=scan_stats,
                     open_positions=self.portfolio_state.get_open_positions(),
+                    allow_shorts=allow_shorts,
                 )
                 self.logger.info(f"🚨 DISPATCHING MARKET SCAN REPORT (2A + 2B) for {market_label}: {report_signature}")
                 self.logger.info("\n" + report_html)

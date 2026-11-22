@@ -205,10 +205,11 @@ def evaluate_setup_outcome_from_df(
             "events": [],
         }
 
+        is_legacy_record = bool(record.get("legacy", False))
         cfg_eval = {
             "management": {
                 "failed_breakout_max_bars": 3,
-                "use_failed_breakout_exit": True,
+                "use_failed_breakout_exit": (not is_legacy_record),
                 "max_hold_bars": max_hold_bars,
                 "breakeven_offset_pct": 0.0,
             }
@@ -396,6 +397,7 @@ def evaluate_setup_outcome_from_df(
         return {
             "status": "EVALUATED" if is_terminal else "IN_PROGRESS",
             "evaluated": is_terminal,
+            "legacy": is_legacy_record,
             "eval_timestamp": datetime.now(timezone.utc).isoformat(),
             "bars_elapsed": len(eval_window),
             "max_hold_bars": max_hold_bars,
@@ -595,10 +597,14 @@ def update_ledger_outcomes(
     late_chase_shadow_r = []
     late_chase_shadow_pullback_r = []
 
+    legacy_excluded_count = 0
     for rec in ledger_records:
         sig_id = rec.get("signal_id")
         out = evaluated_outcomes.get(sig_id)
         if out and out.get("hypothetical_r") is not None and out.get("status") in ("EVALUATED", "SUCCESS"):
+            if rec.get("legacy") is True or out.get("legacy") is True:
+                legacy_excluded_count += 1
+                continue
             r_val = out["hypothetical_r"]
             bucket = rec.get("bucket")
             status = rec.get("status")
@@ -632,6 +638,7 @@ def update_ledger_outcomes(
             "suppressed_count": len(suppressed_r),
             "rejected_count": len(rejected_r),
             "late_chase_shadow_count": len(late_chase_shadow_r),
+            "legacy_excluded_count": legacy_excluded_count,
         },
     }
 
