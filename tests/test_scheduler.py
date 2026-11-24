@@ -129,12 +129,12 @@ def test_format_scan_report_html():
     s_base = Setup(symbol="AAPL", state=State.CONTRACTION, bias_score=3, resistance=341.57, support=330.70, base_width_pct=3.2, decay_ratio=0.6, tightening_confirmed=True, composite_grade="A", composite_score=81)
 
     html = format_scan_report_html([s_fresh, s_progress, s_base])
-    assert "SECTION 2A: FRESH ACTIONABLE ENTRIES" in html
+    assert "FRESH ACTIONABLE ENTRIES" in html
     assert "MSFT" in html
-    assert "▲ BUY [🚀 BREAKOUT]" in html
-    assert "SECTION 2B: TRADES IN PROGRESS" in html
+    assert "<b>BUY</b> · Breakout" in html
+    assert "TRADES IN PROGRESS" in html
     assert "NVDA" in html
-    assert "▼ SELL [🚀 BREAKOUT]" in html
+    assert "<b>SELL</b> · Breakout" in html
     # Section 1 (VCP Bases) must be excluded from Telegram
     assert "SECTION 1" not in html
     assert "AAPL" not in html

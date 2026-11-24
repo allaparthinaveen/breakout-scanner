@@ -1,9 +1,335 @@
 import html
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict, Tuple
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import numpy as np
 from .models import Setup, State
+
+
+_REPORT_DIVIDER = "━━━━━━━━━━━━━━━━━━"
+
+
+def _fmt_money(val: Optional[float], curr_sym: str) -> str:
+    """Format a price with currency prefix without inventing values."""
+    if val is None:
+        return "N/A"
+    return f"{curr_sym}{format_price(val)}"
+
+
+def _fmt_signed_money(val: float, curr_sym: str) -> str:
+    """Format realized P&L with leading sign before currency symbol (e.g. -$150.00)."""
+    sign = "+" if val >= 0 else "-"
+    return f"{sign}{curr_sym}{abs(val):,.2f}"
+
+
+def _format_report_time(ts_utc: datetime, market_upper: Optional[str]) -> str:
+    if ts_utc.tzinfo is None:
+        ts_utc = ts_utc.replace(tzinfo=timezone.utc)
+
+    dt_ist = ts_utc.astimezone(ZoneInfo("Asia/Kolkata"))
+    dt_sgt = ts_utc.astimezone(ZoneInfo("Asia/Singapore"))
+    ist_str = dt_ist.strftime("%d/%m/%Y %I:%M %p IST")
+    sgt_str = dt_sgt.strftime("%I:%M %p SGT")
+
+    if market_upper == "US":
+        dt_mkt = ts_utc.astimezone(ZoneInfo("America/New_York"))
+        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
+        return f"{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')}"
+    if market_upper == "NSE":
+        return f"{ist_str} | {sgt_str}"
+    if market_upper == "CRYPTO":
+        utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
+        return f"{utc_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')}"
+    if market_upper in ("TSE", "TOKYO"):
+        dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Tokyo"))
+        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
+        return f"{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')}"
+    if market_upper in ("HKEX", "HK"):
+        dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Hong_Kong"))
+        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
+        return f"{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')}"
+    utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
+    return f"{ist_str} | {sgt_str} | {utc_str}"
+
+
+def _render_section_heading(title_html: str, subtitle: Optional[str] = None) -> str:
+    lines = [title_html]
+    if subtitle:
+        lines.append(f"<i>{html.escape(subtitle)}</i>")
+    return "\n".join(lines)
+
+
+def _render_scan_report_header(
+    market_upper: Optional[str],
+    timeframe: str,
+    time_display: str,
+    scanned_count: Optional[int],
+    fresh_count: int,
+    active_count: int,
+    exit_count: int,
+    incomplete_banner: Optional[str] = None,
+    prov_count: int = 0,
+    total_setups: int = 0,
+) -> str:
+    market_lbl = html.escape(market_upper) if market_upper else "ALL MARKETS"
+    tf_lbl = html.escape(str(timeframe)) if timeframe else "1H"
+    lines: List[str] = []
+    if incomplete_banner:
+        lines.append(incomplete_banner)
+        lines.append(_REPORT_DIVIDER)
+
+    lines.append("📊 <b>MARKET SCAN REPORT</b>")
+    lines.append(f"<b>Market:</b> {market_lbl}  ·  <b>Timeframe:</b> {tf_lbl} Close")
+    lines.append(f"<b>Time:</b> <i>{html.escape(time_display)}</i>")
+    lines.append("<i>Paper / manual review only — no demonstrated statistical edge</i>")
+
+    summary_parts: List[str] = []
+    if scanned_count is not None and scanned_count > 0:
+        summary_parts.append(f"Scanned <code>{scanned_count}</code>")
+    summary_parts.append(f"Fresh <code>{fresh_count}</code>")
+    summary_parts.append(f"Active <code>{active_count}</code>")
+    summary_parts.append(f"Exits <code>{exit_count}</code>")
+    lines.append("<b>Summary:</b> " + " · ".join(summary_parts))
+
+    if prov_count > 0:
+        lines.append(
+            f"⚠️ <b>DATA DEGRADED:</b> {prov_count}/{total_setups} symbol(s) evaluated on provisional technicals."
+        )
+
+    lines.append(_REPORT_DIVIDER)
+    return "\n".join(lines)
+
+
+def _render_fresh_entry_card(s: Setup, curr_sym: str) -> str:
+    """Render an indivisible mobile-first card for a Section 2A fresh candidate."""
+    sym = html.escape(str(s.symbol))
+    action = "Retest" if s.retest_confirmed else "Breakout"
+    if s.direction == 1:
+        dir_icon, dir_lbl = "🟢", "BUY"
+    elif s.direction == -1:
+        dir_icon, dir_lbl = "🔴", "SELL"
+    else:
+        dir_icon, dir_lbl = "•", "WATCH"
+
+    lines = [f"{dir_icon} <b>{sym}</b>  |  <b>{dir_lbl}</b> · {action}"]
+
+    meta_parts: List[str] = []
+    if s.composite_grade:
+        grade_txt = html.escape(str(s.composite_grade))
+        score_txt = f" [{s.composite_score}]" if s.composite_score is not None else ""
+        meta_parts.append(f"<i>Grade:</i> <code>{grade_txt}{score_txt}</code>")
+    if s.risk_pct is not None:
+        meta_parts.append(f"<i>Risk:</i> <code>{s.risk_pct:.2f}%</code>")
+    if meta_parts:
+        lines.append("  ·  ".join(meta_parts))
+
+    entry_line = f"<b>ENTRY:</b> <code>{_fmt_money(s.entry, curr_sym)}</code>"
+    if s.current_price is not None:
+        entry_line += f"  ·  <i>Current:</i> <code>{_fmt_money(s.current_price, curr_sym)}</code>"
+    lines.append(entry_line)
+
+    is_be = (
+        s.stop is not None
+        and s.entry is not None
+        and ((s.direction == 1 and s.stop >= s.entry) or (s.direction == -1 and s.stop <= s.entry))
+    )
+    if is_be:
+        lines.append(f"<b>STOP LOSS:</b> <code>{_fmt_money(s.stop, curr_sym)}</code> <i>[🔒 BE · Protected]</i>")
+    else:
+        lines.append(f"<b>STOP LOSS:</b> <code>{_fmt_money(s.stop, curr_sym)}</code>")
+
+    target_parts: List[str] = []
+    if s.tp1 is not None:
+        target_parts.append(f"TP1 <code>{_fmt_money(s.tp1, curr_sym)}</code>")
+    if s.tp2 is not None:
+        target_parts.append(f"TP2 <code>{_fmt_money(s.tp2, curr_sym)}</code>")
+    tp3 = getattr(s, "tp3", None)
+    if tp3 is not None:
+        target_parts.append(f"TP3 <code>{_fmt_money(tp3, curr_sym)}</code>")
+    if target_parts:
+        lines.append("<b>TARGETS:</b> " + "  ·  ".join(target_parts))
+
+    ctx_parts: List[str] = []
+    if s.htf_confirmed and getattr(s, "htf_4h_confirmed", False):
+        ctx_parts.append("⭐⭐ Multi-TF (1D+4H)")
+    elif s.htf_confirmed:
+        ctx_parts.append("⭐ 1D")
+    elif getattr(s, "htf_4h_confirmed", False):
+        ctx_parts.append("⭐ 4H")
+    if getattr(s, "rvol", None) is not None:
+        ctx_parts.append(f"RVOL <code>{s.rvol:.1f}x</code>")
+    if getattr(s, "sector_name", None):
+        sec_str = html.escape(str(s.sector_name))
+        rs_bits = []
+        if getattr(s, "sector_rs_pct", None) is not None:
+            rs_bits.append(f"{s.sector_rs_pct:+.1f}%")
+        if getattr(s, "rs_trend", None):
+            rs_bits.append(html.escape(str(s.rs_trend)))
+        if rs_bits:
+            sec_str += f" ({' '.join(rs_bits)})"
+        ctx_parts.append(sec_str)
+    if ctx_parts:
+        lines.append("<i>Context:</i> " + " · ".join(ctx_parts))
+
+    if getattr(s, "earnings_unverified", False):
+        lines.append("⚠️ <i>EARNINGS UNVERIFIED — check broker calendar</i>")
+    if getattr(s, "provisional_data_incomplete", False):
+        lines.append("⚠️ <i>PROVISIONAL: DATA INCOMPLETE</i>")
+
+    if getattr(s, "is_next_session_candidate", False):
+        lines.append("<i>Status:</i> 🌅 NEXT-SESSION CANDIDATE (Market closed — manual review)")
+    else:
+        lines.append("<i>Status:</i> Breakout candidate (manual review)")
+
+    lines.append(_REPORT_DIVIDER)
+    return "\n".join(lines)
+
+
+def _render_active_trade_card(s: Setup, curr_sym: str, risk_blocked: bool = False) -> str:
+    """Render an indivisible mobile-first card for a Section 2B trade in progress."""
+    sym = html.escape(str(s.symbol))
+    action = "Retest" if s.retest_confirmed else "Breakout"
+    if s.direction == 1:
+        dir_lbl = "BUY"
+    elif s.direction == -1:
+        dir_lbl = "SELL"
+    else:
+        dir_lbl = "WATCH"
+
+    lines = [f"📌 <b>{sym}</b>  |  <b>{dir_lbl}</b> · {action}"]
+    lines.append(f"<b>Entry:</b> <code>{_fmt_money(s.entry, curr_sym)}</code>")
+
+    is_be = (
+        s.stop is not None
+        and s.entry is not None
+        and ((s.direction == 1 and s.stop >= s.entry) or (s.direction == -1 and s.stop <= s.entry))
+    )
+    if is_be:
+        lines.append(f"<b>Stop Loss:</b> <code>{_fmt_money(s.stop, curr_sym)}</code> <i>[🔒 BE · Protected]</i>")
+    else:
+        stop_line = f"<b>Stop Loss:</b> <code>{_fmt_money(s.stop, curr_sym)}</code>"
+        if s.risk_pct is not None:
+            stop_line += f"  ·  <i>Risk:</i> <code>{s.risk_pct:.2f}%</code>"
+        lines.append(stop_line)
+
+    if s.current_price is not None:
+        lines.append(f"<b>Current:</b> <code>{_fmt_money(s.current_price, curr_sym)}</code>")
+
+    target_parts: List[str] = []
+    if s.tp1 is not None:
+        target_parts.append(f"TP1 <code>{_fmt_money(s.tp1, curr_sym)}</code>")
+    if s.tp2 is not None:
+        target_parts.append(f"TP2 <code>{_fmt_money(s.tp2, curr_sym)}</code>")
+    if target_parts:
+        lines.append("<b>Targets:</b> " + "  ·  ".join(target_parts))
+
+    pnl_sign = "+" if (s.pnl_pct is not None and s.pnl_pct >= 0) else ""
+    pnl_val = f"{pnl_sign}{s.pnl_pct:.2f}%" if s.pnl_pct is not None else ""
+    if getattr(s, "requires_confirmation", False):
+        status_text = "⏳ Awaiting Confirmation"
+    elif risk_blocked:
+        status_text = "🛡️ Risk Disqualified — Do Not Enter"
+    elif s.is_tp1_reached:
+        curr = s.current_price if s.current_price is not None else s.entry
+        at_tp1 = False
+        if curr is not None and s.tp1 is not None:
+            at_tp1 = (curr >= s.tp1) if s.direction == 1 else (curr <= s.tp1)
+        if at_tp1:
+            status_text = f"TP1 Hit ({pnl_val}) — Do Not Enter" if pnl_val else "TP1 Hit — Do Not Enter"
+        else:
+            status_text = f"TP1 Reached (Current: {pnl_val}) — Do Not Enter" if pnl_val else "TP1 Reached — Do Not Enter"
+    else:
+        if s.pnl_pct is not None and s.pnl_pct < 0:
+            status_text = f"In Progress ({pnl_val}) — Do Not Chase"
+        else:
+            status_text = f"Extended ({pnl_val}) — Do Not Chase" if pnl_val else "Extended — Do Not Chase"
+
+    lines.append(f"<i>Status:</i> {html.escape(status_text)}")
+    lines.append(_REPORT_DIVIDER)
+    return "\n".join(lines)
+
+
+def _render_exit_event_card(ev: Any, curr_sym: str) -> str:
+    """Render an indivisible compact card for a Section 2C exit or management event."""
+    sym = html.escape(str(getattr(ev, "symbol", "")))
+    ev_type = str(getattr(ev, "event_type", "EXIT"))
+
+    event_meta = {
+        "TP1_SCALE": ("💰", "PARTIAL PROFIT"),
+        "TP2_EXIT": ("🏆", "FULL EXIT"),
+        "STOP_LOSS": ("🛑", "STOP LOSS"),
+        "BREAKEVEN_STOP": ("⚖️", "BREAKEVEN"),
+        "TIME_EXIT": ("⏱️", "TIME EXIT"),
+        "TIME_STOP_10D": ("⏱️", "TIME EXIT"),
+        "FAILED_BREAKOUT": ("⚠️", "FAILED BREAKOUT"),
+    }
+    icon, label = event_meta.get(ev_type, ("⚠️", html.escape(ev_type)))
+
+    entry_raw = getattr(ev, "entry_price", None)
+    exit_raw = getattr(ev, "exit_price", None)
+    pnl_pct = getattr(ev, "pnl_pct", None)
+    realized = getattr(ev, "realized_pnl", None)
+
+    lines = [f"{icon} <b>{sym}</b>  |  <b>{label}</b>"]
+
+    price_parts: List[str] = []
+    if entry_raw is not None:
+        price_parts.append(f"<b>Entry:</b> <code>{_fmt_money(entry_raw, curr_sym)}</code>")
+    if exit_raw is not None:
+        price_parts.append(f"<b>Exit:</b> <code>{_fmt_money(exit_raw, curr_sym)}</code>")
+    if price_parts:
+        lines.append("  ·  ".join(price_parts))
+
+    pnl_bits: List[str] = []
+    if pnl_pct is not None:
+        sign = "+" if pnl_pct >= 0 else ""
+        pnl_bits.append(f"{sign}{pnl_pct:.2f}%")
+    if realized is not None:
+        pnl_bits.append(f"({_fmt_signed_money(float(realized), curr_sym)})")
+    if pnl_bits:
+        lines.append(f"<b>P&amp;L:</b> <code>{' '.join(pnl_bits)}</code>")
+
+    lines.append(f"<i>Event:</i> <code>{html.escape(ev_type)}</code>")
+    lines.append(_REPORT_DIVIDER)
+    return "\n".join(lines)
+
+
+def _render_scan_report_footer(market_upper: Optional[str], time_display: str) -> str:
+    market_lbl = html.escape(market_upper) if market_upper else "ALL MARKETS"
+    return "\n".join([
+        "📊 <b>SCAN COMPLETED</b>",
+        f"<b>Market:</b> {market_lbl}  ·  <i>{html.escape(time_display)}</i>",
+    ])
+
+
+def split_scan_report_html(report_html: str, max_length: int = 4000) -> List[str]:
+    """
+    Split a long MARKET SCAN REPORT strictly on logical card/section boundaries ('\\n\\n')
+    so individual cards are never split across Telegram messages and order is preserved.
+    """
+    if not report_html:
+        return []
+    if len(report_html) <= max_length:
+        return [report_html]
+
+    blocks = report_html.split("\n\n")
+    chunks: List[str] = []
+    current: List[str] = []
+    curr_len = 0
+
+    for block in blocks:
+        added_len = len(block) if not current else (len(block) + 2)
+        if curr_len + added_len > max_length and current:
+            chunks.append("\n\n".join(current))
+            current = [block]
+            curr_len = len(block)
+        else:
+            current.append(block)
+            curr_len += added_len
+
+    if current:
+        chunks.append("\n\n".join(current))
+    return chunks
 
 
 def format_price(val: Optional[float]) -> str:
@@ -129,80 +455,41 @@ def format_scan_report_html(
     allow_shorts: bool = True,
 ) -> str:
     """
-    Full multi-symbol market scan report formatted for Telegram (paper / manual review).
-    Strictly includes only actionable candidates (Section 2A and Section 2B).
-    Section 2A ONLY admits setups that are risk-approved and confirmed (P0-1 & P0-2).
-    Section 2C reports explicit trade exits and management events (P1-3).
-    Excludes Section 1 (VCP Bases) to eliminate non-trade noise.
-    Enriched with timezone-aware scan timestamp (Market Local + IST/UTC).
+    Full multi-symbol MARKET SCAN REPORT formatted for mobile Telegram (HTML).
+    Preserves all existing filtering, sorting, grouping, and event semantics:
+    - Section 2A: Fresh actionable entries (risk-approved & confirmed)
+    - Section 2B: Trades in progress (persisted open positions / legacy fallback)
+    - Section 2C: Exits & management events
+    Each header, section heading, card, and footer is separated by '\\n\\n' so
+    Telegram chunking splits cleanly on card boundaries without breaking cards.
     """
     market_upper = market.upper() if market and market.upper() not in ("DEFAULT", "NONE") else None
-    title = (
-        f"📡 <b>{market_upper} BREAKOUT CANDIDATES (MANUAL REVIEW)</b>"
-        if market_upper
-        else "📡 <b>BREAKOUT CANDIDATES (MANUAL REVIEW)</b>"
-    )
+    curr_sym = "₹" if market_upper == "NSE" else "$"
 
     ts_utc = timestamp or datetime.now(timezone.utc)
-    if ts_utc.tzinfo is None:
-        ts_utc = ts_utc.replace(tzinfo=timezone.utc)
-
-    dt_ist = ts_utc.astimezone(ZoneInfo("Asia/Kolkata"))
-    dt_sgt = ts_utc.astimezone(ZoneInfo("Asia/Singapore"))
-    ist_str = dt_ist.strftime("%d/%m/%Y %I:%M %p IST")
-    sgt_str = dt_sgt.strftime("%I:%M %p SGT")
-
-    if market_upper == "US":
-        dt_mkt = ts_utc.astimezone(ZoneInfo("America/New_York"))
-        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
-        time_line = f"📅 <i>{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
-    elif market_upper == "NSE":
-        time_line = f"📅 <i>{ist_str} | {sgt_str} ({timeframe} Close)</i>"
-    elif market_upper == "CRYPTO":
-        utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
-        time_line = f"📅 <i>{utc_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
-    elif market_upper in ("TSE", "TOKYO"):
-        dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Tokyo"))
-        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
-        time_line = f"📅 <i>{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
-    elif market_upper in ("HKEX", "HK"):
-        dt_mkt = ts_utc.astimezone(ZoneInfo("Asia/Hong_Kong"))
-        mkt_str = dt_mkt.strftime("%d/%m/%Y %I:%M %p %Z")
-        time_line = f"📅 <i>{mkt_str} | {sgt_str} | {dt_ist.strftime('%I:%M %p IST')} ({timeframe} Close)</i>"
-    else:
-        utc_str = ts_utc.strftime("%d/%m/%Y %H:%M UTC")
-        time_line = f"📅 <i>{ist_str} | {sgt_str} | {utc_str} ({timeframe} Close)</i>"
+    time_display = _format_report_time(ts_utc, market_upper)
 
     incomplete_banner = None
+    scanned_count: Optional[int] = None
     if scan_stats:
         tot = scan_stats.get("total", 0)
         wd = scan_stats.get("with_data", 0)
+        if tot > 0:
+            scanned_count = int(tot)
         failed_list = scan_stats.get("failed_symbols", [])
         min_pct = scan_stats.get("min_scan_completeness_pct", 90.0)
         aborted = scan_stats.get("aborted", False)
         pct = (wd / tot * 100) if tot > 0 else 0.0
         if tot > 0 and (pct < min_pct or aborted):
-            failed_str = ", ".join(failed_list[:10]) + ("..." if len(failed_list) > 10 else "")
+            failed_str = html.escape(", ".join(failed_list[:10]) + ("..." if len(failed_list) > 10 else ""))
             incomplete_banner = (
                 f"⚠️ <b>SCAN INCOMPLETE:</b> {wd}/{tot} symbols had data (failed: {failed_str}). "
-                "Do NOT read 'no signals' as a quiet market.\n━━━━━━━━━━━━━━━━━━━━"
+                "Do NOT read 'no signals' as a quiet market."
             )
-
-    lines = []
-    if incomplete_banner:
-        lines.append(incomplete_banner)
-
-    lines.extend([
-        title,
-        time_line,
-        "<i>Paper / manual review only — no demonstrated statistical edge</i>",
-        "━━━━━━━━━━━━━━━━━━━━",
-    ])
+    if scanned_count is None and slate is not None and getattr(slate, "total_scanned", None):
+        scanned_count = int(slate.total_scanned)
 
     prov_count = sum(1 for s in setups if getattr(s, "provisional_data_incomplete", False))
-    if prov_count > 0:
-        lines.append(f"⚠️ <b>DATA DEGRADED:</b> {prov_count}/{len(setups)} symbol(s) evaluated on provisional technicals.")
-        lines.append("━━━━━━━━━━━━━━━━━━━━")
 
     if allow_shorts:
         active_setups = [s for s in setups if s.state in (State.BUY, State.SELL)]
@@ -244,9 +531,7 @@ def format_scan_report_html(
     fresh_syms = set()
 
     for s in active_setups:
-        # P0-1 Risk Filtering Gate:
-        # If slate is provided, setup must be in selected_trades (approved by rejection gate & portfolio guard)
-        # If slate not provided, evaluate basic rejection gate rules (legacy callers)
+        # P0-1 Risk Filtering Gate (preserved identically)
         if slate is not None:
             is_risk_approved = (s.symbol in approved_symbols)
         else:
@@ -277,9 +562,7 @@ def format_scan_report_html(
                     )
                     fresh_rejected_setups.append((s, rej_msg))
 
-    # Section 2B: TRADES IN PROGRESS (Holders Only — Do Not Chase)
-    # Reads the persisted paper positions store only.
-    # Rejected and suppressed setups NEVER appear in 2B as trades.
+    # Section 2B: TRADES IN PROGRESS (persisted positions store / legacy fallback — preserved identically)
     if effective_open_positions is not None:
         open_sym_map = {
             p.get("symbol"): p
@@ -295,9 +578,6 @@ def format_scan_report_html(
             if not allow_shorts and (pos_dir != 1 or pos_entry is None):
                 continue
             s_obj = setup_dict.get(pos_sym)
-            # Only use live setup object directly when it still carries valid active
-            # direction & entry matching the position; otherwise synthesize from the
-            # persisted position so an IDLE/CONTRACTION setup never renders "SELL, Entry N/A".
             if (
                 s_obj is not None
                 and s_obj.direction == pos_dir
@@ -323,7 +603,6 @@ def format_scan_report_html(
                 s_synth.bars_since_breakout = 5
                 progress_setups.append((s_synth, False))
     else:
-        # Legacy fallback when neither slate nor positions store is provided:
         for s in active_setups:
             if s.symbol in fresh_syms:
                 continue
@@ -338,8 +617,13 @@ def format_scan_report_html(
 
     def safe_sort_active(s: Setup):
         score = s.composite_score if (s.composite_score is not None and np.isfinite(s.composite_score)) else 0
-        if (s.entry is not None and s.current_price is not None and 
-            np.isfinite(s.entry) and np.isfinite(s.current_price) and s.entry > 0):
+        if (
+            s.entry is not None
+            and s.current_price is not None
+            and np.isfinite(s.entry)
+            and np.isfinite(s.current_price)
+            and s.entry > 0
+        ):
             prox = -abs(s.entry - s.current_price) / s.entry
             if not np.isfinite(prox):
                 prox = -999.0
@@ -350,73 +634,69 @@ def format_scan_report_html(
     fresh_setups.sort(key=safe_sort_active, reverse=True)
     progress_setups.sort(key=lambda item: safe_sort_active(item[0]), reverse=True)
 
-    # 1. SECTION 2A: FRESH ACTIONABLE ENTRIES
+    # Assemble report as '\n\n'-delimited logical blocks (header, sections, cards, footer)
+    blocks: List[str] = []
+
+    blocks.append(
+        _render_scan_report_header(
+            market_upper=market_upper,
+            timeframe=timeframe,
+            time_display=time_display,
+            scanned_count=scanned_count,
+            fresh_count=len(fresh_setups),
+            active_count=len(progress_setups),
+            exit_count=len(exit_events) if exit_events else 0,
+            incomplete_banner=incomplete_banner,
+            prov_count=prov_count,
+            total_setups=len(setups),
+        )
+    )
+
+    # 1. Section 2A — Fresh Actionable Entries
     is_next_session = any(getattr(s, "is_next_session_candidate", False) for s in fresh_setups)
     if is_next_session:
-        lines.append("🌅 <b>SECTION 2A: NEXT-SESSION CANDIDATES (Market Closed — Execute Next Open)</b>")
+        sec_2a_head = _render_section_heading(
+            "🌅 <b>FRESH ACTIONABLE ENTRIES — NEXT SESSION</b>",
+            subtitle="Market closed — review before next open",
+        )
     else:
-        lines.append("🟢 <b>SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")
-    lines.append("────────────────────")
+        sec_2a_head = _render_section_heading("🟢 <b>FRESH ACTIONABLE ENTRIES</b>")
+
     if not fresh_setups:
-        lines.append("<i>(None)</i>")
+        sec_2a_lines = [sec_2a_head, "<i>(None)</i>"]
         if fresh_rejected_setups:
-            lines.append("")
-            lines.append("⚠️ <b>Fresh but rejected:</b>")
+            sec_2a_lines.append("⚠️ <b>Fresh but rejected:</b>")
             for s, r_reason in fresh_rejected_setups:
-                lines.append(f"  • <b>{html.escape(s.symbol)}</b>: {html.escape(str(r_reason))}")
+                sec_2a_lines.append(f"• <b>{html.escape(str(s.symbol))}</b>: <i>{html.escape(str(r_reason))}</i>")
+        sec_2a_lines.append(_REPORT_DIVIDER)
+        blocks.append("\n".join(sec_2a_lines))
     else:
+        blocks.append(sec_2a_head)
         for s in fresh_setups:
-            lines.append(format_setup_telegram_line(s, is_fresh=True))
+            blocks.append(_render_fresh_entry_card(s, curr_sym))
 
-    lines.append("")
-
-    # 2. SECTION 2B: TRADES IN PROGRESS
-    lines.append("🔒 <b>SECTION 2B: TRADES IN PROGRESS (Holders Only — Do Not Chase)</b>")
-    lines.append("────────────────────")
+    # 2. Section 2B — Trades in Progress
+    sec_2b_head = _render_section_heading(
+        "📌 <b>TRADES IN PROGRESS</b>",
+        subtitle="Holders only — do not chase",
+    )
     if not progress_setups:
-        lines.append("<i>(None)</i>")
+        blocks.append("\n".join([sec_2b_head, "<i>(None)</i>", _REPORT_DIVIDER]))
     else:
+        blocks.append(sec_2b_head)
         for s, risk_blocked in progress_setups:
-            lines.append(format_setup_telegram_line(s, is_fresh=False, risk_blocked=risk_blocked))
+            blocks.append(_render_active_trade_card(s, curr_sym, risk_blocked=risk_blocked))
 
-    # 3. SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS (P1-3)
+    # 3. Section 2C — Exits & Management Events
     if exit_events:
-        lines.append("")
-        lines.append("🔔 <b>SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS</b>")
-        lines.append("────────────────────")
-        curr_sym = "₹" if market_upper == "NSE" else "$"
+        blocks.append(_render_section_heading("📤 <b>EXITS &amp; MANAGEMENT EVENTS</b>"))
         for ev in exit_events:
-            sym = html.escape(str(getattr(ev, "symbol", "")))
-            ev_type = str(getattr(ev, "event_type", "EXIT"))
-            exit_px = format_price(getattr(ev, "exit_price", 0.0))
-            entry_px = format_price(getattr(ev, "entry_price", 0.0))
-            pnl_pct = getattr(ev, "pnl_pct", 0.0)
-            realized = getattr(ev, "realized_pnl", 0.0)
-            sign = "+" if pnl_pct >= 0 else ""
-            dollar_sign = "+" if realized >= 0 else ""
+            blocks.append(_render_exit_event_card(ev, curr_sym))
 
-            if ev_type == "STOP_LOSS":
-                badge = "🔴 <b>[STOP LOSS HIT]</b>"
-            elif ev_type == "TP2_EXIT":
-                badge = "🎯 <b>[TP2 HIT — FULL EXIT]</b>"
-            elif ev_type == "TP1_SCALE":
-                badge = "🔄 <b>[TP1 HIT — SCALED 50% & TRAILED BE]</b>"
-            elif ev_type in ("TIME_EXIT", "TIME_STOP_10D"):
-                badge = "⏱️ <b>[TIME EXIT — MAX HOLD]</b>"
-            elif ev_type == "BREAKEVEN_STOP":
-                badge = "🛡️ <b>[BREAKEVEN STOP HIT]</b>"
-            elif ev_type == "FAILED_BREAKOUT":
-                badge = "⚠️ <b>[FAILED BREAKOUT EXIT]</b>"
-            else:
-                badge = f"⚠️ <b>[{ev_type}]</b>"
+    # Footer
+    blocks.append(_render_scan_report_footer(market_upper, time_display))
 
-            lines.append(
-                f"• <b>{sym}</b> | {badge} | Exit: <code>{exit_px}</code> | Entry: <code>{entry_px}</code> | "
-                f"P&L: <code>{sign}{pnl_pct:.2f}% ({dollar_sign}{curr_sym}{realized:,.2f})</code>"
-            )
-
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
-    return "\n".join(lines)
+    return "\n\n".join(blocks)
 
 
 

@@ -212,11 +212,13 @@ def test_p1_3_section_2c_telegram_rendering():
     ]
 
     report = format_scan_report_html([], market="US", exit_events=exit_events)
-    assert "SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS" in report
+    assert "EXITS &amp; MANAGEMENT EVENTS" in report
     assert "NVDA" in report
-    assert "TP2 HIT — FULL EXIT" in report
+    assert "FULL EXIT" in report
+    assert "TP2_EXIT" in report
     assert "AMD" in report
-    assert "STOP LOSS HIT" in report
+    assert "STOP LOSS" in report
+    assert "STOP_LOSS" in report
 
 
 # =====================================================================

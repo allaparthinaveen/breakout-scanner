@@ -217,16 +217,16 @@ def test_p0_1_notification_pipeline_risk_filtering():
     report_html = format_scan_report_html(setups, market="TEST")
 
     # Section 2A must ONLY contain PLAYABLE
-    sec_2a_part = report_html.split("SECTION 2A: FRESH ACTIONABLE ENTRIES")[1].split("SECTION 2B: TRADES IN PROGRESS")[0]
+    sec_2a_part = report_html.split("FRESH ACTIONABLE ENTRIES")[1].split("TRADES IN PROGRESS")[0]
     assert "PLAYABLE" in sec_2a_part
     assert "UNCONFIRMED" not in sec_2a_part
     assert "WIDERISK" not in sec_2a_part
 
     # Section 2B must contain UNCONFIRMED and WIDERISK
-    sec_2b_part = report_html.split("SECTION 2B: TRADES IN PROGRESS")[1]
+    sec_2b_part = report_html.split("TRADES IN PROGRESS")[1]
     assert "UNCONFIRMED" in sec_2b_part
     assert "WIDERISK" in sec_2b_part
-    assert "[⏳ AWAITING CONFIRMATION]" in sec_2b_part
+    assert "Awaiting Confirmation" in sec_2b_part
 
 
 # =====================================================================

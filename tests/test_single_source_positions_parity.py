@@ -360,9 +360,10 @@ def test_section_2b_never_lists_rejected_setups():
 
     report = format_scan_report_html([s_rejected], market="US", slate=slate)
 
-    assert "REJECTED_CO" not in report.split("SECTION 2B:")[1].split("━━━━━━━━━━━━━━━━━━━━")[0]
-    assert "SECTION 2B: TRADES IN PROGRESS" in report
-    assert "<i>(None)</i>" in report.split("SECTION 2B:")[1]
+    sec_2b = report.split("TRADES IN PROGRESS")[1].split("SCAN COMPLETED")[0]
+    assert "REJECTED_CO" not in sec_2b
+    assert "TRADES IN PROGRESS" in report
+    assert "<i>(None)</i>" in sec_2b
 
 
 def test_telegram_2c_uses_rupee_for_nse():
@@ -383,10 +384,10 @@ def test_telegram_2c_uses_rupee_for_nse():
     )
 
     report_nse = format_scan_report_html([], market="NSE", exit_events=[ev])
-    assert "SECTION 2C: TRADE EXITS & MANAGEMENT EVENTS" in report_nse
+    assert "EXITS &amp; MANAGEMENT EVENTS" in report_nse
     assert "₹" in report_nse
     assert "$" not in report_nse
-    assert "BREAKEVEN STOP HIT" in report_nse
+    assert "BREAKEVEN" in report_nse
 
     report_us = format_scan_report_html([], market="US", exit_events=[ev])
     assert "$" in report_us

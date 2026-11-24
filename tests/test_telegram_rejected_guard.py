@@ -52,9 +52,9 @@ def test_empty_slate_excludes_late_chase_from_section_2a():
     html_us = format_scan_report_html([s_pg], market="US", slate=slate)
     
     # 2A header must be followed by (None), and PG must NOT be in 2A
-    sec_2a = html_us.split("SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")[1].split("SECTION 2B:")[0]
+    sec_2a = html_us.split("FRESH ACTIONABLE ENTRIES</b>")[1].split("TRADES IN PROGRESS")[0]
     assert "<i>(None)</i>" in sec_2a
-    assert "• <b>PG</b>" not in sec_2a or "Fresh but rejected" in sec_2a
+    assert "🟢 <b>PG</b>" not in sec_2a
 
     # Must be in "Fresh but rejected" section
     assert "Fresh but rejected" in html_us
@@ -129,7 +129,7 @@ def test_slate_with_one_approved_includes_only_approved_in_2a():
     )
 
     html = format_scan_report_html([s_app, s_rej], market="US", slate=slate)
-    sec_2a = html.split("SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")[1].split("SECTION 2B:")[0]
+    sec_2a = html.split("FRESH ACTIONABLE ENTRIES</b>")[1].split("TRADES IN PROGRESS")[0]
     assert "AAPL" in sec_2a
     assert "MSFT" not in sec_2a
 
@@ -156,8 +156,8 @@ def test_legacy_fallback_when_slate_is_none():
 
     html = format_scan_report_html([s_fresh], market="US", slate=None)
     assert "TSLA" in html
-    assert "🟢 <b>SECTION 2A: FRESH ACTIONABLE ENTRIES" in html
-    sec_2a = html.split("SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")[1].split("SECTION 2B:")[0]
+    assert "🟢 <b>FRESH ACTIONABLE ENTRIES</b>" in html
+    sec_2a = html.split("FRESH ACTIONABLE ENTRIES</b>")[1].split("TRADES IN PROGRESS")[0]
     assert "TSLA" in sec_2a
 
 
@@ -201,7 +201,7 @@ def test_nse_and_us_formatter_same_behavior():
     )
 
     html_nse = format_scan_report_html([s_nse], market="NSE", slate=slate)
-    sec_2a = html_nse.split("SECTION 2A: FRESH ACTIONABLE ENTRIES (Playable Now)</b>")[1].split("SECTION 2B:")[0]
+    sec_2a = html_nse.split("FRESH ACTIONABLE ENTRIES</b>")[1].split("TRADES IN PROGRESS")[0]
     assert "<i>(None)</i>" in sec_2a
     assert "Fresh but rejected" in html_nse
     assert "RELIANCE.NS" in html_nse

@@ -39,9 +39,10 @@ def test_telegram_wording_manual_review_and_no_quality_or_edge_claims():
         rvol=2.1,
     )
     report = format_scan_report_html([s], market="US", allow_shorts=False)
-    assert "US BREAKOUT CANDIDATES (MANUAL REVIEW)" in report
+    assert "MARKET SCAN REPORT" in report
+    assert "Paper / manual review only" in report
     assert "MARKET SIGNALS" not in report
-    assert "BREAKOUT CANDIDATE — MANUAL REVIEW" in report
+    assert "Breakout candidate (manual review)" in report
     assert "ENTER NOW" not in report
     assert "🏆" not in report
 
@@ -81,9 +82,9 @@ def test_suppress_sell_entry_na_for_long_only_and_idle_open_position():
     ]
     html_2b = format_scan_report_html([s_idle], market="NSE", open_positions=open_positions, allow_shorts=False)
     assert "INFY.NS" in html_2b
-    assert "▲ BUY" in html_2b
-    assert "▼ SELL" not in html_2b
-    assert "Entry: N/A" not in html_2b
+    assert "<b>BUY</b>" in html_2b
+    assert "SELL" not in html_2b
+    assert "Entry:</b> <code>N/A" not in html_2b
 
     # 3. Neutral direction=0 line never formats as SELL
     line_neutral = format_setup_telegram_line(s_idle, is_fresh=False)
