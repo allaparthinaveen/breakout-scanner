@@ -264,3 +264,41 @@ def test_trade_slate_formatters():
     assert "ACTIONABLE TRADE SLATE" in html_text
     assert "NVDA" in html_text
     assert "AMD" in html_text
+
+
+def test_allocate_slate_requires_confirmation_uses_cfg_without_crash():
+    """
+    Regression for EC2 2026-11-23 crash loop:
+    DailyRiskBudgetEngine.allocate_slate referenced self.cfg when suppressing
+    requires_confirmation=True setups, crashing with AttributeError when self.cfg
+    was not stored in __init__.
+    """
+    cfg = {
+        "confirmation_policy": {"min_auto_entry_score": 72},
+        "portfolio_guard": {
+            "account_equity": 100000.0,
+            "risk_per_trade_pct": 1.0,
+            "max_daily_risk_pct": 2.0,
+            "max_active_trades": 4,
+        },
+    }
+    s_unconf = Setup(
+        symbol="TEST.NS",
+        state=State.BUY,
+        direction=1,
+        entry=100.0,
+        stop=97.0,
+        tp1=103.0,
+        tp2=106.0,
+        current_price=100.2,
+        risk_pct=3.0,
+        composite_score=65,
+        composite_grade="C",
+        requires_confirmation=True,
+    )
+    slate = generate_actionable_slate([s_unconf], config=cfg)
+    assert len(slate.actionable_trades) == 0
+    assert len(slate.suppressed_trades) == 1
+    assert slate.suppressed_trades[0].symbol == "TEST.NS"
+    assert "AWAITING_CONFIRMATION" in slate.suppressed_trades[0].reason
+    assert "< 72" in slate.suppressed_trades[0].reason

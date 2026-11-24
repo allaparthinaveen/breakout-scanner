@@ -224,6 +224,7 @@ class DailyRiskBudgetEngine:
     """
     def __init__(self, cfg: Optional[dict] = None):
         cfg = cfg or {}
+        self.cfg = cfg
         guard_cfg = cfg.get("portfolio_guard", {})
         risk_cfg = cfg.get("risk", {})
 
