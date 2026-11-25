@@ -100,18 +100,9 @@ def _render_scan_report_header(
     return "\n".join(lines)
 
 
-def _render_fresh_entry_card(s: Setup, curr_sym: str) -> str:
-    """Render an indivisible mobile-first card for a Section 2A fresh candidate."""
-    sym = html.escape(str(s.symbol))
-    action = "Retest" if s.retest_confirmed else "Breakout"
-    if s.direction == 1:
-        dir_icon, dir_lbl = "🟢", "BUY"
-    elif s.direction == -1:
-        dir_icon, dir_lbl = "🔴", "SELL"
-    else:
-        dir_icon, dir_lbl = "•", "WATCH"
-
-    lines = [f"{dir_icon} <b>{sym}</b>  |  <b>{dir_lbl}</b> · {action}"]
+def _render_setup_card_body_lines(s: Setup, curr_sym: str) -> List[str]:
+    """Render shared setup detail lines (grade, entry, stop, targets, context, warnings)."""
+    lines: List[str] = []
 
     meta_parts: List[str] = []
     if s.composite_grade:
@@ -176,10 +167,53 @@ def _render_fresh_entry_card(s: Setup, curr_sym: str) -> str:
     if getattr(s, "provisional_data_incomplete", False):
         lines.append("⚠️ <i>PROVISIONAL: DATA INCOMPLETE</i>")
 
+    return lines
+
+
+def _render_fresh_entry_card(s: Setup, curr_sym: str) -> str:
+    """Render an indivisible mobile-first card for a Section 2A fresh candidate."""
+    sym = html.escape(str(s.symbol))
+    action = "Retest" if s.retest_confirmed else "Breakout"
+    if s.direction == 1:
+        dir_icon, dir_lbl = "🟢", "BUY"
+    elif s.direction == -1:
+        dir_icon, dir_lbl = "🔴", "SELL"
+    else:
+        dir_icon, dir_lbl = "•", "WATCH"
+
+    lines = [f"{dir_icon} <b>{sym}</b>  |  <b>{dir_lbl}</b> · {action}"]
+    lines.extend(_render_setup_card_body_lines(s, curr_sym))
+
     if getattr(s, "is_next_session_candidate", False):
         lines.append("<i>Status:</i> 🌅 NEXT-SESSION CANDIDATE (Market closed — manual review)")
     else:
         lines.append("<i>Status:</i> Breakout candidate (manual review)")
+
+    lines.append(_REPORT_DIVIDER)
+    return "\n".join(lines)
+
+
+def _render_rejected_fresh_card(s: Setup, reason: str, curr_sym: str) -> str:
+    """Render an indivisible mobile-first card for a fresh but safeguard-rejected setup."""
+    sym = html.escape(str(s.symbol))
+    action = "Retest" if s.retest_confirmed else "Breakout"
+    if s.direction == 1:
+        dir_lbl = "BUY"
+    elif s.direction == -1:
+        dir_lbl = "SELL"
+    else:
+        dir_lbl = "WATCH"
+
+    lines = [
+        f"⚠️ <b>{sym}</b>  |  <b>{dir_lbl}</b> · {action} <i>(Rejected)</i>",
+        f"<i>Reason:</i> {html.escape(str(reason))}",
+    ]
+    lines.extend(_render_setup_card_body_lines(s, curr_sym))
+
+    if getattr(s, "is_next_session_candidate", False):
+        lines.append("<i>Status:</i> ⚠️ Rejected · Next-session candidate (manual review only — do not chase)")
+    else:
+        lines.append("<i>Status:</i> ⚠️ Rejected — manual review only (do not chase)")
 
     lines.append(_REPORT_DIVIDER)
     return "\n".join(lines)
@@ -663,13 +697,13 @@ def format_scan_report_html(
         sec_2a_head = _render_section_heading("🟢 <b>FRESH ACTIONABLE ENTRIES</b>")
 
     if not fresh_setups:
-        sec_2a_lines = [sec_2a_head, "<i>(None)</i>"]
         if fresh_rejected_setups:
-            sec_2a_lines.append("⚠️ <b>Fresh but rejected:</b>")
+            blocks.append("\n".join([sec_2a_head, "<i>(None)</i>"]))
+            blocks.append("⚠️ <b>Fresh but rejected:</b>")
             for s, r_reason in fresh_rejected_setups:
-                sec_2a_lines.append(f"• <b>{html.escape(str(s.symbol))}</b>: <i>{html.escape(str(r_reason))}</i>")
-        sec_2a_lines.append(_REPORT_DIVIDER)
-        blocks.append("\n".join(sec_2a_lines))
+                blocks.append(_render_rejected_fresh_card(s, r_reason, curr_sym))
+        else:
+            blocks.append("\n".join([sec_2a_head, "<i>(None)</i>", _REPORT_DIVIDER]))
     else:
         blocks.append(sec_2a_head)
         for s in fresh_setups:

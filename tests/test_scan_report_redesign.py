@@ -23,6 +23,7 @@ from html.parser import HTMLParser
 import pytest
 
 from breakout_scanner.models import Setup, State, TradeExitEvent
+from breakout_scanner.slate import ActionableSlate, RejectionRecord
 from breakout_scanner.telegram_formatter import (
     format_scan_report_html,
     split_scan_report_html,
@@ -280,3 +281,134 @@ def test_14_15_ordering_preservation_and_signature_compatibility():
     )
     _assert_valid_tg_html(html_full)
     assert html_full.index("FIRST_EV") < html_full.index("SECOND_EV")
+
+
+def test_16_fresh_rejected_renders_full_setup_card_details_and_escapes_html():
+    s_amgn = Setup(
+        symbol="AMGN",
+        state=State.BUY,
+        direction=1,
+        entry=142.50,
+        current_price=146.50,
+        stop=139.00,
+        tp1=146.00,
+        tp2=149.50,
+        risk_pct=2.46,
+        bars_since_breakout=0,
+        composite_grade="A+",
+        composite_score=91,
+        htf_confirmed=True,
+        htf_4h_confirmed=True,
+        rvol=2.1,
+        sector_name="Healthcare",
+        sector_rs_pct=3.4,
+        rs_trend="▲",
+    )
+    s_esc = Setup(
+        symbol="M&M<R>",
+        state=State.SELL,
+        direction=-1,
+        entry=50.0,
+        stop=52.0,
+        bars_since_breakout=0,
+    )
+
+    slate = ActionableSlate(
+        slate_id="slate_rej_cards",
+        timestamp="2026-11-24T21:00:00Z",
+        profile_name="us_production",
+        total_scanned=215,
+        portfolio_equity=100000.0,
+        max_daily_risk_pct=2.0,
+        max_daily_dollar_risk=2000.0,
+        selected_trades=[],
+        rejected_trades=[
+            RejectionRecord(
+                symbol="AMGN",
+                rejection_code="LATE_CHASE",
+                reason="LATE_CHASE: Price extension 2.81% exceeds tolerance 0.46%.",
+                setup=s_amgn,
+            ),
+            RejectionRecord(
+                symbol="M&M<R>",
+                rejection_code="LATE_CHASE",
+                reason="LATE_CHASE: ext <1.5%> & tol >0.4%",
+                setup=s_esc,
+            ),
+        ],
+    )
+
+    html = format_scan_report_html([s_amgn, s_esc], market="US", timestamp=TS, slate=slate)
+    _assert_valid_tg_html(html)
+
+    assert "<i>(None)</i>" in html.split("FRESH ACTIONABLE ENTRIES</b>")[1].split("TRADES IN PROGRESS")[0]
+    assert "⚠️ <b>Fresh but rejected:</b>" in html
+    assert "🟢 <b>AMGN</b>" not in html
+    assert "🔴 <b>M&amp;M&lt;R&gt;</b>" not in html
+
+    amgn_card = html.split("⚠️ <b>AMGN</b>")[1].split("━━━━━━━━━━━━━━━━━━")[0]
+    assert "<b>BUY</b> · Breakout <i>(Rejected)</i>" in amgn_card
+    assert "<i>Reason:</i> LATE_CHASE: Price extension 2.81% exceeds tolerance 0.46%." in amgn_card
+    assert "<i>Grade:</i> <code>A+ [91]</code>" in amgn_card
+    assert "<i>Risk:</i> <code>2.46%</code>" in amgn_card
+    assert "<b>ENTRY:</b> <code>$142.50</code>" in amgn_card
+    assert "<i>Current:</i> <code>$146.50</code>" in amgn_card
+    assert "<b>STOP LOSS:</b> <code>$139.00</code>" in amgn_card
+    assert "<b>TARGETS:</b> TP1 <code>$146.00</code>  ·  TP2 <code>$149.50</code>" in amgn_card
+    assert "<i>Context:</i> ⭐⭐ Multi-TF (1D+4H) · RVOL <code>2.1x</code> · Healthcare (+3.4% ▲)" in amgn_card
+    assert "<i>Status:</i> ⚠️ Rejected — manual review only (do not chase)" in amgn_card
+
+    esc_card = html.split("⚠️ <b>M&amp;M&lt;R&gt;</b>")[1].split("━━━━━━━━━━━━━━━━━━")[0]
+    assert "<b>SELL</b> · Breakout <i>(Rejected)</i>" in esc_card
+    assert "LATE_CHASE: ext &lt;1.5%&gt; &amp; tol &gt;0.4%" in esc_card
+    assert "Grade:" not in esc_card
+    assert "TARGETS:" not in esc_card
+    assert "Context:" not in esc_card
+    assert "Current:" not in esc_card
+
+
+def test_17_many_fresh_rejected_cards_split_atomically_preserving_order():
+    setups = [_fresh_setup(f"REJ{i:02d}", score=95 - i, entry=100.0 + i) for i in range(20)]
+    rej_records = [
+        RejectionRecord(
+            symbol=s.symbol,
+            rejection_code="LATE_CHASE",
+            reason=f"LATE_CHASE: Price extension {1.0 + i * 0.1:.2f}% exceeds tolerance 0.50%.",
+            setup=s,
+        )
+        for i, s in enumerate(setups)
+    ]
+    slate = ActionableSlate(
+        slate_id="slate_many_rej",
+        timestamp="2026-11-24T21:00:00Z",
+        profile_name="us_production",
+        total_scanned=215,
+        portfolio_equity=100000.0,
+        max_daily_risk_pct=2.0,
+        max_daily_dollar_risk=2000.0,
+        selected_trades=[],
+        rejected_trades=rej_records,
+    )
+
+    html = format_scan_report_html(setups, market="US", timestamp=TS, slate=slate)
+    assert len(html) > 4000
+
+    chunks = split_scan_report_html(html, max_length=4000)
+    assert len(chunks) >= 2
+    for ch in chunks:
+        assert len(ch) <= 4000
+        _assert_valid_tg_html(ch)
+
+    for i in range(20):
+        sym_tag = f"⚠️ <b>REJ{i:02d}</b>"
+        holding = [c for c in chunks if sym_tag in c]
+        assert len(holding) == 1
+        card_slice = holding[0].split(sym_tag)[1].split("━━━━━━━━━━━━━━━━━━")[0]
+        assert "<i>Reason:</i>" in card_slice
+        assert "<b>ENTRY:</b>" in card_slice
+        assert "<b>STOP LOSS:</b>" in card_slice
+        assert "<i>Status:</i>" in card_slice
+
+    rejoined = "\n\n".join(chunks)
+    positions = [rejoined.index(f"REJ{i:02d}") for i in range(20)]
+    assert positions == sorted(positions)
